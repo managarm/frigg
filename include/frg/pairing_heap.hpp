@@ -46,7 +46,7 @@ private:
 	// ------------------------------------------------------------------------
 
 	pairing_heap_hook<T> &h(T *p) {
-		return get<locate>(this)(p);
+		return get<locate>(this)(*p);
 	}
 
 	// Merges two heaps.
