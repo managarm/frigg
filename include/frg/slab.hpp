@@ -7,6 +7,11 @@
 
 namespace frg FRG_VISIBILITY {
 
+namespace {
+	// TODO: We need a frigg logging mechanism to enable this.
+	//constexpr bool logAllocations = true;
+}
+
 inline int nextPower(uint64_t n) {
 	uint64_t u = n;
 
@@ -113,16 +118,17 @@ void *slab_allocator<VirtualAlloc, Mutex>::allocate(size_t length) {
 		FreeChunk *chunk = _freeList[index];
 		assert(chunk != nullptr);
 		_freeList[index] = chunk->nextChunk;
-		//infoLogger() << "[slab] alloc " << chunk << frg::endLog;
+		//if(logAllocations)
+		//	std::cout << "frg/slab: Allocate small-object at " << chunk << std::endl;
 		return chunk;
 	}else{
 		size_t area_size = length;
 		if((area_size % kPageSize) != 0)
 			area_size += kPageSize - length % kPageSize;
 		VirtualArea *area = allocateNewArea(kTypeLarge, area_size);
-//		infoLogger() << "[" << (void *)area->baseAddress
-//				<< "] Large alloc varea " << area << endLog;
-		//infoLogger() << "[slab] alloc " << (void *)area->baseAddress << frg::endLog;
+		//if(logAllocations)
+		//	std::cout << "frg/slab: Allocate large-object at " <<
+		//			(void *)area->baseAddress << std::endl;
 		return (void *)area->baseAddress;
 	}
 }
@@ -188,7 +194,9 @@ void slab_allocator<VirtualAlloc, Mutex>::free(void *pointer) {
 	
 	if(!pointer)
 		return;
-	//infoLogger() << "[slab] free " << pointer << frg::endLog;
+	
+	//if(logAllocations)
+	//	std::cout << "frg/slab: Free " << pointer << std::endl;
 
 	uintptr_t address = (uintptr_t)pointer;
 
@@ -210,6 +218,8 @@ void slab_allocator<VirtualAlloc, Mutex>::free(void *pointer) {
 				_freeList[index] = chunk;
 				return;
 			}else{
+				//if(logAllocations)
+				//	std::cout << "    From area " << current << std::endl;
 				assert(current->type == kTypeLarge);
 				assert(address == current->baseAddress);
 //				infoLogger() << "[" << pointer
@@ -252,6 +262,9 @@ auto slab_allocator<VirtualAlloc, Mutex>::allocateNewArea(AreaType type, size_t 
 			address + kVirtualAreaPadding, area_size);
 	area->right = _root;
 	_root = area;
+	
+	//if(logAllocations)
+	//	std::cout << "frb/slab: New area at " << area << std::endl;
 
 	return area;
 }
