@@ -53,8 +53,11 @@ public:
 			return _current;
 		}
 
-		explicit operator bool() {
-			return static_cast<bool>(_current);
+		bool operator== (const iterator &other) {
+			return _current == other._current;
+		}
+		bool operator!= (const iterator &other) {
+			return !(*this == other);
 		}
 
 		iterator &operator++ () {
@@ -143,7 +146,10 @@ public:
 	}
 
 	iterator begin() {
-		return iterator(traits::decay(_front));
+		return iterator{traits::decay(_front)};
+	}
+	iterator end() {
+		return iterator{nullptr};
 	}
 
 private:
