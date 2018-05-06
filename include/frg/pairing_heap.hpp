@@ -191,6 +191,23 @@ public:
 		}
 	}
 
+	void remove(T *element) {
+		if(_root == element) {
+			pop();
+		}else{
+			auto predecessor = h(element).backlink;
+			FRG_ASSERT(predecessor);
+			
+			// TODO: One of the following cases must be true.
+			FRG_ASSERT(h(predecessor).child == element && "Implement this case");
+			FRG_ASSERT(h(predecessor).sibling == element && "Implement this case");
+
+			_root = _merge(_root, h(element).child);
+		}
+
+		// TODO: Clear the element's pointers.
+	}
+
 	T *top() {
 		return _root;
 	}
