@@ -169,6 +169,27 @@ public:
 		return erased;
 	}
 
+	void splice(iterator it, intrusive_list &other) {
+		FRG_ASSERT(!it._current);
+		
+		if(!other._front)
+			return;
+
+		borrow_pointer borrow = traits::decay(other._front);
+		FRG_ASSERT(h(borrow).in_list);
+		FRG_ASSERT(!h(borrow).previous);
+		if(!_back) {
+			_front = std::move(other._front);
+		}else{
+			h(borrow).previous = _back;
+			h(_back).next = std::move(other._front);
+		}
+		_back = other._back;
+
+		other._front = nullptr;
+		other._back = nullptr;
+	}
+
 	iterator begin() {
 		return iterator{traits::decay(_front)};
 	}
