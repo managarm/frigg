@@ -196,16 +196,30 @@ public:
 			pop();
 		}else{
 			auto predecessor = h(element).backlink;
+			auto sibling = h(element).sibling;
+			auto child = h(element).child;
 			FRG_ASSERT(predecessor);
 			
-			// TODO: One of the following cases must be true.
-			FRG_ASSERT(h(predecessor).child == element && "Implement this case");
-			FRG_ASSERT(h(predecessor).sibling == element && "Implement this case");
+			if(h(predecessor).child == element) {
+				h(predecessor).child = sibling;
+			}else{
+				FRG_ASSERT(h(predecessor).sibling == element);
+				h(predecessor).sibling = sibling;
+			}
 
-			_root = _merge(_root, h(element).child);
+			if(sibling)
+				h(sibling).backlink = predecessor;
+
+			if(child) {
+				FRG_ASSERT(h(child).backlink == element);
+				h(child).backlink = nullptr;
+				_root = _merge(_root, _collapse(child));
+			}
+
+			h(element).backlink = nullptr;
+			h(element).sibling = nullptr;
+			h(element).child = nullptr;
 		}
-
-		// TODO: Clear the element's pointers.
 	}
 
 	T *top() {
