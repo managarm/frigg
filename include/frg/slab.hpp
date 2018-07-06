@@ -2,8 +2,8 @@
 #define FRG_SLAB_HPP
 
 #include <string.h>
-#include <mutex>
 #include <frg/macros.hpp>
+#include <frg/mutex.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -96,10 +96,13 @@ slab_allocator<VirtualAlloc, Mutex>::slab_allocator(VirtualAlloc &virt_alloc)
 
 template<typename VirtualAlloc, typename Mutex>
 void *slab_allocator<VirtualAlloc, Mutex>::allocate(size_t length) {
-	std::lock_guard<Mutex> guard(_mutex);
+	unique_lock<Mutex> guard(_mutex);
 	
-	if(length == 0)
-		return nullptr;
+	// malloc() is allowed to either return null or a unique value.
+	// However, some programs always interpret null returns as failure,
+	// so we round up the length.
+	if(!length)
+		length = 1;
 
 	if(length <= (uintptr_t(1) << kMaxPower)) {
 		int power = nextPower(length);
@@ -142,7 +145,7 @@ void *slab_allocator<VirtualAlloc, Mutex>::realloc(void *pointer, size_t new_len
 		return nullptr;
 	}
 
-	std::lock_guard<Mutex> guard(_mutex);
+	unique_lock<Mutex> guard(_mutex);
 	uintptr_t address = (uintptr_t)pointer;
 
 	VirtualArea *current = _root;
@@ -190,7 +193,7 @@ void *slab_allocator<VirtualAlloc, Mutex>::realloc(void *pointer, size_t new_len
 
 template<typename VirtualAlloc, typename Mutex>
 void slab_allocator<VirtualAlloc, Mutex>::free(void *pointer) {
-	std::lock_guard<Mutex> guard(_mutex);
+	unique_lock<Mutex> guard(_mutex);
 	
 	if(!pointer)
 		return;
