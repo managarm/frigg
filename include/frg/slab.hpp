@@ -29,7 +29,7 @@ inline int nextPower(uint64_t n) {
 template<typename Policy, typename Mutex>
 class slab_allocator {
 public:
-	slab_allocator(Policy &virt_alloc);
+	slab_allocator(Policy &plcy);
 
 	void *allocate(size_t length);
 	void *realloc(void *pointer, size_t new_length);
@@ -47,6 +47,13 @@ private:
 		kMaxPower = 16,
 		kNumPowers = kMaxPower - kMinPower + 1
 	};
+
+	struct freelist {
+		freelist()
+		: link{nullptr} { }
+
+		freelist *link;
+	};
 	
 	enum frame_type {
 		null,
@@ -58,10 +65,10 @@ private:
 	// Frames are stored in a tree to allow fast lookup by in-frame addresses.
 	struct frame {
 		frame(frame_type type, uintptr_t address, size_t length)
-		: type{type}, baseAddress{address}, length{length}, power{0} { }
+		: type{type}, address{address}, length{length}, power{0} { }
 		
 		const frame_type type;
-		const uintptr_t baseAddress;
+		const uintptr_t address;
 		const size_t length;
 
 		int power;
@@ -72,7 +79,7 @@ private:
 
 	struct frame_less {
 		bool operator() (const frame &a, const frame &b) {
-			return a.baseAddress < b.baseAddress;
+			return a.address < b.address;
 		}
 	};
 	
@@ -82,25 +89,28 @@ private:
 		frame_less
 	>;
 
-	struct freelist {
-		freelist()
-		: link{nullptr} { }
+	struct bucket {
+		bucket()
+		: available{nullptr} { }
 
-		freelist *link;
+		Mutex slab_mutex;
+		freelist *available;
 	};
 
 private:
 	frame *_find_frame(uintptr_t address);
 
-	frame *allocateNewArea(frame_type type, size_t area_size);
-	void fillSlabArea(frame *area, int power);
+	frame *_construct_frame(frame_type type, size_t area_size);
+	void _fill_slab(frame *area, int power);
 
 private:
+	Policy &_plcy;
+
+	Mutex _tree_mutex;
+
 	frame_tree_type _frame_tree;
 
-	freelist *_freeList[kNumPowers];
-	Policy &_virtAllocator;
-	Mutex _mutex;
+	bucket _bkts[kNumPowers];
 
 	size_t _usedPages;
 };
@@ -110,15 +120,12 @@ private:
 // --------------------------------------------------------
 
 template<typename Policy, typename Mutex>
-slab_allocator<Policy, Mutex>::slab_allocator(Policy &virt_alloc)
-: _virtAllocator(virt_alloc), _usedPages(0) {
-	for(size_t i = 0; i < kNumPowers; i++)
-		_freeList[i] = nullptr;
-}
+slab_allocator<Policy, Mutex>::slab_allocator(Policy &plcy)
+: _plcy{plcy}, _usedPages{0} { }
 
 template<typename Policy, typename Mutex>
 void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
-	unique_lock<Mutex> guard(_mutex);
+	unique_lock<Mutex> guard(_tree_mutex);
 	
 	// malloc() is allowed to either return null or a unique value.
 	// However, some programs always interpret null returns as failure,
@@ -134,27 +141,31 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 			power = kMinPower;
 		
 		int index = power - kMinPower;
-		if(_freeList[index] == nullptr) {
+		auto bkt = &_bkts[index];
+
+		if(!bkt->available) {
 			size_t area_size = uintptr_t(1) << kMaxPower;
-			frame *area = allocateNewArea(frame_type::slab, area_size);
-			fillSlabArea(area, power);
+			auto frame = _construct_frame(frame_type::slab, area_size);
+			_fill_slab(frame, power);
 		}
 		
-		freelist *chunk = _freeList[index];
-		FRG_ASSERT(chunk != nullptr);
-		_freeList[index] = chunk->link;
+		auto object = bkt->available;
+		FRG_ASSERT(object);
+		bkt->available = object->link;
+
 		//if(logAllocations)
-		//	std::cout << "frg/slab: Allocate small-object at " << chunk << std::endl;
-		return chunk;
+		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
+		object->~freelist();
+		return object;
 	}else{
 		size_t area_size = length;
 		if((area_size % kPageSize) != 0)
 			area_size += kPageSize - length % kPageSize;
-		frame *area = allocateNewArea(frame_type::large, area_size);
+		auto frame = _construct_frame(frame_type::large, area_size);
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate large-object at " <<
-		//			(void *)area->baseAddress << std::endl;
-		return (void *)area->baseAddress;
+		//			(void *)frame->address << std::endl;
+		return (void *)frame->address;
 	}
 }
 
@@ -167,7 +178,7 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 		return nullptr;
 	}
 
-	unique_lock<Mutex> guard(_mutex);
+	unique_lock<Mutex> guard(_tree_mutex);
 
 	auto address = reinterpret_cast<uintptr_t>(pointer);
 	auto current = _find_frame(address);
@@ -190,7 +201,7 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 		return new_pointer;
 	}else{
 		FRG_ASSERT(current->type == frame_type::large);
-		FRG_ASSERT(address == current->baseAddress);
+		FRG_ASSERT(address == current->address);
 		
 		if(new_length < current->length)
 			return pointer;
@@ -211,7 +222,7 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 	if(!pointer)
 		return;
 
-	unique_lock<Mutex> guard(_mutex);
+	unique_lock<Mutex> guard(_tree_mutex);
 	
 	//if(logAllocations)
 	//	std::cout << "frg/slab: Free " << pointer << std::endl;
@@ -223,21 +234,22 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 
 	if(current->type == frame_type::slab) {
 		int index = current->power - kMinPower;
-		FRG_ASSERT(current->power <= kMaxPower);
+		auto bkt = &_bkts[index];
+
 		size_t item_size = size_t(1) << current->power;
-		FRG_ASSERT(((address - current->baseAddress) % item_size) == 0);
+		FRG_ASSERT(((address - current->address) % item_size) == 0);
 //				infoLogger() << "[" << pointer
 //						<< "] Small free from varea " << current << endLog;
 
-		auto chunk = new (pointer) freelist;
-		chunk->link = _freeList[index];
-		_freeList[index] = chunk;
+		auto object = new (pointer) freelist;
+		object->link = bkt->available;
+		bkt->available = object;
 		return;
 	}else{
 		//if(logAllocations)
 		//	std::cout << "    From area " << current << std::endl;
 		FRG_ASSERT(current->type == frame_type::large);
-		FRG_ASSERT(address == current->baseAddress);
+		FRG_ASSERT(address == current->address);
 //				infoLogger() << "[" << pointer
 //						<< "] Large free from varea " << current << endLog;
 		
@@ -246,7 +258,7 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		
 		// deallocate the memory used by the area
 		_usedPages -= (current->length + kVirtualAreaPadding) / kPageSize;
-		_virtAllocator.unmap((uintptr_t)current->baseAddress - kVirtualAreaPadding,
+		_plcy.unmap((uintptr_t)current->address - kVirtualAreaPadding,
 				current->length + kVirtualAreaPadding);
 		return;
 	}
@@ -257,13 +269,13 @@ auto slab_allocator<Policy, Mutex>::_find_frame(uintptr_t address)
 -> frame * {
 	auto current = _frame_tree.get_root();
 	while(current) {
-		if(address < current->baseAddress) {
+		if(address < current->address) {
 			current = frame_tree_type::get_left(current);
-		}else if(address >= current->baseAddress + current->length) {
+		}else if(address >= current->address + current->length) {
 			current = frame_tree_type::get_right(current);
 		}else{
-			FRG_ASSERT(address >= current->baseAddress
-					&& address < current->baseAddress + current->length);
+			FRG_ASSERT(address >= current->address
+					&& address < current->address + current->length);
 			return current;
 		}
 	}
@@ -273,13 +285,13 @@ auto slab_allocator<Policy, Mutex>::_find_frame(uintptr_t address)
 
 
 template<typename Policy, typename Mutex>
-auto slab_allocator<Policy, Mutex>::allocateNewArea(frame_type type, size_t area_size)
+auto slab_allocator<Policy, Mutex>::_construct_frame(frame_type type, size_t area_size)
 -> frame * {
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// allocate virtual memory for the chunk
 	FRG_ASSERT((area_size % kPageSize) == 0);
-	uintptr_t address = _virtAllocator.map(area_size + kVirtualAreaPadding);
+	uintptr_t address = _plcy.map(area_size + kVirtualAreaPadding);
 	_usedPages += (area_size + kVirtualAreaPadding) / kPageSize;
 	
 	// setup the virtual area descriptor
@@ -294,23 +306,30 @@ auto slab_allocator<Policy, Mutex>::allocateNewArea(frame_type type, size_t area
 }
 
 template<typename Policy, typename Mutex>
-void slab_allocator<Policy, Mutex>::fillSlabArea(frame *area, int power) {
+void slab_allocator<Policy, Mutex>::_fill_slab(frame *area, int power) {
 	FRG_ASSERT(area->type == frame_type::slab && area->power == 0);
 	area->power = power;
 
-	// setup the free chunks in the new area
 	size_t item_size = uintptr_t(1) << power;
 	size_t num_items = area->length / item_size;
 	FRG_ASSERT(num_items > 0);
 	FRG_ASSERT((area->length % item_size) == 0);
 
 	int index = power - kMinPower;
+	auto bkt = &_bkts[index];
+
+	freelist *first = nullptr;
 	for(size_t i = 0; i < num_items; i++) {
-		auto chunk = new ((void *)(area->baseAddress + i * item_size)) freelist;
-		chunk->link = _freeList[index];
-		_freeList[index] = chunk;
+		auto ptr = reinterpret_cast<char *>(area->address)
+				+ (num_items - i - 1) * item_size;
+		auto object = new (ptr) freelist;
+		object->link = first;
+		first = object;
 		//infoLogger() << "[slab] fill " << chunk << frg::endLog;
 	}
+
+	FRG_ASSERT(!bkt->available);
+	bkt->available = first;
 }
 
 } // namespace frg
