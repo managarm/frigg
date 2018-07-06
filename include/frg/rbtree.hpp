@@ -106,7 +106,8 @@ public:
 
 	T *first() {
 		T *current = get_root();
-		assert(current);
+		if(!current)
+			return nullptr;
 		while(get_left(current))
 			current = get_left(current);
 		return current;

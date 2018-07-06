@@ -65,15 +65,19 @@ private:
 	// Frames are stored in a tree to allow fast lookup by in-frame addresses.
 	struct frame {
 		frame(frame_type type, uintptr_t address, size_t length)
-		: type{type}, address{address}, length{length}, power{0} { }
+		: type{type}, address{address}, length{length}, power{0},
+				available{nullptr}, num_reserved{0} { }
 		
 		const frame_type type;
 		const uintptr_t address;
 		const size_t length;
 
 		int power;
+		freelist *available;
+		unsigned int num_reserved;
 
-		rbtree_hook tree_hook;
+		rbtree_hook frame_hook;
+		rbtree_hook partial_hook;
 	};
 	static_assert(sizeof(frame) <= kVirtualAreaPadding, "Padding too small");
 
@@ -85,23 +89,32 @@ private:
 	
 	using frame_tree_type = frg::rbtree<
 		frame,
-		&frame::tree_hook,
+		&frame::frame_hook,
 		frame_less
 	>;
 
+	using partial_tree_type = frg::rbtree<
+		frame,
+		&frame::partial_hook,
+		frame_less
+	>;
+
+	// Like in jemalloc, we always allocate a slab completely (the head_slb) before
+	// moving to the next slab. This reduces external fragmentation.
 	struct bucket {
 		bucket()
-		: available{nullptr} { }
+		: head_slb{nullptr} { }
 
 		Mutex slab_mutex;
-		freelist *available;
+		frame *head_slb;
+		partial_tree_type partial_tree;
 	};
 
 private:
 	frame *_find_frame(uintptr_t address);
 
 	frame *_construct_frame(frame_type type, size_t area_size);
-	void _fill_slab(frame *area, int power);
+	void _fill_slab(frame *frm, int power);
 
 private:
 	Policy &_plcy;
@@ -143,16 +156,34 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		int index = power - kMinPower;
 		auto bkt = &_bkts[index];
 
-		if(!bkt->available) {
-			size_t area_size = uintptr_t(1) << kMaxPower;
-			auto frame = _construct_frame(frame_type::slab, area_size);
-			_fill_slab(frame, power);
+		freelist *object;
+		if(bkt->head_slb) {
+			auto slb = bkt->head_slb;
+
+			object = slb->available;
+			FRG_ASSERT(object);
+			slb->available = object->link;
+			slb->num_reserved++;
+
+			if(!slb->available) {
+				bkt->partial_tree.remove(slb);
+				bkt->head_slb = bkt->partial_tree.first();
+			}
+		}else{
+			size_t area_size = uintptr_t(1) << (kMaxPower + 2);
+			auto slb = _construct_frame(frame_type::slab, area_size);
+			_fill_slab(slb, power);
+
+			object = slb->available;
+			FRG_ASSERT(object);
+			slb->available = object->link;
+			slb->num_reserved++;
+
+			FRG_ASSERT(slb->available);
+			bkt->partial_tree.insert(slb);
+			bkt->head_slb = slb;
 		}
 		
-		auto object = bkt->available;
-		FRG_ASSERT(object);
-		bkt->available = object->link;
-
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
 		object->~freelist();
@@ -161,11 +192,11 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		size_t area_size = length;
 		if((area_size % kPageSize) != 0)
 			area_size += kPageSize - length % kPageSize;
-		auto frame = _construct_frame(frame_type::large, area_size);
+		auto frm = _construct_frame(frame_type::large, area_size);
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate large-object at " <<
-		//			(void *)frame->address << std::endl;
-		return (void *)frame->address;
+		//			(void *)frm->address << std::endl;
+		return (void *)frm->address;
 	}
 }
 
@@ -233,18 +264,25 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		FRG_ASSERT(!"Pointer is not part of any virtual area");
 
 	if(current->type == frame_type::slab) {
-		int index = current->power - kMinPower;
-		auto bkt = &_bkts[index];
-
 		size_t item_size = size_t(1) << current->power;
 		FRG_ASSERT(((address - current->address) % item_size) == 0);
 //				infoLogger() << "[" << pointer
 //						<< "] Small free from varea " << current << endLog;
+		
+		int index = current->power - kMinPower;
+		auto bkt = &_bkts[index];
+
+		bool was_unavailable = !current->available;
+		FRG_ASSERT(current->num_reserved);
 
 		auto object = new (pointer) freelist;
-		object->link = bkt->available;
-		bkt->available = object;
-		return;
+		object->link = current->available;
+		current->available = object;
+
+		if(was_unavailable) {
+			bkt->partial_tree.insert(current);
+			bkt->head_slb = bkt->partial_tree.first();
+		}
 	}else{
 		//if(logAllocations)
 		//	std::cout << "    From area " << current << std::endl;
@@ -260,7 +298,6 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		_usedPages -= (current->length + kVirtualAreaPadding) / kPageSize;
 		_plcy.unmap((uintptr_t)current->address - kVirtualAreaPadding,
 				current->length + kVirtualAreaPadding);
-		return;
 	}
 }
 
@@ -298,7 +335,7 @@ auto slab_allocator<Policy, Mutex>::_construct_frame(frame_type type, size_t are
 	auto area = new ((void *)address) frame(type,
 			address + kVirtualAreaPadding, area_size);
 	_frame_tree.insert(area);
-	
+
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
 
@@ -306,21 +343,18 @@ auto slab_allocator<Policy, Mutex>::_construct_frame(frame_type type, size_t are
 }
 
 template<typename Policy, typename Mutex>
-void slab_allocator<Policy, Mutex>::_fill_slab(frame *area, int power) {
-	FRG_ASSERT(area->type == frame_type::slab && area->power == 0);
-	area->power = power;
+void slab_allocator<Policy, Mutex>::_fill_slab(frame *frm, int power) {
+	FRG_ASSERT(frm->type == frame_type::slab && frm->power == 0);
+	frm->power = power;
 
 	size_t item_size = uintptr_t(1) << power;
-	size_t num_items = area->length / item_size;
+	size_t num_items = frm->length / item_size;
 	FRG_ASSERT(num_items > 0);
-	FRG_ASSERT((area->length % item_size) == 0);
-
-	int index = power - kMinPower;
-	auto bkt = &_bkts[index];
+	FRG_ASSERT((frm->length % item_size) == 0);
 
 	freelist *first = nullptr;
 	for(size_t i = 0; i < num_items; i++) {
-		auto ptr = reinterpret_cast<char *>(area->address)
+		auto ptr = reinterpret_cast<char *>(frm->address)
 				+ (num_items - i - 1) * item_size;
 		auto object = new (ptr) freelist;
 		object->link = first;
@@ -328,8 +362,8 @@ void slab_allocator<Policy, Mutex>::_fill_slab(frame *area, int power) {
 		//infoLogger() << "[slab] fill " << chunk << frg::endLog;
 	}
 
-	FRG_ASSERT(!bkt->available);
-	bkt->available = first;
+	FRG_ASSERT(!frm->available);
+	frm->available = first;
 }
 
 } // namespace frg
