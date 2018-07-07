@@ -8,6 +8,10 @@ namespace frg FRG_VISIBILITY {
 
 namespace _redblack {
 
+namespace {
+	constexpr bool enable_checking = false;
+};
+
 enum class color_type {
 	null, red, black
 };
@@ -118,14 +122,16 @@ public:
 	// ------------------------------------------------------------------------
 public:
 	void insert(T *node) {
-		assert(check_invariant());
+		if(enable_checking)
+			assert(check_invariant());
 
 		if(!_root) {
 			_root = node;
 
 			aggregate_node(node);
 			fix_insert(node);
-			assert(check_invariant());
+			if(enable_checking)
+				assert(check_invariant());
 			return;
 		}
 
@@ -147,7 +153,8 @@ public:
 					aggregate_node(node);
 					aggregate_path(current);
 					fix_insert(node);
-					assert(check_invariant());
+					if(enable_checking)
+						assert(check_invariant());
 					return;
 				}else{
 					current = get_left(current);
@@ -168,7 +175,8 @@ public:
 					aggregate_node(node);
 					aggregate_path(current);
 					fix_insert(node);
-					assert(check_invariant());
+					if(enable_checking)
+						assert(check_invariant());
 					return;
 				}else{
 					current = get_right(current);
@@ -251,7 +259,8 @@ private:
 	// ------------------------------------------------------------------------
 public:
 	void remove(T *mapping) {
-		assert(check_invariant());
+		if(enable_checking)
+			assert(check_invariant());
 
 		T *left_ptr = get_left(mapping);
 		T *right_ptr = get_right(mapping);
@@ -267,7 +276,8 @@ public:
 			replace_node(mapping, pred);
 		}
 		
-		assert(check_invariant());
+		if(enable_checking)
+			assert(check_invariant());
 	}
 
 private:
