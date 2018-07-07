@@ -126,7 +126,7 @@ private:
 		bucket()
 		: head_slb{nullptr} { }
 
-		Mutex slab_mutex;
+		Mutex bucket_mutex;
 		slab_frame *head_slb;
 		partial_tree_type partial_tree;
 	};
@@ -140,12 +140,9 @@ private:
 	Policy &_plcy;
 
 	Mutex _tree_mutex;
-
 	frame_tree_type _frame_tree;
-
-	bucket _bkts[kNumPowers];
-
 	size_t _usedPages;
+	bucket _bkts[kNumPowers];
 };
 
 // --------------------------------------------------------
@@ -158,8 +155,6 @@ slab_allocator<Policy, Mutex>::slab_allocator(Policy &plcy)
 
 template<typename Policy, typename Mutex>
 void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
-	unique_lock<Mutex> guard(_tree_mutex);
-	
 	// malloc() is allowed to either return null or a unique value.
 	// However, some programs always interpret null returns as failure,
 	// so we round up the length.
@@ -175,6 +170,8 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		
 		int index = power - kMinPower;
 		auto bkt = &_bkts[index];
+
+		unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
 
 		freelist *object;
 		if(bkt->head_slb) {
@@ -193,6 +190,9 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 				bkt->head_slb = bkt->partial_tree.first();
 			}
 		}else{
+			// Call into the Policy without holding locks.
+			bucket_guard.unlock();
+
 			size_t area_size = uintptr_t(1) << (kMaxPower + 2);
 			auto slb = _construct_slab(power, area_size);
 
@@ -204,11 +204,22 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 			slb->available = object->link;
 			slb->num_reserved++;
 
+			unique_lock<Mutex> tree_guard(_tree_mutex);
+			_frame_tree.insert(slb);
+			_usedPages += (slb->length + kVirtualAreaPadding) / kPageSize;
+			tree_guard.unlock();
+
+			// Finally, re-lock the bucket to attach the new slab.
+			bucket_guard.lock();
+
 			FRG_ASSERT(slb->available);
 			bkt->partial_tree.insert(slb);
-			bkt->head_slb = slb;
+			if(!bkt->head_slb || slb->address < bkt->head_slb->address)
+				bkt->head_slb = slb;
 		}
-		
+	
+		bucket_guard.unlock();
+
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
 		object->~freelist();
@@ -218,6 +229,12 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		if((area_size % kPageSize) != 0)
 			area_size += kPageSize - length % kPageSize;
 		auto fra = _construct_large(area_size);
+		
+		unique_lock<Mutex> tree_guard(_tree_mutex);
+		_frame_tree.insert(fra);
+		_usedPages += (fra->length + kVirtualAreaPadding) / kPageSize;
+		tree_guard.unlock();
+
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate large-object at " <<
 		//			(void *)fra->address << std::endl;
@@ -233,11 +250,11 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 		free(pointer);
 		return nullptr;
 	}
-
-	unique_lock<Mutex> guard(_tree_mutex);
-
 	auto address = reinterpret_cast<uintptr_t>(pointer);
+
+	unique_lock<Mutex> tree_guard(_tree_mutex);
 	auto fra = _find_frame(address);
+	tree_guard.unlock();
 	if(!fra)
 		FRG_ASSERT(!"Pointer is not part of any virtual area");
 
@@ -248,7 +265,6 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 		if(new_length < item_size)
 			return pointer;
 
-		guard.unlock(); // TODO: this is inefficient
 		void *new_pointer = allocate(new_length);
 		if(!new_pointer)
 			return nullptr;
@@ -263,7 +279,6 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 		if(new_length < fra->length)
 			return pointer;
 		
-		guard.unlock(); // TODO: this is inefficient
 		void *new_pointer = allocate(new_length);
 		if(!new_pointer)
 			return nullptr;
@@ -278,55 +293,64 @@ template<typename Policy, typename Mutex>
 void slab_allocator<Policy, Mutex>::free(void *pointer) {	
 	if(!pointer)
 		return;
-
-	unique_lock<Mutex> guard(_tree_mutex);
 	
 	//if(logAllocations)
 	//	std::cout << "frg/slab: Free " << pointer << std::endl;
 
 	auto address = reinterpret_cast<uintptr_t>(pointer);
+
+	unique_lock<Mutex> tree_guard(_tree_mutex);
 	auto fra = _find_frame(address);
 	if(!fra)
 		FRG_ASSERT(!"Pointer is not part of any virtual area");
 
-	if(fra->type == frame_type::slab) {
-		auto slb = static_cast<slab_frame *>(fra);
-		int index = slb->power - kMinPower;
-		auto bkt = &_bkts[index];
-
-		size_t item_size = size_t(1) << slb->power;
-		FRG_ASSERT(((address - slb->address) % item_size) == 0);
-//				infoLogger() << "[" << pointer
-//						<< "] Small free from varea " << slb << endLog;
-
-		bool was_unavailable = !slb->available;
-		FRG_ASSERT(slb->num_reserved);
-
-		auto object = new (pointer) freelist;
-		FRG_ASSERT(!slb->available || slb->contains(slb->available));
-		object->link = slb->available;
-		slb->available = object;
-
-		if(was_unavailable) {
-			bkt->partial_tree.insert(slb);
-			if(bkt->head_slb && slb->address < bkt->head_slb->address)
-				bkt->head_slb = slb;
-		}
-	}else{
+	// First, we handle cases that need to operate with the _tree_mutex held.
+	if(fra->type == frame_type::large) {
 		//if(logAllocations)
 		//	std::cout << "    From area " << fra << std::endl;
-		FRG_ASSERT(fra->type == frame_type::large);
 		FRG_ASSERT(address == fra->address);
 //				infoLogger() << "[" << pointer
 //						<< "] Large free from varea " << fra << endLog;
 		
 		// Remove the virtual area from the area-list.
 		_frame_tree.remove(fra);
-		
-		// deallocate the memory used by the area
 		_usedPages -= (fra->length + kVirtualAreaPadding) / kPageSize;
+
+		// Call into the Policy without holding locks.
+		tree_guard.unlock();
+		
 		_plcy.unmap((uintptr_t)fra->address - kVirtualAreaPadding,
 				fra->length + kVirtualAreaPadding);
+		return;
+	}
+
+	// As we deallocate from a slab, we can drop the _tree_mutex now.
+	FRG_ASSERT(fra->type == frame_type::slab);
+	tree_guard.unlock();
+
+	auto slb = static_cast<slab_frame *>(fra);
+	int index = slb->power - kMinPower;
+	auto bkt = &_bkts[index];
+
+	size_t item_size = size_t(1) << slb->power;
+	FRG_ASSERT(((address - slb->address) % item_size) == 0);
+//				infoLogger() << "[" << pointer
+//						<< "] Small free from varea " << slb << endLog;
+
+	unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
+
+	bool was_unavailable = !slb->available;
+	FRG_ASSERT(slb->num_reserved);
+
+	auto object = new (pointer) freelist;
+	FRG_ASSERT(!slb->available || slb->contains(slb->available));
+	object->link = slb->available;
+	slb->available = object;
+
+	if(was_unavailable) {
+		bkt->partial_tree.insert(slb);
+		if(!bkt->head_slb || slb->address < bkt->head_slb->address)
+			bkt->head_slb = slb;
 	}
 }
 
@@ -357,10 +381,8 @@ auto slab_allocator<Policy, Mutex>::_construct_slab(int power, size_t area_size)
 	// Allocate virtual memory for the slab.
 	FRG_ASSERT((area_size % kPageSize) == 0);
 	uintptr_t address = _plcy.map(area_size + kVirtualAreaPadding);
-	_usedPages += (area_size + kVirtualAreaPadding) / kPageSize;
 	
 	auto slb = new ((void *)address) slab_frame(address + kVirtualAreaPadding, area_size, power);
-	_frame_tree.insert(slb);
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
@@ -393,11 +415,9 @@ auto slab_allocator<Policy, Mutex>::_construct_large(size_t area_size)
 	// Allocate virtual memory for the frame.
 	FRG_ASSERT((area_size % kPageSize) == 0);
 	uintptr_t address = _plcy.map(area_size + kVirtualAreaPadding);
-	_usedPages += (area_size + kVirtualAreaPadding) / kPageSize;
 	
 	auto fra = new ((void *)address) frame(frame_type::large,
 			address + kVirtualAreaPadding, area_size);
-	_frame_tree.insert(fra);
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
