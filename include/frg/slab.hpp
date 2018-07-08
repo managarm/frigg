@@ -11,6 +11,8 @@ namespace frg FRG_VISIBILITY {
 namespace {
 	// TODO: We need a frigg logging mechanism to enable this.
 	//constexpr bool logAllocations = true;
+
+	constexpr bool enable_checking = false;
 }
 
 template<typename T>
@@ -208,6 +210,9 @@ private:
 	slab_frame *_construct_slab(int index);
 	frame *_construct_large(size_t area_size);
 
+	void _verify_integrity();
+	void _verify_frame_integrity(frame *fra);
+
 private:
 	Policy &_plcy;
 
@@ -227,6 +232,9 @@ slab_allocator<Policy, Mutex>::slab_allocator(Policy &plcy)
 
 template<typename Policy, typename Mutex>
 void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
+	if(enable_checking)
+		_verify_integrity();
+
 	// malloc() is allowed to either return null or a unique value.
 	// However, some programs always interpret null returns as failure,
 	// so we round up the length.
@@ -289,6 +297,8 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
 		object->~freelist();
+		if(enable_checking)
+			_verify_integrity();
 		return object;
 	}else{
 		auto area_size = (length + page_size - 1) & ~(page_size - 1);
@@ -302,12 +312,17 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate large-object at " <<
 		//			(void *)fra->address << std::endl;
+		if(enable_checking)
+			_verify_integrity();
 		return reinterpret_cast<void *>(fra->address);
 	}
 }
 
 template<typename Policy, typename Mutex>
 void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
+	if(enable_checking)
+		_verify_integrity();
+
 	if(!pointer) {
 		return allocate(new_length);
 	}else if(!new_length) {
@@ -355,6 +370,9 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 
 template<typename Policy, typename Mutex>
 void slab_allocator<Policy, Mutex>::free(void *pointer) {	
+	if(enable_checking)
+		_verify_integrity();
+
 	if(!pointer)
 		return;
 	
@@ -384,6 +402,8 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		tree_guard.unlock();
 		
 		_plcy.unmap((uintptr_t)fra->address - huge_padding, fra->length + huge_padding);
+		if(enable_checking)
+			_verify_integrity();
 		return;
 	}
 
@@ -415,6 +435,11 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		if(!bkt->head_slb || slb->address < bkt->head_slb->address)
 			bkt->head_slb = slb;
 	}
+
+	bucket_guard.unlock();
+	
+	if(enable_checking)
+		_verify_integrity();
 }
 
 template<typename Policy, typename Mutex>
@@ -526,6 +551,33 @@ auto slab_allocator<Policy, Mutex>::_construct_large(size_t area_size)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
 
 	return fra;
+}
+
+template<typename Policy, typename Mutex>
+void slab_allocator<Policy, Mutex>::_verify_integrity() {
+	unique_lock<Mutex> tree_guard(_tree_mutex);
+	if(_frame_tree.get_root())
+		_verify_frame_integrity(_frame_tree.get_root());
+}
+
+template<typename Policy, typename Mutex>
+void slab_allocator<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
+	if(fra->type == frame_type::slab) {
+		auto slb = static_cast<slab_frame *>(fra);
+		auto bkt = &_bkts[slb->index];
+		unique_lock<Mutex> slab_guard(bkt->bucket_mutex);
+
+		auto object = slb->available;
+		while(object) {
+			FRG_ASSERT(slb->contains(object));
+			object = object->link;
+		}
+	}
+
+	if(_frame_tree.get_left(fra))
+		_verify_frame_integrity(frame_tree_type::get_left(fra));
+	if(_frame_tree.get_right(fra))
+		_verify_frame_integrity(frame_tree_type::get_right(fra));
 }
 
 } // namespace frg
