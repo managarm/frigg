@@ -13,17 +13,19 @@ namespace {
 	//constexpr bool logAllocations = true;
 }
 
-inline int nextPower(uint64_t n) {
-	uint64_t u = n;
+template<typename T>
+struct bitop_impl;
 
-	#define S(k) if (u >= (uint64_t(1) << k)) { p += k; u >>= k; }
-	int p = 0;
-	S(32); S(16); S(8); S(4); S(2); S(1);
-	#undef S
+template<>
+struct bitop_impl<unsigned long> {
+	static constexpr int clz(unsigned long x) {
+		return __builtin_clzl(x);
+	}
+};
 
-	if(n > (uint64_t(1) << p))
-		p++;
-	return p;
+template<typename T, size_t N>
+constexpr size_t array_size(const T (&)[N]) {
+	return N;
 }
 
 template<typename Policy, typename Mutex>
@@ -40,14 +42,83 @@ public:
 		return _usedPages;
 	}
 
-private:	
-	enum {
-		kPageSize = 0x1000,
-		kVirtualAreaPadding = kPageSize,
-		kMinPower = 5,
-		kMaxPower = 16,
-		kNumPowers = kMaxPower - kMinPower + 1
-	};
+private:
+	// The following variables configure the size of the buckets.
+	// Bucket size increases both with small_base_exp and small_step_exp. Furthermore,
+	// small_step_exp controls how many buckets are between any two power-of-2 buckets.
+	// The first bucket has a size of size_t(1) << (small_base_exp + small_step_exp).
+	// This approach is taken from jemalloc.
+	static constexpr size_t tiny_sizes[] = {8, 16, 32, 64};
+	static constexpr unsigned int small_base_exp = 6;
+	static constexpr unsigned int small_step_exp = 0;
+
+	static_assert(tiny_sizes[array_size(tiny_sizes) - 1]
+			== (static_cast<size_t>(1) << (small_base_exp + small_step_exp)),
+		"Last tiny bucket must match first small bucket");
+
+	// Computes the size of a given bucket.
+	static constexpr size_t bucket_to_size(unsigned int idx) {
+		// First, we handle the hard-coded tiny sizes.
+		auto tc = array_size(tiny_sizes);
+		if(idx < tc)
+			return tiny_sizes[idx];
+
+		// Next, we handle the small sizes.
+		auto s = 1 << small_step_exp;
+		auto ip = (idx - tc + 1) >> small_step_exp;
+		auto is = (idx - tc + 1) & (s - 1);
+		auto f = small_base_exp + ip;
+		return static_cast<size_t>(s + is) << f;
+	}
+
+	// The "inverse" of bucket_to_size().
+	static constexpr size_t size_to_bucket(size_t size) {
+		// First, we handle the hard-coded tiny sizes.
+		auto tc = array_size(tiny_sizes);
+		if(size <= bucket_to_size(tc - 1)) {
+			for(unsigned int i = 0; i < tc - 1; i++)
+				if(size <= bucket_to_size(i))
+					return i;
+			return tc - 1;
+		}
+		
+		// Next, we handle the small sizes. Variables correspond to those in bucket_to_size().
+		auto e = (sizeof(size_t) * 8 - 1) - bitop_impl<size_t>::clz(size);
+		auto f = e - small_step_exp;
+		auto ip = ((f - small_base_exp) << small_step_exp);
+		auto is = ((size - (static_cast<size_t>(1) << e)) + (static_cast<size_t>(1) << f) - 1) >> f;
+		return tc - 1 + ip + is;
+	}
+
+	// This variable controls the number of buckets that we actually use.
+	static constexpr int num_buckets = 13;
+
+	static constexpr size_t max_bucket_size = bucket_to_size(num_buckets - 1);
+
+	// Here, we perform some compile-time verification of the bucket size calculation.
+	static constexpr bool test_bucket_calculation(unsigned int n) {
+		for(unsigned int i = 0; i < n; i++) {
+			if(size_to_bucket(bucket_to_size(i)) != i)
+				return false;
+			if(size_to_bucket(bucket_to_size(i) + 1) != i + 1)
+				return false;
+		}
+		return true;
+	}
+
+	static_assert(test_bucket_calculation(num_buckets),
+		"The bucket size calculation seems to be broken");
+	
+	static constexpr size_t page_size = 0x1000;
+
+	// Size of the content of a slab.
+	static constexpr size_t slabsize = 1 << 18;
+	
+	static_assert(!(slabsize & (page_size - 1)),
+			"Slab content size must be a multiple of the page size");
+
+	// TODO: Refactor the huge frame padding.
+	static constexpr size_t huge_padding = page_size;
 
 	struct freelist {
 		freelist()
@@ -86,22 +157,22 @@ private:
 		const size_t length;
 		rbtree_hook frame_hook;
 	};
+	static_assert(sizeof(frame) <= huge_padding, "Padding too small");
 
 	struct slab_frame : frame {
-		slab_frame(uintptr_t address_, size_t length_, int power_)
+		slab_frame(uintptr_t address_, size_t length_, int index_)
 		: frame{frame_type::slab, address_, length_},
-				power{power_}, num_reserved{0}, available{nullptr} { }
+				index{index_}, num_reserved{0}, available{nullptr} { }
 
 		slab_frame(const slab_frame &) = delete;
 
 		slab_frame &operator= (const slab_frame &) = delete;
 
-		const int power;
+		const int index;
 		unsigned int num_reserved;
 		freelist *available;
 		rbtree_hook partial_hook;
 	};
-	static_assert(sizeof(slab_frame) <= kVirtualAreaPadding, "Padding too small");
 
 	struct frame_less {
 		bool operator() (const frame &a, const frame &b) {
@@ -134,7 +205,7 @@ private:
 
 private:
 	frame *_find_frame(uintptr_t address);
-	slab_frame *_construct_slab(int power, size_t area_size);
+	slab_frame *_construct_slab(int index);
 	frame *_construct_large(size_t area_size);
 
 private:
@@ -143,7 +214,7 @@ private:
 	Mutex _tree_mutex;
 	frame_tree_type _frame_tree;
 	size_t _usedPages;
-	bucket _bkts[kNumPowers];
+	bucket _bkts[num_buckets];
 };
 
 // --------------------------------------------------------
@@ -162,14 +233,9 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 	if(!length)
 		length = 1;
 
-	if(length <= (uintptr_t(1) << kMaxPower)) {
-		int power = nextPower(length);
-		FRG_ASSERT(length <= (uintptr_t(1) << power));
-		FRG_ASSERT(power <= kMaxPower);
-		if(power < kMinPower)
-			power = kMinPower;
-		
-		int index = power - kMinPower;
+	if(length <= max_bucket_size) {
+		int index = size_to_bucket(length);
+		FRG_ASSERT(index <= num_buckets);
 		auto bkt = &_bkts[index];
 
 		unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
@@ -194,8 +260,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 			// Call into the Policy without holding locks.
 			bucket_guard.unlock();
 
-			size_t area_size = uintptr_t(1) << (kMaxPower + 2);
-			auto slb = _construct_slab(power, area_size);
+			auto slb = _construct_slab(index);
 
 			object = slb->available;
 			FRG_ASSERT(object);
@@ -207,7 +272,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 
 			unique_lock<Mutex> tree_guard(_tree_mutex);
 			_frame_tree.insert(slb);
-			_usedPages += (slb->length + kVirtualAreaPadding) / kPageSize;
+			_usedPages += (slb->length + huge_padding) / page_size;
 			tree_guard.unlock();
 
 			// Finally, re-lock the bucket to attach the new slab.
@@ -226,14 +291,12 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 		object->~freelist();
 		return object;
 	}else{
-		size_t area_size = length;
-		if((area_size % kPageSize) != 0)
-			area_size += kPageSize - length % kPageSize;
+		auto area_size = (length + page_size - 1) & ~(page_size - 1);
 		auto fra = _construct_large(area_size);
 		
 		unique_lock<Mutex> tree_guard(_tree_mutex);
 		_frame_tree.insert(fra);
-		_usedPages += (fra->length + kVirtualAreaPadding) / kPageSize;
+		_usedPages += (fra->length + huge_padding) / page_size;
 		tree_guard.unlock();
 
 		//if(logAllocations)
@@ -261,9 +324,9 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 
 	if(fra->type == frame_type::slab) {
 		auto slb = static_cast<slab_frame *>(fra);
-		size_t item_size = size_t(1) << slb->power;
+		size_t item_size = bucket_to_size(slb->index);
 
-		if(new_length < item_size)
+		if(new_length <= item_size)
 			return pointer;
 
 		void *new_pointer = allocate(new_length);
@@ -315,13 +378,12 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		
 		// Remove the virtual area from the area-list.
 		_frame_tree.remove(fra);
-		_usedPages -= (fra->length + kVirtualAreaPadding) / kPageSize;
+		_usedPages -= (fra->length + huge_padding) / page_size;
 
 		// Call into the Policy without holding locks.
 		tree_guard.unlock();
 		
-		_plcy.unmap((uintptr_t)fra->address - kVirtualAreaPadding,
-				fra->length + kVirtualAreaPadding);
+		_plcy.unmap((uintptr_t)fra->address - huge_padding, fra->length + huge_padding);
 		return;
 	}
 
@@ -330,12 +392,10 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 	tree_guard.unlock();
 
 	auto slb = static_cast<slab_frame *>(fra);
-	FRG_ASSERT(reinterpret_cast<uintptr_t>(slb)
-			== (address & ~((size_t(1) << (kMaxPower + 2)) - 1)));
-	int index = slb->power - kMinPower;
-	auto bkt = &_bkts[index];
+	FRG_ASSERT(reinterpret_cast<uintptr_t>(slb) == (address & ~(slabsize - 1)));
+	auto bkt = &_bkts[slb->index];
 
-	size_t item_size = size_t(1) << slb->power;
+	size_t item_size = bucket_to_size(slb->index);
 	FRG_ASSERT(((address - slb->address) % item_size) == 0);
 //				infoLogger() << "[" << pointer
 //						<< "] Small free from varea " << slb << endLog;
@@ -365,20 +425,18 @@ void slab_allocator<Policy, Mutex>::deallocate(void *pointer, size_t size) {
 	//if(logAllocations)
 	//	std::cout << "frg/slab: Free " << pointer << std::endl;
 
-	if(size > (size_t(1) << kMaxPower)) {
+	if(size > max_bucket_size) {
 		this->free(pointer);
 		return;
 	}
 
 	auto address = reinterpret_cast<uintptr_t>(pointer);
 
-	auto slb = reinterpret_cast<slab_frame *>(address & ~((size_t(1) << (kMaxPower + 2)) - 1));
+	auto slb = reinterpret_cast<slab_frame *>(address & ~(slabsize - 1));
 	FRG_ASSERT(slb->contains(pointer));
+	auto bkt = &_bkts[slb->index];
 
-	int index = slb->power - kMinPower;
-	auto bkt = &_bkts[index];
-
-	size_t item_size = size_t(1) << slb->power;
+	size_t item_size = bucket_to_size(slb->index);
 	FRG_ASSERT(((address - slb->address) % item_size) == 0);
 //				infoLogger() << "[" << pointer
 //						<< "] Small free from varea " << slb << endLog;
@@ -421,35 +479,28 @@ auto slab_allocator<Policy, Mutex>::_find_frame(uintptr_t address)
 }
 
 template<typename Policy, typename Mutex>
-auto slab_allocator<Policy, Mutex>::_construct_slab(int power, size_t area_size)
+auto slab_allocator<Policy, Mutex>::_construct_slab(int index)
 -> slab_frame * {
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// Allocate virtual memory for the slab.
-	FRG_ASSERT((area_size % kPageSize) == 0);
-	uintptr_t address = _plcy.map(2 * area_size);
-	address = (address + area_size - 1) & ~(area_size - 1);
+	uintptr_t address = _plcy.map(2 * slabsize);
+	address = (address + slabsize - 1) & ~(slabsize - 1);
 	
-	auto item_size = size_t(1) << power;
-	auto overhead = (sizeof(slab_frame) + item_size - 1) & ~(item_size - 1);
-	FRG_ASSERT(overhead < area_size);
-	auto slb = new ((void *)address) slab_frame(address + overhead, area_size - overhead, power);
+	auto item_size = bucket_to_size(index);
+	size_t overhead = 0;
+	while(overhead < sizeof(slab_frame)) // FIXME.
+		overhead += item_size;
+	FRG_ASSERT(overhead < slabsize);
+	auto slb = new ((void *)address) slab_frame(address + overhead, slabsize - overhead, index);
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
 
 	// Partition the slab into individual objects.
-	size_t num_items = slb->length / item_size;
-	FRG_ASSERT(num_items > 0);
-	FRG_ASSERT((slb->length % item_size) == 0);
-
 	freelist *first = nullptr;
-	for(size_t i = 0; i < num_items; i++) {
-		if(i * item_size < overhead)
-			continue;
-		auto p = reinterpret_cast<char *>(slb->address) + i * item_size;
-		FRG_ASSERT(slb->contains(p));
-		auto object = new (p) freelist;
+	for(size_t off = 0; off < slb->length; off += item_size) {
+		auto object = new (reinterpret_cast<char *>(slb->address) + off) freelist;
 		object->link = first;
 		first = object;
 		//infoLogger() << "[slab] fill " << chunk << frg::endLog;
@@ -465,11 +516,11 @@ auto slab_allocator<Policy, Mutex>::_construct_large(size_t area_size)
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// Allocate virtual memory for the frame.
-	FRG_ASSERT((area_size % kPageSize) == 0);
-	uintptr_t address = _plcy.map(area_size + kVirtualAreaPadding);
+	FRG_ASSERT(!(area_size & (page_size - 1)));
+	uintptr_t address = _plcy.map(area_size + huge_padding);
 	
 	auto fra = new ((void *)address) frame(frame_type::large,
-			address + kVirtualAreaPadding, area_size);
+			address + huge_padding, area_size);
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
