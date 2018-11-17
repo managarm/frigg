@@ -123,7 +123,7 @@ public:
 public:
 	void insert(T *node) {
 		if(enable_checking)
-			assert(check_invariant());
+			FRG_ASSERT(check_invariant());
 
 		if(!_root) {
 			_root = node;
@@ -131,7 +131,7 @@ public:
 			aggregate_node(node);
 			fix_insert(node);
 			if(enable_checking)
-				assert(check_invariant());
+				FRG_ASSERT(check_invariant());
 			return;
 		}
 
@@ -154,7 +154,7 @@ public:
 					aggregate_path(current);
 					fix_insert(node);
 					if(enable_checking)
-						assert(check_invariant());
+						FRG_ASSERT(check_invariant());
 					return;
 				}else{
 					current = get_left(current);
@@ -176,7 +176,7 @@ public:
 					aggregate_path(current);
 					fix_insert(node);
 					if(enable_checking)
-						assert(check_invariant());
+						FRG_ASSERT(check_invariant());
 					return;
 				}else{
 					current = get_right(current);
@@ -210,7 +210,7 @@ private:
 		// the rb invariants guarantee that a grandparent exists
 		// (because parent is red and the root is black).
 		T *grand = get_parent(parent);
-		assert(grand && h(grand)->color == color_type::black);
+		FRG_ASSERT(grand && h(grand)->color == color_type::black);
 		
 		// if the node has a red uncle we can just color both the parent
 		// and the uncle black, the grandparent red and propagate upwards.
@@ -241,7 +241,7 @@ private:
 			}
 			h(grand)->color = color_type::red;
 		}else{
-			assert(parent == get_right(grand));
+			FRG_ASSERT(parent == get_right(grand));
 			if(n == get_left(parent)) {
 				rotateRight(n);
 				rotateLeft(n);
@@ -260,7 +260,7 @@ private:
 public:
 	void remove(T *mapping) {
 		if(enable_checking)
-			assert(check_invariant());
+			FRG_ASSERT(check_invariant());
 
 		T *left_ptr = get_left(mapping);
 		T *right_ptr = get_right(mapping);
@@ -277,7 +277,7 @@ public:
 		}
 		
 		if(enable_checking)
-			assert(check_invariant());
+			FRG_ASSERT(check_invariant());
 	}
 
 private:
@@ -292,7 +292,7 @@ private:
 		}else if(node == get_left(parent)) {
 			h(parent)->left = replacement;
 		}else{
-			assert(node == get_right(parent));
+			FRG_ASSERT(node == get_right(parent));
 			h(parent)->right = replacement;
 		}
 		h(replacement)->parent = parent;
@@ -343,7 +343,7 @@ private:
 			}
 		}
 		
-		assert((!get_left(mapping) && get_right(mapping) == child)
+		FRG_ASSERT((!get_left(mapping) && get_right(mapping) == child)
 				|| (get_left(mapping) == child && !get_right(mapping)));
 			
 		T *parent = get_parent(mapping);
@@ -352,7 +352,7 @@ private:
 		}else if(get_left(parent) == mapping) {
 			h(parent)->left = child;
 		}else{
-			assert(get_right(parent) == mapping);
+			FRG_ASSERT(get_right(parent) == mapping);
 			h(parent)->right = child;
 		}
 		if(child)
@@ -377,7 +377,7 @@ private:
 	//     than paths from (p) over (s) to a leaf
 	// Postcondition: The whole tree is a red-black tree
 	void fix_remove(T *n) {
-		assert(h(n)->color == color_type::black);
+		FRG_ASSERT(h(n)->color == color_type::black);
 		
 		T *parent = get_parent(n);
 		if(parent == nullptr)
@@ -386,11 +386,11 @@ private:
 		// rotate so that our node has a black sibling
 		T *s; // this will always be the sibling of our node
 		if(get_left(parent) == n) {
-			assert(get_right(parent));
+			FRG_ASSERT(get_right(parent));
 			if(h(get_right(parent))->color == color_type::red) {
 				T *x = get_right(parent);
 				rotateLeft(get_right(parent));
-				assert(n == get_left(parent));
+				FRG_ASSERT(n == get_left(parent));
 				
 				h(parent)->color = color_type::red;
 				h(x)->color = color_type::black;
@@ -398,12 +398,12 @@ private:
 			
 			s = get_right(parent);
 		}else{
-			assert(get_right(parent) == n);
-			assert(get_left(parent));
+			FRG_ASSERT(get_right(parent) == n);
+			FRG_ASSERT(get_left(parent));
 			if(h(get_left(parent))->color == color_type::red) {
 				T *x = get_left(parent);
 				rotateRight(x);
-				assert(n == get_right(parent));
+				FRG_ASSERT(n == get_right(parent));
 				
 				h(parent)->color = color_type::red;
 				h(x)->color = color_type::black;
@@ -437,14 +437,14 @@ private:
 
 				s = child;
 			}
-			assert(isRed(get_right(s)));
+			FRG_ASSERT(isRed(get_right(s)));
 
 			rotateLeft(s);
 			h(parent)->color = color_type::black;
 			h(s)->color = parent_color;
 			h(get_right(s))->color = color_type::black;
 		}else{
-			assert(get_right(parent) == n);
+			FRG_ASSERT(get_right(parent) == n);
 
 			// rotate so that get_left(s) is red
 			if(isRed(get_right(s)) && isBlack(get_left(s))) {
@@ -456,7 +456,7 @@ private:
 
 				s = child;
 			}
-			assert(isRed(get_left(s)));
+			FRG_ASSERT(isRed(get_left(s)));
 
 			rotateRight(s);
 			h(parent)->color = color_type::black;
@@ -480,7 +480,7 @@ private:
 	// Note that x and y are left unchanged.
 	void rotateLeft(T *n) {
 		T *u = get_parent(n);
-		assert(u != nullptr && get_right(u) == n);
+		FRG_ASSERT(u != nullptr && get_right(u) == n);
 		T *v = get_left(n);
 		T *w = get_parent(u);
 
@@ -496,7 +496,7 @@ private:
 		}else if(get_left(w) == u) {
 			h(w)->left = n;
 		}else{
-			assert(get_right(w) == u);
+			FRG_ASSERT(get_right(w) == u);
 			h(w)->right = n;
 		}
 
@@ -515,7 +515,7 @@ private:
 	// Note that x and y are left unchanged.
 	void rotateRight(T *n) {
 		T *u = get_parent(n);
-		assert(u != nullptr && get_left(u) == n);
+		FRG_ASSERT(u != nullptr && get_left(u) == n);
 		T *v = get_right(n);
 		T *w = get_parent(u);
 		
@@ -531,7 +531,7 @@ private:
 		}else if(get_left(w) == u) {
 			h(w)->left = n;
 		}else{
-			assert(get_right(w) == u);
+			FRG_ASSERT(get_right(w) == u);
 			h(w)->right = n;
 		}
 

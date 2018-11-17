@@ -48,13 +48,13 @@ public:
 	}
 
 	void lock() {
-		assert(!_is_locked);
+		FRG_ASSERT(!_is_locked);
 		_mutex->lock();
 		_is_locked = true;
 	}
 
 	void unlock() {
-		assert(_is_locked);
+		FRG_ASSERT(_is_locked);
 		_mutex->unlock();
 		_is_locked = false;
 	}
