@@ -18,7 +18,7 @@ private:
 	static constexpr uint32_t lsbs = 0x7fffffff;
 
 public:
-	mt_engine() {
+	mt19937() {
 		seed(5489);
 	}
 
