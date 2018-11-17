@@ -3,15 +3,10 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <frg/allocation.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
-
-template<typename T, typename Allocator>
-T *construct(Allocator *allocator) {
-	auto p = allocator->allocate(sizeof(T));
-	return new (p) T;
-}
 
 template<typename T, typename Allocator>
 struct rcu_radixtree {
@@ -74,7 +69,7 @@ public:
 			// First case: We insert a last-level node into an inner node.
 			if(!s) {
 //				std::cout << "Case 1" << std::endl;
-				auto n = construct<entry_node>(_allocator);
+				auto n = construct<entry_node>(*_allocator);
 				n->prefix = pfx_of(k, ll);
 				n->depth = ll;
 				n->mask.store(uint16_t(1) << idx_of(k, ll), std::memory_order_relaxed);
@@ -94,7 +89,7 @@ public:
 			// s is the sibling of the new last-level node.
 			if(pfx_of(k, s->depth) != s->prefix) {
 //				std::cout << "Case 2" << std::endl;
-				auto n = construct<entry_node>(_allocator);
+				auto n = construct<entry_node>(*_allocator);
 				n->prefix = pfx_of(k, ll);
 				n->depth = ll;
 				n->mask.store(uint16_t(1) << idx_of(k, ll), std::memory_order_relaxed);
@@ -110,7 +105,7 @@ public:
 				FRG_ASSERT(idx_of(k, d) != idx_of(s->prefix, d));
 //				std::cout << "d = " << d << std::endl;
 
-				auto r = construct<link_node>(_allocator);
+				auto r = construct<link_node>(*_allocator);
 				
 				r->prefix = pfx_of(k, d);
 				r->depth = d;
