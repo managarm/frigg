@@ -1,6 +1,8 @@
 #ifndef FRG_SLAB_HPP
 #define FRG_SLAB_HPP
 
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <frg/macros.hpp>
 #include <frg/mutex.hpp>
