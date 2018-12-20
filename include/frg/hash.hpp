@@ -1,6 +1,7 @@
 #ifndef FRG_HASH_HPP
 #define FRG_HASH_HPP
 
+#include <stdint.h>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
