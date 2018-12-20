@@ -18,7 +18,11 @@ public:
 	: _pointer{nullptr}, _length{0} { }
 
 	basic_string_view(const Char *cs)
-	: _pointer{cs}, _length{strlen(cs)} { }
+	: _pointer{cs}, _length{0} {
+		// We cannot call strlen() as Char might not be the usual char.
+		while(cs[_length])
+			_length++;
+	}
 
 	basic_string_view(const Char *s, size_t length)
 	: _pointer{s}, _length{length} { }
