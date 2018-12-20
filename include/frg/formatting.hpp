@@ -126,16 +126,26 @@ void format_object(unsigned long object, format_options fo, F &formatter) {
 
 template<typename F>
 void format_object(int object, format_options fo, F &formatter) {
-	auto xn = ~static_cast<unsigned int>(object) + 1;
-	FRG_ASSERT(object >= 0);
-	format_object(xn, fo, formatter);
+	if(object >= 0) {
+		auto xn = static_cast<unsigned long>(object);
+		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
+	}else{
+		auto xn = ~static_cast<unsigned int>(object) + 1;
+		FRG_ASSERT(!"Implement printing of negative integers");
+		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
+	}
 }
 
 template<typename F>
 void format_object(long object, format_options fo, F &formatter) {
-	auto xn = ~static_cast<unsigned long>(object) + 1;
-	FRG_ASSERT(object >= 0);
-	format_object(xn, fo, formatter);
+	if(object >= 0) {
+		auto xn = static_cast<unsigned long>(object);
+		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
+	}else{
+		auto xn = ~static_cast<unsigned long>(object) + 1;
+		FRG_ASSERT(!"Implement printing of negative integers");
+		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
+	}
 }
 
 template<typename F>
@@ -291,26 +301,48 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 	case 's': {
 		FRG_ASSERT(!opts.fill_zeros);
 		FRG_ASSERT(!opts.alt_conversion);
-		FRG_ASSERT(szmod == printf_size_mod::default_size);
 
-		auto s = va_arg(vsp->args, const char *);
-		if(!s)
-			s = "(null)";
+		if(szmod == printf_size_mod::default_size) {
+			auto s = va_arg(vsp->args, const char *);
+			if(!s)
+				s = "(null)";
 
-		int length = string_view{s}.size();
-		if(opts.precision && *opts.precision < length)
-			length = *opts.precision;
+			int length = string_view{s}.size();
+			if(opts.precision && *opts.precision < length)
+				length = *opts.precision;
 
-		if(opts.left_justify) {
-			for(int i = 0; i < length && s[i]; i++)
-				formatter.append(s[i]);
-			for(int i = length; i < opts.minimum_width; i++)
-				formatter.append(' ');
+			if(opts.left_justify) {
+				for(int i = 0; i < length && s[i]; i++)
+					formatter.append(s[i]);
+				for(int i = length; i < opts.minimum_width; i++)
+					formatter.append(' ');
+			}else{
+				for(int i = length; i < opts.minimum_width; i++)
+					formatter.append(' ');
+				for(int i = 0; i < length && s[i]; i++)
+					formatter.append(s[i]);
+			}
 		}else{
-			for(int i = 0; i < length && s[i]; i++)
-				formatter.append(s[i]);
-			for(int i = length; i < opts.minimum_width; i++)
-				formatter.append(' ');
+			FRG_ASSERT(szmod == printf_size_mod::long_size);
+			auto s = va_arg(vsp->args, const wchar_t *);
+			if(!s)
+				s = L"(null)";
+
+			int length = basic_string_view<wchar_t>{s}.size();
+			if(opts.precision && *opts.precision < length)
+				length = *opts.precision;
+
+			if(opts.left_justify) {
+				for(int i = 0; i < length && s[i]; i++)
+					formatter.append(s[i]);
+				for(int i = length; i < opts.minimum_width; i++)
+					formatter.append(' ');
+			}else{
+				for(int i = length; i < opts.minimum_width; i++)
+					formatter.append(' ');
+				for(int i = 0; i < length && s[i]; i++)
+					formatter.append(s[i]);
+			}
 		}
 	} break;
 	default:
