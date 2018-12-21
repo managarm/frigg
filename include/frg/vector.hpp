@@ -30,8 +30,12 @@ public:
 	~vector();
 
 	T &push(const T &element);
-	
+
 	T &push(T &&element);
+
+	T &push_back(T &&element) {
+		return push(std::move(element));
+	}
 
 	T pop();
 
@@ -45,7 +49,7 @@ public:
 	size_t size() const {
 		return _size;
 	}
-	
+
 	bool empty() const {
 		return size() == 0;
 	}
@@ -137,12 +141,12 @@ template<typename T, typename Allocator>
 void vector<T, Allocator>::_ensure_capacity(size_t capacity) {
 	if(capacity <= _capacity)
 		return;
-	
-	size_t new_capacity = capacity * 2;	
+
+	size_t new_capacity = capacity * 2;
 	T *new_array = (T *)_allocator->allocate(sizeof(T) * new_capacity);
 	for(size_t i = 0; i < _capacity; i++)
 		new (&new_array[i]) T(std::move(_elements[i]));
-	
+
 	for(size_t i = 0; i < _size; i++)
 		_elements[i].~T();
 	_allocator->free(_elements);
