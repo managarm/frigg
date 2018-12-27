@@ -177,8 +177,11 @@ template<typename A>
 void printf_format(A agent, const char *s, va_struct *vsp) {
 	while(*s) {
 		if(*s != '%') {
-			agent(*s);
-			++s;
+			size_t n = 1;
+			while(s[n] && s[n] != '%')
+				n++;
+			agent(s, n);
+			s += n;
 			continue;
 		}
 
