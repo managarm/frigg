@@ -50,14 +50,14 @@ public:
 		iterator(borrow_pointer current)
 		: _current(current) { }
 
-		borrow_pointer operator* () {
+		borrow_pointer operator* () const {
 			return _current;
 		}
 
-		bool operator== (const iterator &other) {
+		bool operator== (const iterator &other) const {
 			return _current == other._current;
 		}
-		bool operator!= (const iterator &other) {
+		bool operator!= (const iterator &other) const {
 			return !(*this == other);
 		}
 
@@ -82,9 +82,8 @@ public:
 
 	intrusive_list()
 	: _front{nullptr}, _back{nullptr} { }
-	
 
-	void push_front(owner_pointer element) {
+	iterator push_front(owner_pointer element) {
 		FRG_ASSERT(element);
 		borrow_pointer borrow = traits::decay(element);
 		FRG_ASSERT(!h(borrow).in_list);
@@ -98,9 +97,10 @@ public:
 		}
 		_front = std::move(element);
 		h(borrow).in_list = true;
+		return iterator{borrow};
 	}
-	
-	void push_back(owner_pointer element) {
+
+	iterator push_back(owner_pointer element) {
 		FRG_ASSERT(element);
 		borrow_pointer borrow = traits::decay(element);
 		FRG_ASSERT(!h(borrow).in_list);
@@ -114,6 +114,30 @@ public:
 		}
 		_back = borrow;
 		h(borrow).in_list = true;
+		return iterator{borrow};
+	}
+
+	iterator insert(iterator before, owner_pointer element) {
+		if(!before._current) {
+			return push_back(element);
+		}else if(before._current == _front) {
+			return push_front(element);
+		}
+
+		FRG_ASSERT(element);
+		borrow_pointer borrow = traits::decay(element);
+		FRG_ASSERT(!h(borrow).in_list);
+		FRG_ASSERT(!h(borrow).next);
+		FRG_ASSERT(!h(borrow).previous);
+		borrow_pointer previous = h(before._current).previous;
+		owner_pointer next = std::move(h(previous).next);
+
+		h(previous).next = std::move(element);
+		h(traits::decay(next)).previous = borrow;
+		h(borrow).previous = previous;
+		h(borrow).next = std::move(next);
+		h(borrow).in_list = true;
+		return iterator{borrow};
 	}
 
 	bool empty() {
