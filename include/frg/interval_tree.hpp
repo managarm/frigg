@@ -11,6 +11,7 @@ struct interval_hook {
 	P subtree_max;
 };
 
+// Reference: Cormen et al., 'Introduction to Algorithms', 3rd edition.
 template<
 	typename T,
 	typename P,
@@ -101,6 +102,11 @@ struct interval_tree {
 		}
 
 		if(left && h(node)->subtree_max >= lb) {
+			// If the preceeding if guarantees the following property:
+			// If an overlapping interval exists, such an interval is in the left subtree
+			// (but not *all* overlapping intervals need to be in the left subtree).
+			// Thus, our strategy is to check the left subtree first and *only* if an interval
+			// exists in the left subtree, we *also* check the right subtree.
 			if(_for_overlaps_in_subtree(fn, lb, ub, left)) {
 				if(right)
 					_for_overlaps_in_subtree(fn, lb, ub, right);
