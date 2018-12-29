@@ -84,7 +84,12 @@ struct interval_tree {
 	}
 
 	template<typename F>
-	bool _for_overlaps_in_subtree(F &fn, int lb, int ub, T *node) {
+	void for_overlaps(F fn, P singleton) {
+		for_overlaps(std::forward<F>(fn), singleton, singleton);
+	}
+
+	template<typename F>
+	bool _for_overlaps_in_subtree(F &fn, P lb, P ub, T *node) {
 		FRG_ASSERT(node);
 
 		auto left = binary_tree::get_left(node);
