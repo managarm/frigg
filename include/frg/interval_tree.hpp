@@ -95,8 +95,8 @@ struct interval_tree {
 		auto left = binary_tree::get_left(node);
 		auto right = binary_tree::get_right(node);
 
-		if((lb >= lower(node) && lb <= upper(node))
-				|| (lower(node) >= lb && lower(node) <= ub)) {
+		if((lower(node) <= lb && lb <= upper(node))
+				|| (lb <= lower(node) && lower(node) <= ub)) {
 			fn(node);
 
 			if(left)
@@ -106,7 +106,7 @@ struct interval_tree {
 			return true;
 		}
 
-		if(left && h(node)->subtree_max >= lb) {
+		if(left && lb <= h(node)->subtree_max) {
 			// If the preceeding if guarantees the following property:
 			// If an overlapping interval exists, such an interval is in the left subtree
 			// (but not *all* overlapping intervals need to be in the left subtree).
