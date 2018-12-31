@@ -106,7 +106,7 @@ struct interval_tree {
 			return true;
 		}
 
-		if(left && lb <= h(node)->subtree_max) {
+		if(left && lb <= h(left)->subtree_max) {
 			// If the preceeding if guarantees the following property:
 			// If an overlapping interval exists, such an interval is in the left subtree
 			// (but not *all* overlapping intervals need to be in the left subtree).
