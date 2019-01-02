@@ -133,7 +133,7 @@ protected:
 
 	void insert_left(T *parent, T *node) {
 		FRG_ASSERT(parent);
-		FRG_ASSERT(get_left(parent) == nullptr);
+		FRG_ASSERT(!get_left(parent));
 
 		if(enable_checking)
 			FRG_ASSERT(check_invariant());
@@ -158,7 +158,7 @@ protected:
 
 	void insert_right(T *parent, T *node) {
 		FRG_ASSERT(parent);
-		FRG_ASSERT(get_right(parent) == nullptr);
+		FRG_ASSERT(!get_right(parent));
 
 		if(enable_checking)
 			FRG_ASSERT(check_invariant());
@@ -254,22 +254,22 @@ private:
 	// Removal functions.
 	// ------------------------------------------------------------------------
 public:
-	void remove(T *mapping) {
+	void remove(T *node) {
 		if(enable_checking)
 			FRG_ASSERT(check_invariant());
 
-		T *left_ptr = get_left(mapping);
-		T *right_ptr = get_right(mapping);
+		T *left_ptr = get_left(node);
+		T *right_ptr = get_right(node);
 
 		if(!left_ptr) {
-			remove_half_leaf(mapping, right_ptr);
+			remove_half_leaf(node, right_ptr);
 		}else if(!right_ptr) {
-			remove_half_leaf(mapping, left_ptr);
+			remove_half_leaf(node, left_ptr);
 		}else{
-			// replace the mapping by its predecessor
-			T *pred = predecessor(mapping);
+			// replace the node by its predecessor
+			T *pred = predecessor(node);
 			remove_half_leaf(pred, get_left(pred));
-			replace_node(mapping, pred);
+			replace_node(node, pred);
 		}
 
 		if(enable_checking)
@@ -277,6 +277,7 @@ public:
 	}
 
 private:
+	// Replace the node (with is in the tree) by a replacement (which is not in the tree).
 	void replace_node(T *node, T *replacement) {
 		T *parent = get_parent(node);
 		T *left = get_left(node);
@@ -320,45 +321,45 @@ private:
 		aggregate_path(parent);
 	}
 
-	void remove_half_leaf(T *mapping, T *child) {
-		T *pred = predecessor(mapping);
-		T *succ = successor(mapping);
+	void remove_half_leaf(T *node, T *child) {
+		T *pred = predecessor(node);
+		T *succ = successor(node);
 		if(pred)
 			h(pred)->successor = succ;
 		if(succ)
 			h(succ)->predecessor = pred;
 
-		if(h(mapping)->color == color_type::black) {
+		if(h(node)->color == color_type::black) {
 			if(isRed(child)) {
 				h(child)->color = color_type::black;
 			}else{
-				// decrement the number of black nodes all paths through "mapping"
+				// decrement the number of black nodes all paths through "node"
 				// before removing the child. this makes sure we're correct even when
 				// "child" is null
-				fix_remove(mapping);
+				fix_remove(node);
 			}
 		}
 
-		FRG_ASSERT((!get_left(mapping) && get_right(mapping) == child)
-				|| (get_left(mapping) == child && !get_right(mapping)));
+		FRG_ASSERT((!get_left(node) && get_right(node) == child)
+				|| (get_left(node) == child && !get_right(node)));
 
-		T *parent = get_parent(mapping);
+		T *parent = get_parent(node);
 		if(!parent) {
 			_root = child;
-		}else if(get_left(parent) == mapping) {
+		}else if(get_left(parent) == node) {
 			h(parent)->left = child;
 		}else{
-			FRG_ASSERT(get_right(parent) == mapping);
+			FRG_ASSERT(get_right(parent) == node);
 			h(parent)->right = child;
 		}
 		if(child)
 			h(child)->parent = parent;
 
-		h(mapping)->left = nullptr;
-		h(mapping)->right = nullptr;
-		h(mapping)->parent = nullptr;
-		h(mapping)->predecessor = nullptr;
-		h(mapping)->successor = nullptr;
+		h(node)->left = nullptr;
+		h(node)->right = nullptr;
+		h(node)->parent = nullptr;
+		h(node)->predecessor = nullptr;
+		h(node)->successor = nullptr;
 
 		if(parent)
 			aggregate_path(parent);
@@ -465,7 +466,7 @@ private:
 	// Rotation functions.
 	// ------------------------------------------------------------------------
 private:
-	// Left rotation (n denotes the given mapping):
+	// Left rotation (n denotes the given node):
 	//   w                 w        |
 	//   |                 |        |
 	//   u                 n        |
@@ -500,7 +501,7 @@ private:
 		aggregate_node(n);
 	}
 
-	// Right rotation (n denotes the given mapping):
+	// Right rotation (n denotes the given node):
 	//     w             w          |
 	//     |             |          |
 	//     u             n          |
@@ -692,6 +693,52 @@ private:
 	L _less;
 };
 
+// This RB tree variant does not have a comparator but stores the elements in
+// the same order in which they are inserted.
+template<typename T, hook_struct T:: *Member, typename A>
+struct tree_order_struct : tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A> {
+private:
+	using tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A>::insert_root;
+	using tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A>::insert_left;
+	using tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A>::insert_right;
+public:
+	using tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A>::get_left;
+	using tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A>::get_right;
+	using tree_crtp_struct<tree_order_struct<T, Member, A>, T, Member, A>::get_root;
+
+	// ------------------------------------------------------------------------
+	// Insertion functions.
+	// ------------------------------------------------------------------------
+public:
+	void insert(T *before, T *node) {
+		if(!before) {
+			// Insert as last element.
+			T *current = get_root();
+			if(!current) {
+				insert_root(node);
+				return;
+			}
+
+			while(get_right(current)) {
+				current = get_right(current);
+			}
+			insert_right(current, node);
+		}else {
+			// Insert before the given element.
+			T *current = get_left(before);
+			if(!current) {
+				insert_left(before, node);
+				return;
+			}
+
+			while(get_right(current)) {
+				current = get_right(current);
+			}
+			insert_right(current, node);
+		}
+	}
+};
+
 } // namespace _redblack
 
 using rbtree_hook = _redblack::hook_struct;
@@ -699,6 +746,9 @@ using null_aggregator = _redblack::null_aggregator;
 
 template<typename T, rbtree_hook T:: *Member, typename L, typename A = null_aggregator>
 using rbtree = _redblack::tree_struct<T, Member, L, A>;
+
+template<typename T, rbtree_hook T:: *Member, typename A = null_aggregator>
+using rbtree_order = _redblack::tree_order_struct<T, Member, A>;
 
 } // namespace frg
 
