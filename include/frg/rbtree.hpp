@@ -51,9 +51,7 @@ struct null_aggregator {
 
 template<typename D, typename T, hook_struct T:: *Member, typename A>
 struct tree_crtp_struct {
-	friend D;
-
-private:
+protected:
 	// Obtain a pointer to the hook from a pointer to a node.
 	static hook_struct *h(T *item) {
 		return &(item->*Member);
@@ -122,7 +120,66 @@ public:
 	// ------------------------------------------------------------------------
 	// Insertion functions.
 	// ------------------------------------------------------------------------
-public:
+protected:
+	void insert_root(T *node) {
+		FRG_ASSERT(!_root);
+		_root = node;
+
+		aggregate_node(node);
+		fix_insert(node);
+		if(enable_checking)
+			FRG_ASSERT(check_invariant());
+	}
+
+	void insert_left(T *parent, T *node) {
+		FRG_ASSERT(parent);
+		FRG_ASSERT(get_left(parent) == nullptr);
+
+		if(enable_checking)
+			FRG_ASSERT(check_invariant());
+
+		h(parent)->left = node;
+		h(node)->parent = parent;
+
+		// "parent" is the successor of "node"
+		T *pred = predecessor(parent);
+		if(pred)
+			h(pred)->successor = node;
+		h(node)->predecessor = pred;
+		h(node)->successor = parent;
+		h(parent)->predecessor = node;
+
+		aggregate_node(node);
+		aggregate_path(parent);
+		fix_insert(node);
+		if(enable_checking)
+			FRG_ASSERT(check_invariant());
+	}
+
+	void insert_right(T *parent, T *node) {
+		FRG_ASSERT(parent);
+		FRG_ASSERT(get_right(parent) == nullptr);
+
+		if(enable_checking)
+			FRG_ASSERT(check_invariant());
+
+		h(parent)->right = node;
+		h(node)->parent = parent;
+
+		// "parent" is the predecessor of "node"
+		T *succ = successor(parent);
+		h(parent)->successor = node;
+		h(node)->predecessor = parent;
+		h(node)->successor = succ;
+		if(succ)
+			h(succ)->predecessor = node;
+
+		aggregate_node(node);
+		aggregate_path(parent);
+		fix_insert(node);
+		if(enable_checking)
+			FRG_ASSERT(check_invariant());
+	}
 
 	// Situation:
 	// |     (p)     |
@@ -586,19 +643,13 @@ private:
 template<typename T, hook_struct T:: *Member, typename L, typename A>
 struct tree_struct : tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A> {
 private:
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::h;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::_root;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::fix_insert;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::aggregate_node;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::aggregate_path;
+	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::insert_root;
+	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::insert_left;
+	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::insert_right;
 public:
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::get_parent;
 	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::get_left;
 	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::get_right;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::predecessor;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::successor;
 	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::get_root;
-	using tree_crtp_struct<tree_struct<T, Member, L, A>, T, Member, A>::check_invariant;
 
 	// ------------------------------------------------------------------------
 	// Constructor, Destructor, operators.
@@ -612,16 +663,8 @@ public:
 	// ------------------------------------------------------------------------
 public:
 	void insert(T *node) {
-		if(enable_checking)
-			FRG_ASSERT(check_invariant());
-
-		if(!_root) {
-			_root = node;
-
-			aggregate_node(node);
-			fix_insert(node);
-			if(enable_checking)
-				FRG_ASSERT(check_invariant());
+		if(!get_root()) {
+			insert_root(node);
 			return;
 		}
 
@@ -629,44 +672,14 @@ public:
 		while(true) {
 			if(_less(*node, *current)) {
 				if(get_left(current) == nullptr) {
-					h(current)->left = node;
-					h(node)->parent = current;
-
-					// "current" is the successor of "node"
-					T *pred = predecessor(current);
-					if(pred)
-						h(pred)->successor = node;
-					h(node)->predecessor = pred;
-					h(node)->successor = current;
-					h(current)->predecessor = node;
-
-					aggregate_node(node);
-					aggregate_path(current);
-					fix_insert(node);
-					if(enable_checking)
-						FRG_ASSERT(check_invariant());
+					insert_left(current, node);
 					return;
 				}else{
 					current = get_left(current);
 				}
 			}else{
 				if(get_right(current) == nullptr) {
-					h(current)->right = node;
-					h(node)->parent = current;
-
-					// "current" is the predecessor of "node"
-					T *succ = successor(current);
-					h(current)->successor = node;
-					h(node)->predecessor = current;
-					h(node)->successor = succ;
-					if(succ)
-						h(succ)->predecessor = node;
-
-					aggregate_node(node);
-					aggregate_path(current);
-					fix_insert(node);
-					if(enable_checking)
-						FRG_ASSERT(check_invariant());
+					insert_right(current, node);
 					return;
 				}else{
 					current = get_right(current);
