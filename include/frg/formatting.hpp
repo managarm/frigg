@@ -75,8 +75,8 @@ namespace _fmt_basics {
 	// width: Minimum width of the output (padded with spaces by default).
 	// precision: Minimum number of digits in the ouput (always padded with zeros).
 	template<typename P, typename T>
-	void print_uint(P &formatter, T number, int radix, int width = 0,
-			int precision = 1, char padding = ' ') {
+	void print_digits(P &formatter, T number, bool negative, int radix,
+			int width, int precision, char padding) {
 		const char *digits = "0123456789abcdef";
 
 		// print the number in reverse order and determine #digits.
@@ -88,6 +88,11 @@ namespace _fmt_basics {
 			number /= radix;
 		} while(number);
 
+		if(negative) {
+			FRG_ASSERT(k < 32); // TODO: variable number of digits
+			buffer[k++] = '-';
+		}
+
 		if(max(k, precision) < width)
 			for(int i = 0; i < width - max(k, precision); i++)
 				formatter.append(padding);
@@ -98,54 +103,60 @@ namespace _fmt_basics {
 			formatter.append(buffer[i]);
 	}
 
+	template<typename T>
+	struct make_unsigned;
+
+	template<> struct make_unsigned<int> { using type = unsigned int; };
+	template<> struct make_unsigned<unsigned int> { using type = unsigned int; };
+	template<> struct make_unsigned<long> { using type = unsigned long; };
+	template<> struct make_unsigned<unsigned long> { using type = unsigned long; };
+	template<> struct make_unsigned<long long> { using type = unsigned long long; };
+	template<> struct make_unsigned<unsigned long long> { using type = unsigned long long; };
+
+	// Signed integer formatting. We cannot print -x as that might not fit into the signed type.
+	// Strategy: Cast to unsigned first (i.e. obtain 2s complement) and negate manually by
+	// computing (~x + 1).
+	template<typename P, typename T>
+	void print_int(P &formatter, T number, int radix, int width = 0,
+			int precision = 1, char padding = ' ') {
+		if(number < 0) {
+			auto absv = ~static_cast<typename make_unsigned<T>::type>(number) + 1;
+			print_digits(formatter, absv, true, radix, width, precision, padding);
+		}else{
+			print_digits(formatter, number, false, radix, width, precision, padding);
+		}
+	}
+
 	template<typename T, typename F>
-	void format_unsigned_integer(T object, format_options fo, F &formatter) {
+	void format_integer(T object, format_options fo, F &formatter) {
 		if(fo.conversion == format_conversion::hex) {
-			print_uint(formatter, object, 16);
+			print_int(formatter, object, 16);
 		}else{
 			FRG_ASSERT(fo.conversion == format_conversion::null
 					|| fo.conversion == format_conversion::decimal);
-			print_uint(formatter, object, 10);
+			print_int(formatter, object, 10);
 		}
 	}
 };
 
 template<typename F>
 void format_object(unsigned int object, format_options fo, F &formatter) {
-	_fmt_basics::format_unsigned_integer(object, fo, formatter);
+	_fmt_basics::format_integer(object, fo, formatter);
 }
 
 template<typename F>
 void format_object(unsigned long object, format_options fo, F &formatter) {
-	_fmt_basics::format_unsigned_integer(object, fo, formatter);
+	_fmt_basics::format_integer(object, fo, formatter);
 }
-
-// Signed integer formatting. We cannot print -x as that might not fit into the signed data type.
-// Strategy: Cast to unsigned first (i.e. obtain 2s complement) and negate manually by
-// computing (~x + 1).
 
 template<typename F>
 void format_object(int object, format_options fo, F &formatter) {
-	if(object >= 0) {
-		auto xn = static_cast<unsigned long>(object);
-		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
-	}else{
-		auto xn = ~static_cast<unsigned int>(object) + 1;
-		FRG_ASSERT(!"Implement printing of negative integers");
-		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
-	}
+	_fmt_basics::format_integer(object, fo, formatter);
 }
 
 template<typename F>
 void format_object(long object, format_options fo, F &formatter) {
-	if(object >= 0) {
-		auto xn = static_cast<unsigned long>(object);
-		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
-	}else{
-		auto xn = ~static_cast<unsigned long>(object) + 1;
-		FRG_ASSERT(!"Implement printing of negative integers");
-		_fmt_basics::format_unsigned_integer(xn, fo, formatter);
-	}
+	_fmt_basics::format_integer(object, fo, formatter);
 }
 
 template<typename F>
@@ -156,7 +167,7 @@ void format_object(const char *object, format_options fo, F &formatter) {
 template<typename F>
 void format_object(const void *object, format_options fo, F &formatter) {
 	formatter.append("0x");
-	_fmt_basics::format_unsigned_integer(reinterpret_cast<uintptr_t>(object),
+	_fmt_basics::format_integer(reinterpret_cast<uintptr_t>(object),
 			format_options{}.with_conversion(format_conversion::hex), formatter);
 }
 
@@ -290,7 +301,7 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(opts.minimum_width == 0);
 		formatter.append("0x");
-		_fmt_basics::print_uint(formatter, (uintptr_t)va_arg(vsp->args, void *), 16);
+		_fmt_basics::print_int(formatter, (uintptr_t)va_arg(vsp->args, void *), 16);
 		break;
 	case 'c':
 		FRG_ASSERT(!opts.fill_zeros);
@@ -374,13 +385,8 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		}
 		if(opts.precision && *opts.precision == 0 && !number) {
 			// print nothing in this case
-		}else if(number < 0) {
-			// FIXME: this is horribly broken!
-			formatter.append('-');
-			_fmt_basics::print_uint(formatter, -number, 10, opts.minimum_width,
-					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
 		}else{
-			_fmt_basics::print_uint(formatter, number, 10, opts.minimum_width,
+			_fmt_basics::print_int(formatter, number, 10, opts.minimum_width,
 					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
 		}
 	} break;
@@ -392,7 +398,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_uint(formatter, number, 8, opts.minimum_width,
+				_fmt_basics::print_int(formatter, number, 8, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
 			}
 		};
@@ -415,7 +421,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_uint(formatter, number, 16, opts.minimum_width,
+				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
 			}
 		};
@@ -433,7 +439,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_uint(formatter, number, 16, opts.minimum_width,
+				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
 			}
 		};
@@ -448,20 +454,20 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(!opts.precision);
 		if(szmod == printf_size_mod::longlong_size) {
-			_fmt_basics::print_uint(formatter, va_arg(vsp->args, unsigned long long),
+			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long long),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ');
 		}else if(szmod == printf_size_mod::long_size) {
-			_fmt_basics::print_uint(formatter, va_arg(vsp->args, unsigned long),
+			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ');
 		}else if(szmod == printf_size_mod::native_size) {
-			_fmt_basics::print_uint(formatter, va_arg(vsp->args, size_t),
+			_fmt_basics::print_int(formatter, va_arg(vsp->args, size_t),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ');
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
-			_fmt_basics::print_uint(formatter, va_arg(vsp->args, unsigned int),
+			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned int),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ');
 		}
