@@ -130,10 +130,14 @@ T &vector<T, Allocator>::push(T &&element) {
 template<typename T, typename Allocator>
 template<typename... Args>
 void vector<T, Allocator>::resize(size_t new_size, Args &&... args) {
-	FRG_ASSERT(_size < new_size);
 	_ensure_capacity(new_size);
-	for(size_t i = _size; i < new_size; i++)
-		new (&_elements[i]) T(std::forward<Args>(args)...);
+	if(new_size < _size) {
+		for(size_t i = new_size; i < _size; i++)
+			_elements[i].~T();
+	}else{
+		for(size_t i = _size; i < new_size; i++)
+			new (&_elements[i]) T(std::forward<Args>(args)...);
+	}
 	_size = new_size;
 }
 
