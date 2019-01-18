@@ -510,6 +510,46 @@ private:
 	const T *_xp;
 };
 
+struct escape_fmt {
+	template<typename F>
+	friend void format_object(escape_fmt self, format_options fo, F &formatter) {
+		auto p = reinterpret_cast<const unsigned char *>(self._buffer);
+		for(size_t i = 0; i < self._size; i++) {
+			auto c = p[i];
+			if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+				formatter.append(c);
+			}else if(c >= '0' && c <= '9') {
+				formatter.append(c);
+			}else if(c == ' ') {
+				formatter.append(' ');
+			}else if(strchr("!#$%&()*+,-./:;<=>?@[]^_`{|}~", c)) {
+				formatter.append(c);
+			}else if(c == '\\') {
+				formatter.append("\\\\");
+			}else if(c == '\"') {
+				formatter.append("\\\"");
+			}else if(c == '\'') {
+				formatter.append("\\\'");
+			}else if(c == '\n') {
+				formatter.append("\\n");
+			}else if(c == '\t') {
+				formatter.append("\\t");
+			}else{
+				formatter.append("\\x{");
+				format((unsigned int)c, fo.with_conversion(format_conversion::hex), formatter);
+				formatter.append('}');
+			}
+		}
+	}
+
+	escape_fmt(const void *buffer, size_t size)
+	: _buffer{buffer}, _size{size} { }
+
+private:
+	const void *_buffer;
+	size_t _size;
+};
+
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
