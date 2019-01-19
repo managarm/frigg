@@ -75,6 +75,10 @@ struct interval_tree {
 		_rbtree.insert(node);
 	}
 
+	void remove(T *node) {
+		_rbtree.remove(node);
+	}
+
 	template<typename F>
 	void for_overlaps(F fn, P lb, P ub) {
 		auto root = _rbtree.get_root();
