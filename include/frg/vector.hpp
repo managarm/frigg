@@ -42,6 +42,12 @@ public:
 	template<typename... Args>
 	void resize(size_t new_size, Args &&... args);
 
+	void clear() {
+		for(size_t i = 0; i < _size; i++)
+			_elements[i].~T();
+		_size = 0;
+	}
+
 	T *data() {
 		return _elements;
 	}
