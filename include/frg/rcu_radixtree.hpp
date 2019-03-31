@@ -21,9 +21,13 @@ private:
 		return (k >> (64 - (d + 1) * 4) & 0xF);
 	}
 
+	struct link_node;
+	struct entry_node;
+
 	struct node {
 		uint64_t prefix;
 		unsigned int depth;
+		link_node *parent;
 	};
 
 	struct link_node : node {
@@ -63,7 +67,7 @@ public:
 	template<typename X>
 	T *insert(uint64_t k, X &&initializer) {
 		// p will be the node that we insert into.
-		node *p = nullptr;
+		link_node *p = nullptr;
 		node *s = _root.load(std::memory_order_acquire);
 		while(true) {
 			// First case: We insert a last-level node into an inner node.
@@ -72,6 +76,7 @@ public:
 				auto n = construct<entry_node>(*_allocator);
 				n->prefix = pfx_of(k, ll);
 				n->depth = ll;
+				n->parent = p;
 				n->mask.store(uint16_t(1) << idx_of(k, ll), std::memory_order_relaxed);
 				for(int i = 0; i < 16; i++)
 					n->entries[i] = initializer;
@@ -90,12 +95,17 @@ public:
 			if(pfx_of(k, s->depth) != s->prefix) {
 //				std::cout << "Case 2" << std::endl;
 				auto n = construct<entry_node>(*_allocator);
+				auto r = construct<link_node>(*_allocator);
+
 				n->prefix = pfx_of(k, ll);
 				n->depth = ll;
+				n->parent = r;
 				n->mask.store(uint16_t(1) << idx_of(k, ll), std::memory_order_relaxed);
 				for(int i = 0; i < 16; i++)
 					n->entries[i] = initializer;
-		
+
+				s->parent = r;
+
 				// Determine the common prefix of k and s->prefix.
 				unsigned int d = 0;
 				while(pfx_of(k, d + 1) == pfx_of(s->prefix, d + 1))
@@ -105,10 +115,9 @@ public:
 				FRG_ASSERT(idx_of(k, d) != idx_of(s->prefix, d));
 //				std::cout << "d = " << d << std::endl;
 
-				auto r = construct<link_node>(*_allocator);
-				
 				r->prefix = pfx_of(k, d);
 				r->depth = d;
+				r->parent = p;
 				for(int i = 0; i < 16; ++i)
 					r->links[i].store(nullptr, std::memory_order_relaxed);
 				r->links[idx_of(k, d)].store(n, std::memory_order_relaxed);
@@ -135,7 +144,7 @@ public:
 				return &cs->entries[idx];
 			}else{
 				auto cs = static_cast<link_node *>(s);
-				p = s;
+				p = cs;
 				s = static_cast<node *>(cs->links[idx].load(std::memory_order_acquire));
 			}
 		}
@@ -159,6 +168,124 @@ public:
 				n = static_cast<node *>(cn->links[idx].load(std::memory_order_acquire));
 			}
 		}
+	}
+
+private:
+	// Helper function for iteration.
+	static entry_node *first_leaf(node *n) {
+		if(!n)
+			return nullptr;
+		while(true) {
+			if(n->depth == ll)
+				return static_cast<entry_node *>(n);
+
+			auto cn = static_cast<link_node *>(n);
+
+			node *m = nullptr;
+			for(unsigned int idx = 0; idx < 16; idx++) {
+				m = cn->links[idx].load(std::memory_order_relaxed);
+				if(m)
+					break;
+			}
+			FRG_ASSERT(m);
+			n = m;
+		}
+	}
+
+	// Helper function for iteration.
+	static entry_node *next_leaf(node *n) {
+		while(true) {
+			auto p = n->parent;
+			if(!p)
+				return nullptr;
+
+			// Find the index of n in its parent.
+			unsigned int pidx;
+			for(pidx = 0; pidx < 16; pidx++) {
+				if(n == p->links[pidx].load(std::memory_order_relaxed))
+					break;
+			}
+			FRG_ASSERT(pidx < 16);
+
+			// Check if there is a sibling.
+			for(unsigned int idx = pidx + 1; idx < 16; idx++) {
+				auto m = p->links[idx].load(std::memory_order_relaxed);
+				if(m)
+					return first_leaf(m);
+			}
+
+			n = p;
+		}
+	}
+
+public:
+	// Note: The iterator interface is *not* safe in the presence of concurrent modification.
+	//       Only use this interface while there are no concurrent writers.
+	struct iterator {
+		explicit iterator()
+		: _n{nullptr}, _idx{16} { }
+
+		explicit iterator(entry_node *n, unsigned int idx)
+		: _n{n}, _idx{idx} { }
+
+		void operator++ () {
+			FRG_ASSERT(_idx < 16);
+			_idx++;
+
+			while(true) {
+				// Try to find a present entry.
+				auto mask = _n->mask.load(std::memory_order_relaxed);
+				while(_idx < 16) {
+					if(mask & (1 << _idx))
+						return;
+					_idx++;
+				}
+
+				// Inspect the next leaf instead.
+				_n = next_leaf(_n);
+				if(!_n)
+					return;
+				_idx = 0;
+			}
+		}
+
+		T &operator* () {
+			return _n->entries[_idx];
+		}
+		T *operator-> () {
+			return &_n->entries[_idx];
+		}
+
+		bool operator== (const iterator &other) {
+			return _n == other._n && _idx == other._idx;
+		}
+		bool operator!= (const iterator &other) {
+			return !(*this == other);
+		}
+
+	private:
+		entry_node *_n;
+		unsigned int _idx;
+	};
+
+	iterator begin() {
+		auto n = first_leaf(_root.load(std::memory_order_relaxed));
+		while(true) {
+			if(!n)
+				return iterator{};
+
+			// Try to find a present entry.
+			for(unsigned int idx = 0; idx < 16; idx++) {
+				if(n->mask.load(std::memory_order_relaxed) & (1 << idx))
+					return iterator{n, idx};
+			}
+
+			n = next_leaf(n);
+		}
+	}
+
+	iterator end() {
+		return iterator{};
 	}
 
 private:
