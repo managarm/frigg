@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <atomic>
 #include <frg/allocation.hpp>
+#include <frg/eternal.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
@@ -36,7 +37,7 @@ private:
 
 	struct entry_node : node {
 		std::atomic<uint16_t> mask;
-		T entries[16];
+		aligned_storage<sizeof(T), alignof(T)> entries[16];
 	};
 
 public:
@@ -54,9 +55,9 @@ public:
 			auto idx = idx_of(k, n->depth);
 			if(n->depth == ll) {
 				auto cn = static_cast<entry_node *>(n);
-				if(!(cn->mask.load(std::memory_order_relaxed) & (uint16_t(1) << idx)))
+				if(!(cn->mask.load(std::memory_order_acquire) & (uint16_t(1) << idx)))
 					return nullptr;
-				return &cn->entries[idx];
+				return std::launder(reinterpret_cast<T *>(cn->entries[idx].buffer));
 			}else{
 				auto cn = static_cast<link_node *>(n); 
 				n = cn->links[idx].load(std::memory_order_acquire);
@@ -64,8 +65,8 @@ public:
 		}
 	}
 
-	template<typename X>
-	T *insert(uint64_t k, X &&initializer) {
+	template<typename... Args>
+	T *insert(uint64_t k, Args &&... args) {
 		// p will be the node that we insert into.
 		link_node *p = nullptr;
 		node *s = _root.load(std::memory_order_acquire);
@@ -78,8 +79,8 @@ public:
 				n->depth = ll;
 				n->parent = p;
 				n->mask.store(uint16_t(1) << idx_of(k, ll), std::memory_order_relaxed);
-				for(int i = 0; i < 16; i++)
-					n->entries[i] = initializer;
+
+				auto entry = new (n->entries[idx_of(k, ll)].buffer) T{std::forward<Args>(args)...};
 
 				if(p) {
 					auto cp = static_cast<link_node *>(p);
@@ -87,7 +88,7 @@ public:
 				}else{
 					_root.store(n, std::memory_order_release);
 				}
-				return &n->entries[idx_of(k, ll)];
+				return entry;
 			}
 
 			// Second case: We insert a new inner node and a last-level node.
@@ -101,8 +102,8 @@ public:
 				n->depth = ll;
 				n->parent = r;
 				n->mask.store(uint16_t(1) << idx_of(k, ll), std::memory_order_relaxed);
-				for(int i = 0; i < 16; i++)
-					n->entries[i] = initializer;
+
+				auto entry = new (n->entries[idx_of(k, ll)].buffer) T{std::forward<Args>(args)...};
 
 				s->parent = r;
 
@@ -130,7 +131,7 @@ public:
 				}else{
 					_root.store(r, std::memory_order_release);
 				}
-				return &n->entries[idx_of(k, ll)];
+				return entry;
 			}
 
 			// Third case: We directly insert into a last-level node.
@@ -138,10 +139,13 @@ public:
 			if(s->depth == ll) {
 //				std::cout << "Case 3" << std::endl;
 				auto cs = static_cast<entry_node *>(s);
-				auto mask = cs->mask.load(std::memory_order_relaxed);
+				auto mask = cs->mask.load(std::memory_order_acquire);
 				FRG_ASSERT(!(mask & (uint16_t(1) << idx)));
-				cs->mask.store(mask | (uint16_t(1) << idx), std::memory_order_relaxed);
-				return &cs->entries[idx];
+
+				auto entry = new (cs->entries[idx].buffer) T{std::forward<Args>(args)...};
+
+				cs->mask.store(mask | (uint16_t(1) << idx), std::memory_order_release);
+				return entry;
 			}else{
 				auto cs = static_cast<link_node *>(s);
 				p = cs;
@@ -159,9 +163,10 @@ public:
 			auto idx = idx_of(k, n->depth);
 			if(n->depth == ll) {
 				auto cn = static_cast<entry_node *>(n);
-				auto mask = cn->mask.load(std::memory_order_relaxed);
+				auto mask = cn->mask.load(std::memory_order_acquire);
 				FRG_ASSERT(mask & (uint16_t(1) << idx));
-				cn->mask.store(mask & ~(uint16_t(1) << idx), std::memory_order_relaxed);
+
+				cn->mask.store(mask & ~(uint16_t(1) << idx), std::memory_order_release);
 				return;
 			}else{
 				auto cn = static_cast<link_node *>(n);
@@ -250,10 +255,10 @@ public:
 		}
 
 		T &operator* () {
-			return _n->entries[_idx];
+			return *std::launder(reinterpret_cast<T *>(_n->entries[_idx].buffer));
 		}
 		T *operator-> () {
-			return &_n->entries[_idx];
+			return std::launder(reinterpret_cast<T *>(_n->entries[_idx].buffer));
 		}
 
 		bool operator== (const iterator &other) {
