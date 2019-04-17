@@ -63,7 +63,7 @@ class tuple {
 public:
 	tuple() = default;
 
-	explicit tuple(Types... args)
+	tuple(Types... args)
 	: _stor(std::move(args)...) { }
 
 	template<int n>

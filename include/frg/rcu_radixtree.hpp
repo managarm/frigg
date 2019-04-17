@@ -6,6 +6,7 @@
 #include <frg/allocation.hpp>
 #include <frg/eternal.hpp>
 #include <frg/macros.hpp>
+#include <frg/tuple.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -66,7 +67,7 @@ public:
 	}
 
 	template<typename... Args>
-	T *insert(uint64_t k, Args &&... args) {
+	tuple<T *, bool> find_or_insert(uint64_t k, Args &&... args) {
 		// p will be the node that we insert into.
 		link_node *p = nullptr;
 		node *s = _root.load(std::memory_order_acquire);
@@ -88,7 +89,7 @@ public:
 				}else{
 					_root.store(n, std::memory_order_release);
 				}
-				return entry;
+				return {entry, true};
 			}
 
 			// Second case: We insert a new inner node and a last-level node.
@@ -131,7 +132,7 @@ public:
 				}else{
 					_root.store(r, std::memory_order_release);
 				}
-				return entry;
+				return {entry, true};
 			}
 
 			// Third case: We directly insert into a last-level node.
@@ -145,7 +146,7 @@ public:
 				auto entry = new (cs->entries[idx].buffer) T{std::forward<Args>(args)...};
 
 				cs->mask.store(mask | (uint16_t(1) << idx), std::memory_order_release);
-				return entry;
+				return {entry, true};
 			}else{
 				auto cs = static_cast<link_node *>(s);
 				p = cs;
@@ -153,7 +154,14 @@ public:
 			}
 		}
 	}
-	
+
+	template<typename... Args>
+	T *insert(uint64_t k, Args &&... args) {
+		auto ins = find_or_insert(k, std::forward<Args>(args)...);
+		FRG_ASSERT(ins.template get<1>());
+		return ins.template get<0>();
+	}
+
 	void erase(uint64_t k) {
 		auto n = _root.load(std::memory_order_acquire);
 		while(true) {
