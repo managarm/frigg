@@ -52,7 +52,11 @@ private:
 	// small_step_exp controls how many buckets are between any two power-of-2 buckets.
 	// The first bucket has a size of size_t(1) << (small_base_exp + small_step_exp).
 	// This approach is taken from jemalloc.
+#ifdef __clang__
 	static constexpr size_t tiny_sizes[4] = {8, 16, 32, 64};
+#else
+	static constexpr size_t tiny_sizes[] = {8, 16, 32, 64};
+#endif
 	static constexpr unsigned int small_base_exp = 6;
 	static constexpr unsigned int small_step_exp = 0;
 
