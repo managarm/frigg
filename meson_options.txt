@@ -1,0 +1,1 @@
+option('frigg_no_install', type : 'boolean', value : false)
