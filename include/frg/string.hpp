@@ -63,7 +63,7 @@ public:
 		for(size_t i = _length; i > 0; i--)
 			if(_pointer[i - 1] == c)
 				return i - 1;
-		
+
 		return size_t(-1);
 	}
 
@@ -108,33 +108,48 @@ public:
 	basic_string(Allocator &allocator, const Char *c_string)
 	: _allocator{&allocator} {
 		_length = strlen(c_string);
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length);
+		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, c_string, sizeof(Char) * _length);
+		_buffer[_length] = 0;
 	}
 
 	basic_string(Allocator &allocator, const Char *buffer, size_t size)
 	: _allocator{&allocator}, _length{size} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length);
+		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, buffer, sizeof(Char) * _length);
+		_buffer[_length] = 0;
 	}
 
 	basic_string(Allocator &allocator, const basic_string_view<Char> &view)
 	: _allocator{&allocator}, _length{view.size()} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length);
-		memcpy(_buffer, view.data(), sizeof(Char) * _length);
+		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
+		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
+		_buffer[_length] = 0;
 	}
-	
+
 	basic_string(Allocator &allocator, size_t size, Char c = 0)
 	: _allocator{&allocator}, _length{size} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length);
+		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
 		for(size_t i = 0; i < size; i++)
 			_buffer[i] = c;
+		_buffer[_length] = 0;
 	}
 
 	basic_string(const basic_string &other)
 	: _allocator{other._allocator}, _length{other._length} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length);
+		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, other._buffer, sizeof(Char) * _length);
+		_buffer[_length] = 0;
+	}
+
+	~basic_string() {
+		if(_buffer)
+			_allocator->free(_buffer);
+	}
+
+	basic_string &operator= (basic_string other) {
+		swap(*this, other);
+		return *this;
 	}
 
 	void resize(size_t new_length) {
@@ -142,10 +157,11 @@ public:
 		if(copy_length > new_length)
 			copy_length = new_length;
 
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length);
+		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * copy_length);
-		
-		if(_buffer != nullptr)
+		new_buffer[new_length] = 0;
+
+		if(_buffer)
 			_allocator->free(_buffer);
 		_length = new_length;
 		_buffer = new_buffer;
@@ -155,10 +171,11 @@ public:
 	// TODO: Better: Return expression template?
 	basic_string operator+ (const basic_string_view<Char> &other) {
 		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length);
+		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
 		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
-		
+		new_buffer[new_length] = 0;
+
 		return basic_string(*_allocator, new_buffer, new_length);
 	}
 
@@ -166,20 +183,22 @@ public:
 	// TODO: Better: Return expression template?
 	basic_string operator+ (Char c) {
 		size_t new_length = _length + 1;
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length);
+		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
 		new_buffer[_length] = c;
-		
+		new_buffer[new_length] = 0;
+
 		return basic_string(*_allocator, new_buffer, new_length);
 	}
 
 	basic_string &operator+= (const basic_string_view<Char> &other) {
 		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length);
+		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
 		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
-		
-		if(_buffer != nullptr)
+		new_buffer[new_length] = 0;
+
+		if(_buffer)
 			_allocator->free(_buffer);
 		_length = new_length;
 		_buffer = new_buffer;
@@ -187,11 +206,6 @@ public:
 		return *this;
 	}
 
-	basic_string &operator= (basic_string other) {
-		swap(*this, other);
-		return *this;
-	}
-	
 	Char *data() {
 		return _buffer;
 	}
@@ -201,7 +215,7 @@ public:
 
 	Char &operator[] (size_t index) {
 		return _buffer[index];
-	}	
+	}
 	const Char &operator[] (size_t index) const {
 		return _buffer[index];
 	}
