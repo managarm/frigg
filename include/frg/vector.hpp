@@ -29,6 +29,10 @@ public:
 
 	~vector();
 
+	vector &operator= (vector other) {
+		swap(*this, other);
+	}
+
 	T &push(const T &element);
 
 	T &push(T &&element);
