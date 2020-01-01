@@ -21,7 +21,7 @@ public:
 
 	vector(Allocator &allocator);
 
-	    vector(const vector &other)
+        vector(const vector &other)
         : vector(*other._allocator) {
                 auto other_size = other.size();
                 _ensure_capacity(other_size);
