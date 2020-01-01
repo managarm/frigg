@@ -27,7 +27,7 @@ public:
         : vector(*other._allocator) {
                 auto other_size = other.size();
                 _ensure_capacity(other_size);
-                memcpy(_elements, other.data(), other_size);
+                memcpy(_elements, other.data(), other_size * sizeof(T));
                 _size = other_size;
         }
 
