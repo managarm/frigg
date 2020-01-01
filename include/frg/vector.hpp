@@ -2,6 +2,7 @@
 #define FRG_VECTOR_HPP
 
 #include <utility>
+#include <string.h>
 
 #include <frg/macros.hpp>
 
@@ -20,7 +21,13 @@ public:
 
 	vector(Allocator &allocator);
 
-	vector(const vector &other) = delete;
+	    vector(const vector &other)
+        : vector(*other._allocator) {
+                auto other_size = other.size();
+                _ensure_capacity(other_size);
+                memcpy(_elements, other.data(), other_size);
+                _size = other_size;
+        }
 
 	vector(vector &&other)
 	: vector(*other._allocator) {
@@ -55,6 +62,10 @@ public:
 	T *data() {
 		return _elements;
 	}
+
+        const T *data() const {
+                return _elements;
+        }
 
 	size_t size() const {
 		return _size;
