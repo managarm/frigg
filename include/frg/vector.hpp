@@ -48,6 +48,9 @@ public:
 		return push(std::move(element));
 	}
 
+        template<typename... Args>
+        T &emplace_back(Args &&... args);
+
 	T pop();
 
 	template<typename... Args>
@@ -146,6 +149,12 @@ T &vector<T, Allocator>::push(T &&element) {
 	T *pointer = new (&_elements[_size]) T(std::move(element));
 	_size++;
 	return *pointer;
+}
+
+template<typename T, typename Allocator>
+template<typename... Args>
+T &vector<T, Allocator>::emplace_back(Args &&... args) {
+        return push(T(std::forward<Args>(args)...));
 }
 
 template<typename T, typename Allocator>
