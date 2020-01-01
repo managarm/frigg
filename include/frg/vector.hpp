@@ -11,6 +11,8 @@ namespace frg FRG_VISIBILITY {
 template<typename T, typename Allocator>
 class vector {
 public:
+        using value_type = T;
+
 	friend void swap(vector &a, vector &b) {
 		using std::swap;
 		swap(a._allocator, b._allocator);
@@ -38,11 +40,16 @@ public:
 
 	vector &operator= (vector other) {
 		swap(*this, other);
+                return *this;
 	}
 
 	T &push(const T &element);
 
 	T &push(T &&element);
+
+        T &push_back(const T &element) {
+                return push(element);
+        }
 
 	T &push_back(T &&element) {
 		return push(std::move(element));
