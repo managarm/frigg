@@ -2,7 +2,6 @@
 #define FRG_VECTOR_HPP
 
 #include <utility>
-#include <string.h>
 
 #include <frg/macros.hpp>
 
@@ -27,7 +26,7 @@ public:
         : vector(*other._allocator) {
                 auto other_size = other.size();
                 _ensure_capacity(other_size);
-                for (int i = 0; i < other_size; i++)
+                for (size_t i = 0; i < other_size; i++)
                         new (&_elements[i]) T(other[i]);
                 _size = other_size;
         }
