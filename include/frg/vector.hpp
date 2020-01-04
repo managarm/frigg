@@ -161,7 +161,10 @@ T &vector<T, Allocator>::push(T &&element) {
 template<typename T, typename Allocator>
 template<typename... Args>
 T &vector<T, Allocator>::emplace_back(Args &&... args) {
-	return push(T(std::forward<Args>(args)...));
+	_ensure_capacity(_size + 1);
+	T *pointer = new(&_elements[_size]) T(std::forward<Args>(args)...);
+	_size++;
+	return *pointer;
 }
 
 template<typename T, typename Allocator>
