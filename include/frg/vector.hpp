@@ -10,7 +10,7 @@ namespace frg FRG_VISIBILITY {
 template<typename T, typename Allocator>
 class vector {
 public:
-        using value_type = T;
+	using value_type = T;
 
 	friend void swap(vector &a, vector &b) {
 		using std::swap;
@@ -22,14 +22,14 @@ public:
 
 	vector(Allocator &allocator);
 
-        vector(const vector &other)
-        : vector(*other._allocator) {
-                auto other_size = other.size();
-                _ensure_capacity(other_size);
-                for (size_t i = 0; i < other_size; i++)
-                        new (&_elements[i]) T(other[i]);
-                _size = other_size;
-        }
+	vector(const vector &other)
+	: vector(*other._allocator) {
+		auto other_size = other.size();
+		_ensure_capacity(other_size);
+		for (size_t i = 0; i < other_size; i++)
+			new (&_elements[i]) T(other[i]);
+		_size = other_size;
+	}
 
 	vector(vector &&other)
 	: vector(*other._allocator) {
@@ -40,23 +40,23 @@ public:
 
 	vector &operator= (vector other) {
 		swap(*this, other);
-                return *this;
+		return *this;
 	}
 
 	T &push(const T &element);
 
 	T &push(T &&element);
 
-        T &push_back(const T &element) {
-                return push(element);
-        }
+	T &push_back(const T &element) {
+		return push(element);
+	}
 
 	T &push_back(T &&element) {
 		return push(std::move(element));
 	}
 
-        template<typename... Args>
-        T &emplace_back(Args &&... args);
+	template<typename... Args>
+	T &emplace_back(Args &&... args);
 
 	T pop();
 
@@ -73,9 +73,9 @@ public:
 		return _elements;
 	}
 
-        const T *data() const {
-                return _elements;
-        }
+	const T *data() const {
+		return _elements;
+	}
 
 	size_t size() const {
 		return _size;
@@ -161,7 +161,7 @@ T &vector<T, Allocator>::push(T &&element) {
 template<typename T, typename Allocator>
 template<typename... Args>
 T &vector<T, Allocator>::emplace_back(Args &&... args) {
-        return push(T(std::forward<Args>(args)...));
+	return push(T(std::forward<Args>(args)...));
 }
 
 template<typename T, typename Allocator>
