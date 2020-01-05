@@ -10,6 +10,8 @@ namespace frg FRG_VISIBILITY {
 template<typename T, typename Allocator>
 class vector {
 public:
+	using value_type = T;
+
 	friend void swap(vector &a, vector &b) {
 		using std::swap;
 		swap(a._allocator, b._allocator);
@@ -20,7 +22,14 @@ public:
 
 	vector(Allocator &allocator);
 
-	vector(const vector &other) = delete;
+	vector(const vector &other)
+	: vector(*other._allocator) {
+		auto other_size = other.size();
+		_ensure_capacity(other_size);
+		for (size_t i = 0; i < other_size; i++)
+			new (&_elements[i]) T(other[i]);
+		_size = other_size;
+	}
 
 	vector(vector &&other)
 	: vector(*other._allocator) {
@@ -31,15 +40,23 @@ public:
 
 	vector &operator= (vector other) {
 		swap(*this, other);
+		return *this;
 	}
 
 	T &push(const T &element);
 
 	T &push(T &&element);
 
+	T &push_back(const T &element) {
+		return push(element);
+	}
+
 	T &push_back(T &&element) {
 		return push(std::move(element));
 	}
+
+	template<typename... Args>
+	T &emplace_back(Args &&... args);
 
 	T pop();
 
@@ -53,6 +70,10 @@ public:
 	}
 
 	T *data() {
+		return _elements;
+	}
+
+	const T *data() const {
 		return _elements;
 	}
 
@@ -133,6 +154,15 @@ template<typename T, typename Allocator>
 T &vector<T, Allocator>::push(T &&element) {
 	_ensure_capacity(_size + 1);
 	T *pointer = new (&_elements[_size]) T(std::move(element));
+	_size++;
+	return *pointer;
+}
+
+template<typename T, typename Allocator>
+template<typename... Args>
+T &vector<T, Allocator>::emplace_back(Args &&... args) {
+	_ensure_capacity(_size + 1);
+	T *pointer = new(&_elements[_size]) T{std::forward<Args>(args)...};
 	_size++;
 	return *pointer;
 }
