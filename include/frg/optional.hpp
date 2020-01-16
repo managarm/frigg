@@ -85,6 +85,10 @@ public:
 		return _non_null;
 	}
 
+	constexpr bool has_value() const {
+		return _non_null;
+	}
+
 	constexpr const T &operator* () const {
 		FRG_ASSERT(_non_null);
 		return _stor.object;
