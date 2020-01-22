@@ -39,8 +39,8 @@ private:
 	}
 
 public:
-	class iterator : private composition<locate_tag, Locate> {
-	friend class intrusive_list;
+	struct iterator : private composition<locate_tag, Locate> {
+	friend struct intrusive_list;
 	private:
 		hook &h(borrow_pointer ptr) {
 			return get<locate_tag>(this)(*ptr);
