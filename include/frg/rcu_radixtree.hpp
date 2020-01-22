@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <new>
 #include <frg/allocation.hpp>
 #include <frg/eternal.hpp>
 #include <frg/macros.hpp>
