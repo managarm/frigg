@@ -43,7 +43,7 @@ private:
 	};
 
 public:
-	rcu_radixtree(Allocator *allocator)
+	rcu_radixtree(const Allocator &allocator = Allocator())
 	: _allocator{allocator}, _root{nullptr} {}
 
 	T *find(uint64_t k) {
@@ -76,7 +76,7 @@ public:
 			// First case: We insert a last-level node into an inner node.
 			if(!s) {
 //				std::cout << "Case 1" << std::endl;
-				auto n = construct<entry_node>(*_allocator);
+				auto n = construct<entry_node>(_allocator);
 				n->prefix = pfx_of(k, ll);
 				n->depth = ll;
 				n->parent = p;
@@ -97,8 +97,8 @@ public:
 			// s is the sibling of the new last-level node.
 			if(pfx_of(k, s->depth) != s->prefix) {
 //				std::cout << "Case 2" << std::endl;
-				auto n = construct<entry_node>(*_allocator);
-				auto r = construct<link_node>(*_allocator);
+				auto n = construct<entry_node>(_allocator);
+				auto r = construct<link_node>(_allocator);
 
 				n->prefix = pfx_of(k, ll);
 				n->depth = ll;
@@ -303,7 +303,7 @@ public:
 	}
 
 private:
-	Allocator *_allocator;
+	Allocator _allocator;
 	std::atomic<node *> _root;
 };
 

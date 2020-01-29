@@ -20,10 +20,10 @@ public:
 		swap(a._capacity, b._capacity);
 	}
 
-	vector(Allocator &allocator);
+	vector(const Allocator &allocator = Allocator());
 
 	vector(const vector &other)
-	: vector(*other._allocator) {
+	: vector(other._allocator) {
 		auto other_size = other.size();
 		_ensure_capacity(other_size);
 		for (size_t i = 0; i < other_size; i++)
@@ -32,7 +32,7 @@ public:
 	}
 
 	vector(vector &&other)
-	: vector(*other._allocator) {
+	: vector(other._allocator) {
 		swap(*this, other);
 	}
 
@@ -125,21 +125,21 @@ public:
 private:
 	void _ensure_capacity(size_t capacity);
 
-	Allocator *_allocator;
+	Allocator _allocator;
 	T *_elements;
 	size_t _size;
 	size_t _capacity;
 };
 
 template<typename T, typename Allocator>
-vector<T, Allocator>::vector(Allocator &allocator)
-: _allocator{&allocator}, _elements{nullptr}, _size{0}, _capacity{0} { }
+vector<T, Allocator>::vector(const Allocator &allocator)
+: _allocator{allocator}, _elements{nullptr}, _size{0}, _capacity{0} { }
 
 template<typename T, typename Allocator>
 vector<T, Allocator>::~vector() {
 	for(size_t i = 0; i < _size; i++)
 		_elements[i].~T();
-	_allocator->free(_elements);
+	_allocator.free(_elements);
 }
 
 template<typename T, typename Allocator>
@@ -187,13 +187,13 @@ void vector<T, Allocator>::_ensure_capacity(size_t capacity) {
 		return;
 
 	size_t new_capacity = capacity * 2;
-	T *new_array = (T *)_allocator->allocate(sizeof(T) * new_capacity);
+	T *new_array = (T *)_allocator.allocate(sizeof(T) * new_capacity);
 	for(size_t i = 0; i < _capacity; i++)
 		new (&new_array[i]) T(std::move(_elements[i]));
 
 	for(size_t i = 0; i < _size; i++)
 		_elements[i].~T();
-	_allocator->free(_elements);
+	_allocator.free(_elements);
 
 	_elements = new_array;
 	_capacity = new_capacity;

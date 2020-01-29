@@ -103,34 +103,34 @@ public:
 		swap(a._length, b._length);
 	}
 
-	basic_string(Allocator &allocator)
-	: _allocator{&allocator}, _buffer{nullptr}, _length{0} { }
+	basic_string(const Allocator &allocator = Allocator())
+	: _allocator{allocator}, _buffer{nullptr}, _length{0} { }
 
-	basic_string(Allocator &allocator, const Char *c_string)
-	: _allocator{&allocator} {
+	basic_string(const Char *c_string, const Allocator &allocator = Allocator())
+	: _allocator{allocator} {
 		_length = strlen(c_string);
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
+		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, c_string, sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
-	basic_string(Allocator &allocator, const Char *buffer, size_t size)
-	: _allocator{&allocator}, _length{size} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
+	basic_string(const Char *buffer, size_t size, const Allocator &allocator = Allocator())
+	: _allocator{allocator}, _length{size} {
+		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, buffer, sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
-	basic_string(Allocator &allocator, const basic_string_view<Char> &view)
-	: _allocator{&allocator}, _length{view.size()} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
+	basic_string(const basic_string_view<Char> &view, const Allocator &allocator = Allocator())
+	: _allocator{allocator}, _length{view.size()} {
+		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
 		_buffer[_length] = 0;
 	}
 
-	basic_string(Allocator &allocator, size_t size, Char c = 0)
-	: _allocator{&allocator}, _length{size} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
+	basic_string( size_t size, Char c = 0, const Allocator &allocator = Allocator())
+	: _allocator{allocator}, _length{size} {
+		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		for(size_t i = 0; i < size; i++)
 			_buffer[i] = c;
 		_buffer[_length] = 0;
@@ -138,14 +138,14 @@ public:
 
 	basic_string(const basic_string &other)
 	: _allocator{other._allocator}, _length{other._length} {
-		_buffer = (Char *)_allocator->allocate(sizeof(Char) * _length + 1);
+		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, other._buffer, sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
 	~basic_string() {
 		if(_buffer)
-			_allocator->free(_buffer);
+			_allocator.free(_buffer);
 	}
 
 	basic_string &operator= (basic_string other) {
@@ -158,12 +158,12 @@ public:
 		if(copy_length > new_length)
 			copy_length = new_length;
 
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
+		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * copy_length);
 		new_buffer[new_length] = 0;
 
 		if(_buffer)
-			_allocator->free(_buffer);
+			_allocator.free(_buffer);
 		_length = new_length;
 		_buffer = new_buffer;
 	}
@@ -172,35 +172,35 @@ public:
 	// TODO: Better: Return expression template?
 	basic_string operator+ (const basic_string_view<Char> &other) {
 		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
+		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
 		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
 		new_buffer[new_length] = 0;
 
-		return basic_string(*_allocator, new_buffer, new_length);
+		return basic_string(_allocator, new_buffer, new_length);
 	}
 
 	// TODO: Inefficient. Does two copies (one here, one in constructor).
 	// TODO: Better: Return expression template?
 	basic_string operator+ (Char c) {
 		size_t new_length = _length + 1;
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
+		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
 		new_buffer[_length] = c;
 		new_buffer[new_length] = 0;
 
-		return basic_string(*_allocator, new_buffer, new_length);
+		return basic_string(_allocator, new_buffer, new_length);
 	}
 
 	basic_string &operator+= (const basic_string_view<Char> &other) {
 		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator->allocate(sizeof(Char) * new_length + 1);
+		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
 		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
 		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
 		new_buffer[new_length] = 0;
 
 		if(_buffer)
-			_allocator->free(_buffer);
+			_allocator.free(_buffer);
 		_length = new_length;
 		_buffer = new_buffer;
 
@@ -243,7 +243,7 @@ public:
 	}
 
 private:
-	Allocator *_allocator;
+	Allocator _allocator;
 	Char *_buffer;
 	size_t _length;
 };
