@@ -66,7 +66,7 @@ public:
 		size_t bucket;
 	};
 
-	hash_map(const Hash &hasher, Allocator &allocator);
+	hash_map(const Hash &hasher, const Allocator &allocator = Allocator());
 	hash_map(const hash_map &) = delete;
 
 	~hash_map();
@@ -100,14 +100,15 @@ private:
 	void rehash();
 	
 	Hash _hasher;
-	Allocator &_allocator;
+	Allocator _allocator;
 	chain **_table;
 	size_t _capacity;
 	size_t _size;
 };
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
-hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher, Allocator &allocator)
+hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
+		const Allocator &allocator)
 : _hasher(hasher), _allocator(allocator), _table(nullptr), _capacity(0), _size(0) { }
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
