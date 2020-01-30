@@ -20,7 +20,7 @@ public:
 		swap(a._capacity, b._capacity);
 	}
 
-	vector(const Allocator &allocator = Allocator());
+	vector(Allocator allocator = Allocator());
 
 	vector(const vector &other)
 	: vector(other._allocator) {
@@ -132,8 +132,8 @@ private:
 };
 
 template<typename T, typename Allocator>
-vector<T, Allocator>::vector(const Allocator &allocator)
-: _allocator{allocator}, _elements{nullptr}, _size{0}, _capacity{0} { }
+vector<T, Allocator>::vector(Allocator allocator)
+: _allocator{std::move(allocator)}, _elements{nullptr}, _size{0}, _capacity{0} { }
 
 template<typename T, typename Allocator>
 vector<T, Allocator>::~vector() {

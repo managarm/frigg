@@ -102,33 +102,33 @@ public:
 		swap(a._length, b._length);
 	}
 
-	basic_string(const Allocator &allocator = Allocator())
-	: _allocator{allocator}, _buffer{nullptr}, _length{0} { }
+	basic_string(Allocator allocator = Allocator())
+	: _allocator{std::move(allocator)}, _buffer{nullptr}, _length{0} { }
 
-	basic_string(const Char *c_string, const Allocator &allocator = Allocator())
-	: _allocator{allocator} {
+	basic_string(const Char *c_string, Allocator allocator = Allocator())
+	: _allocator{std::move(allocator)} {
 		_length = strlen(c_string);
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, c_string, sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
-	basic_string(const Char *buffer, size_t size, const Allocator &allocator = Allocator())
-	: _allocator{allocator}, _length{size} {
+	basic_string(const Char *buffer, size_t size, Allocator allocator = Allocator())
+	: _allocator{std::move(allocator)}, _length{size} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, buffer, sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
-	basic_string(const basic_string_view<Char> &view, const Allocator &allocator = Allocator())
-	: _allocator{allocator}, _length{view.size()} {
+	basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
+	: _allocator{std::move(allocator)}, _length{view.size()} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
 		_buffer[_length] = 0;
 	}
 
-	basic_string( size_t size, Char c = 0, const Allocator &allocator = Allocator())
-	: _allocator{allocator}, _length{size} {
+	basic_string( size_t size, Char c = 0, Allocator allocator = Allocator())
+	: _allocator{std::move(allocator)}, _length{size} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		for(size_t i = 0; i < size; i++)
 			_buffer[i] = c;
