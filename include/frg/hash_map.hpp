@@ -66,7 +66,7 @@ public:
 		size_t bucket;
 	};
 
-	hash_map(const Hash &hasher, const Allocator &allocator = Allocator());
+	hash_map(const Hash &hasher, Allocator allocator = Allocator());
 	hash_map(const hash_map &) = delete;
 
 	~hash_map();
@@ -108,8 +108,8 @@ private:
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
 hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
-		const Allocator &allocator)
-: _hasher(hasher), _allocator(allocator), _table(nullptr), _capacity(0), _size(0) { }
+		Allocator allocator)
+: _hasher(hasher), _allocator(std::move(allocator)), _table(nullptr), _capacity(0), _size(0) { }
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
 hash_map<Key, Value, Hash, Allocator>::~hash_map() {

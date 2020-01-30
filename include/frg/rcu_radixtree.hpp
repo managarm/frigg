@@ -43,8 +43,8 @@ private:
 	};
 
 public:
-	rcu_radixtree(const Allocator &allocator = Allocator())
-	: _allocator{allocator}, _root{nullptr} {}
+	rcu_radixtree(Allocator allocator = Allocator())
+	: _allocator{std::move(allocator)}, _root{nullptr} {}
 
 	T *find(uint64_t k) {
 		auto n = _root.load(std::memory_order_acquire);
