@@ -2,6 +2,7 @@
 #define FRG_VECTOR_HPP
 
 #include <utility>
+#include <stddef.h>
 
 #include <frg/macros.hpp>
 
