@@ -48,11 +48,18 @@ namespace _tuple {
 		static typename nth_type<n - 1, Types...>::type &access(storage<T, Types...> &stor) {
 			return access_helper<n - 1, Types...>::access(stor.tail);
 		}
+		static const typename nth_type<n - 1, Types...>::type &access(
+				const storage<T, Types...> &stor) {
+			return access_helper<n - 1, Types...>::access(stor.tail);
+		}
 	};
 
 	template<typename T, typename... Types>
 	struct access_helper<0, T, Types...> {
 		static T &access(storage<T, Types...> &stor) {
+			return stor.item;
+		}
+		static const T &access(const storage<T, Types...> &stor) {
 			return stor.item;
 		}
 	};
@@ -68,6 +75,10 @@ public:
 
 	template<int n>
 	typename _tuple::nth_type<n, Types...>::type &get() {
+		return _tuple::access_helper<n, Types...>::access(_stor);
+	}
+	template<int n>
+	const typename _tuple::nth_type<n, Types...>::type &get() const {
 		return _tuple::access_helper<n, Types...>::access(_stor);
 	}
 

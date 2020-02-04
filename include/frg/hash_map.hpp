@@ -46,6 +46,11 @@ public:
 			return *this;
 		}
 
+		bool operator== (const iterator &other) {
+			return (bucket == other.bucket) &&
+				(item == other.item);
+		}
+
 		entry_type &operator* () {
 			return item->entry;
 		}
@@ -66,19 +71,82 @@ public:
 		size_t bucket;
 	};
 
+	class const_iterator {
+	friend class hash_map;
+	public:
+		const_iterator &operator++ () const {
+			FRG_ASSERT(item);
+			item = item->next;
+			if (item)
+				return *this;
+
+			while(bucket < map._capacity) {
+				item = map._table[bucket];
+				bucket++;
+				if(item)
+					break;
+			}
+
+			return *this;
+		}
+
+		bool operator== (const const_iterator &other) const {
+			return (bucket == other.bucket) &&
+				(item == other.item);
+		}
+
+		const entry_type &operator* () const {
+			return item->entry;
+		}
+		const entry_type *operator-> () const {
+			return &item->entry;
+		}
+
+		operator bool () const {
+			return item != nullptr;
+		}
+	private:
+		const_iterator(const hash_map &map, size_t bucket, const chain *item)
+		: map(map), item(item), bucket(bucket) { }
+
+		const hash_map &map;
+		const chain *item;
+		size_t bucket;
+	};
+
 	hash_map(const Hash &hasher, Allocator allocator = Allocator());
+	hash_map(const Hash &hasher, std::initializer_list<entry_type> init,
+			Allocator allocator = Allocator());
 	hash_map(const hash_map &) = delete;
 
 	~hash_map();
 
 	void insert(const Key &key, const Value &value);
 	void insert(const Key &key, Value &&value);
+	Value &operator[] (const Key &key);
 
 	bool empty() {
 		return !_size;
 	}
 
-	iterator iterator() {
+	iterator end() {
+		return iterator(*this, _capacity + 1, nullptr);
+	}
+
+	iterator find(const Key &key) {
+		if (!_size)
+			return end();
+
+		unsigned int bucket = ((unsigned int)_hasher(key) % _capacity);
+		for (chain *item = _table[bucket]; item != nullptr; item = item->next) {
+			if (item->entry.template get<0>() == key)
+				return iterator(*this, bucket, item);
+		}
+
+		return end();
+	}
+
+	iterator begin() {
 		if(!_size)
 			return iterator(*this, _capacity, nullptr);
 
@@ -89,6 +157,23 @@ public:
 		
 		FRG_ASSERT(!"hash_map corrupted");
 		__builtin_unreachable();
+	}
+
+	const_iterator end() const {
+		return const_iterator(*this, _capacity + 1, nullptr);
+	}
+
+	const_iterator find(const Key &key) const {
+		if (_size)
+			return end();
+
+		unsigned int bucket = ((unsigned int)_hasher(key) & _capacity);
+		for (const chain *item = _table[bucket]; item != nullptr; item = item->next) {
+			if (item->entry.template get<0>() == key)
+				return const_iterator(*this, bucket, item);
+		}
+
+		return end();
 	}
 	
 	template<typename KeyCompatible>
@@ -109,6 +194,11 @@ private:
 template<typename Key, typename Value, typename Hash, typename Allocator>
 hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
 		Allocator allocator)
+: _hasher(hasher), _allocator(std::move(allocator)), _table(nullptr), _capacity(0), _size(0) { }
+
+template<typename Key, typename Value, typename Hash, typename Allocator>
+hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
+		std::initializer_list<entry_type> init, Allocator allocator)
 : _hasher(hasher), _allocator(std::move(allocator)), _table(nullptr), _capacity(0), _size(0) { }
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
@@ -149,6 +239,34 @@ void hash_map<Key, Value, Hash, Allocator>::insert(const Key &key, Value &&value
 	item->next = _table[bucket];
 	_table[bucket] = item;
 	_size++;
+}
+
+template<typename Key, typename Value, typename Hash, typename Allocator>
+Value &hash_map<Key, Value, Hash, Allocator>::operator[](const Key &key) {
+	/* empty map case */
+	if (_size == 0) {
+		rehash();
+		unsigned int bucket = ((unsigned int)_hasher(key)) % _capacity;
+		auto item = frg::construct<chain>(_allocator, key, Value{});
+		item->next = _table[bucket];
+		_table[bucket] = item;
+		_size++;
+	}
+
+	unsigned int bucket = ((unsigned int)_hasher(key)) % _capacity;
+	for (chain *item = _table[bucket]; item != nullptr; item = item->next) {
+		if (item->entry.template get<0>() == key)
+			return item->entry.template get<1>();
+	}
+
+	if (_size >= _capacity)
+		rehash();
+
+	auto item = frg::construct<chain>(_allocator, key, Value{});
+	item->next = _table[bucket];
+	_table[bucket] = item;
+	_size++;
+	return item->entry.template get<1>();
 }
 
 template<typename Key, typename Value, typename Hash, typename Allocator>

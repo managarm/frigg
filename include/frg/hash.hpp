@@ -12,7 +12,7 @@ class hash;
 template<>
 class hash<uint64_t> {
 public:
-	unsigned int operator() (uint64_t v) {
+	unsigned int operator() (uint64_t v) const {
 		static_assert(sizeof(unsigned int) == 4, "Expected sizeof(int) == 4");
 		return (unsigned int)(v ^ (v >> 32));
 	}
@@ -21,7 +21,7 @@ public:
 template<>
 class hash<int64_t> {
 public:
-	unsigned int operator() (int64_t v) {
+	unsigned int operator() (int64_t v) const {
 		static_assert(sizeof(unsigned int) == 4, "Expected sizeof(int) == 4");
 		return (unsigned int)(v ^ (v >> 32));
 	}
@@ -30,7 +30,7 @@ public:
 template<>
 class hash<int> {
 public:
-	unsigned int operator() (int v) {
+	unsigned int operator() (int v) const {
 		return v;
 	}
 };
@@ -38,14 +38,14 @@ public:
 template<typename T>
 class hash<T *> {
 public:
-	unsigned int operator() (T *p) {
+	unsigned int operator() (T *p) const {
 		return reinterpret_cast<uintptr_t>(p);
 	}
 };
 
 class CStringHash {
 public:
-	unsigned int operator() (const char *str) {
+	unsigned int operator() (const char *str) const {
 		unsigned int value = 0;
 		while(*str != 0) {
 			value = (value << 8) | (value >> 24);

@@ -252,7 +252,7 @@ using string = basic_string<char, Allocator>;
 
 template<typename Char>
 struct hash<basic_string_view<Char>> {
-	unsigned int operator() (const basic_string_view<Char> &string) {
+	unsigned int operator() (const basic_string_view<Char> &string) const {
 		unsigned int hash = 0;
 		for(size_t i = 0; i < string.size(); i++)
 			hash += 31 * hash + string[i];
@@ -262,7 +262,7 @@ struct hash<basic_string_view<Char>> {
 
 template<typename Char, typename Allocator>
 struct hash<basic_string<Char, Allocator>> {
-	unsigned int operator() (const basic_string<Char, Allocator> &string) {
+	unsigned int operator() (const basic_string<Char, Allocator> &string) const {
 		unsigned int hash = 0;
 		for(size_t i = 0; i < string.size(); i++)
 			hash += 31 * hash + string[i];
