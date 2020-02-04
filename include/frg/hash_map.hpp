@@ -164,10 +164,10 @@ public:
 	}
 
 	const_iterator find(const Key &key) const {
-		if (_size)
+		if (!_size)
 			return end();
 
-		unsigned int bucket = ((unsigned int)_hasher(key) & _capacity);
+		unsigned int bucket = ((unsigned int)_hasher(key)) % _capacity;
 		for (const chain *item = _table[bucket]; item != nullptr; item = item->next) {
 			if (item->entry.template get<0>() == key)
 				return const_iterator(*this, bucket, item);
@@ -199,7 +199,12 @@ hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
 template<typename Key, typename Value, typename Hash, typename Allocator>
 hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
 		std::initializer_list<entry_type> init, Allocator allocator)
-: _hasher(hasher), _allocator(std::move(allocator)), _table(nullptr), _capacity(0), _size(0) { }
+: _hasher(hasher), _allocator(std::move(allocator)), _table(nullptr), _capacity(0), _size(0) {
+	/* TODO: we know the size so we don't have to keep rehashing?? */
+	for (auto &entry : init) {
+		insert(entry.template get<0>(), entry.template get<1>());
+	}
+}
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
 hash_map<Key, Value, Hash, Allocator>::~hash_map() {
