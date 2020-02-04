@@ -12,6 +12,7 @@ template<typename T, typename Allocator>
 class vector {
 public:
 	using value_type = T;
+	using reference = value_type&;
 
 	friend void swap(vector &a, vector &b) {
 		using std::swap;
