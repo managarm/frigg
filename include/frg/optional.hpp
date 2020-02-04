@@ -153,11 +153,11 @@ constexpr bool operator!=(const U &value, const optional<T> &opt) {
 
 template<class T, class U>
 constexpr bool operator<(const optional<T> &opt, const U &value) {
-	return opt ? (*opt < value) : false;
+	return opt ? (*opt < value) : true;
 }
 template<class T, class U>
 constexpr bool operator<(const T &value, const optional<U> &opt) {
-	return opt ? (value < *opt) : true;
+	return opt ? (value < *opt) : false;
 }
 
 } // namespace frg
