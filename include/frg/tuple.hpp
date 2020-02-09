@@ -1,6 +1,7 @@
 #ifndef FRG_TUPLE_HPP
 #define FRG_TUPLE_HPP
 
+#include <tuple>
 #include <utility>
 
 #include <frg/macros.hpp> 
@@ -96,7 +97,18 @@ auto apply(F functor, tuple<Args...> args) {
 	return _tuple::apply(std::move(functor), std::move(args), std::index_sequence_for<Args...>());
 }
 
-
 } // namespace frg
+
+namespace std {
+	template<typename... Types>
+	struct tuple_size<frg::tuple<Types...>> {
+		static constexpr size_t value = sizeof...(Types);
+	};
+
+	template<size_t I, typename... Types>
+	struct tuple_element<I, frg::tuple<Types...>> {
+		using type = typename frg::_tuple::nth_type<I, Types...>::type;
+	};
+}
 
 #endif // FRG_TUPLE_HPP
