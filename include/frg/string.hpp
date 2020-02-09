@@ -251,7 +251,8 @@ template<typename Allocator>
 using string = basic_string<char, Allocator>;
 
 template<typename Char>
-struct hash<basic_string_view<Char>> {
+class hash<basic_string_view<Char>> {
+public:
 	unsigned int operator() (const basic_string_view<Char> &string) {
 		unsigned int hash = 0;
 		for(size_t i = 0; i < string.size(); i++)
@@ -261,7 +262,8 @@ struct hash<basic_string_view<Char>> {
 };
 
 template<typename Char, typename Allocator>
-struct hash<basic_string<Char, Allocator>> {
+class hash<basic_string<Char, Allocator>> {
+public:
 	unsigned int operator() (const basic_string<Char, Allocator> &string) {
 		unsigned int hash = 0;
 		for(size_t i = 0; i < string.size(); i++)
