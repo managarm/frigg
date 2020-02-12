@@ -309,7 +309,7 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(szmod == printf_size_mod::default_size);
 		FRG_ASSERT(!opts.precision);
-		for (int i = 0; i < opts.minimum_width; i++)
+		for (int i = 0; i < opts.minimum_width - 1; i++)
 			formatter.append(' ');
 		formatter.append((char)va_arg(vsp->args, int));
 		break;
