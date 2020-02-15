@@ -6,6 +6,7 @@
 #include <frg/hash.hpp>
 #include <frg/macros.hpp>
 #include <frg/optional.hpp>
+#include <frg/utility.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -271,6 +272,59 @@ public:
 		return hash;
 	}
 };
+
+namespace _to_string_impl {
+	template<typename T>
+	constexpr size_t num_digits(T v, int radix) {
+		size_t n = 0;
+		while(v) {
+			v /= radix;
+			n++;
+		}
+		return n;
+	}
+
+	template<typename T>
+	constexpr size_t num_digits(int radix) {
+		return 33;
+		//TODO: This is actually something like: max(num_digits(std::numeric_limits<T>::max(), radix),
+		//		num_digits(std::numeric_limits<T>::min(), radix) + 1);
+	}
+
+	template<typename T>
+	constexpr size_t num_digits() {
+		return num_digits<T>(2);
+	}
+
+	constexpr auto small_digits = "0123456789abcdef";
+
+	template<typename T, typename Pool>
+	string<Pool> to_allocated_string(Pool &pool, T v, int radix = 10, size_t precision = 1,
+			const char *digits = small_digits) {
+		constexpr auto m = num_digits<T>();
+		assert(v >= 0);
+
+		char buffer[m];
+		size_t n = 0;
+		while(v) {
+			assert(n < m);
+			buffer[n++] = digits[v % radix];
+			v /= radix;
+		}
+
+		string<Pool> result(pool);
+		auto len = max(precision, n);
+		result.resize(max(precision, n));
+
+		for(size_t i = 0; i < len - n; i++)
+			result[i] = '0';
+		for(size_t i = 0; i < n; i++)
+			result[len - n + i] = buffer[n - (i + 1)];
+		return result;
+	}
+}
+
+using _to_string_impl::to_allocated_string;
 
 } // namespace frg
 
