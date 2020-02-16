@@ -33,9 +33,13 @@ constexpr size_t array_size(const T (&)[N]) {
 }
 
 template<typename Policy, typename Mutex>
-class slab_allocator {
+class slab_pool {
 public:
-	slab_allocator(Policy &plcy);
+	slab_pool(Policy &plcy);
+
+	slab_pool(const slab_pool &) = delete;
+
+	slab_pool &operator= (const slab_pool &) = delete;
 
 	void *allocate(size_t length);
 	void *realloc(void *pointer, size_t new_length);
@@ -89,7 +93,7 @@ private:
 					return i;
 			return tc - 1;
 		}
-		
+
 		// Next, we handle the small sizes. Variables correspond to those in bucket_to_size().
 		auto e = (sizeof(size_t) * 8 - 1) - bitop_impl<size_t>::clz(size);
 		auto f = e - small_step_exp;
@@ -116,12 +120,12 @@ private:
 
 	static_assert(test_bucket_calculation(num_buckets),
 		"The bucket size calculation seems to be broken");
-	
+
 	static constexpr size_t page_size = 0x1000;
 
 	// Size of the content of a slab.
 	static constexpr size_t slabsize = 1 << 18;
-	
+
 	static_assert(!(slabsize & (page_size - 1)),
 			"Slab content size must be a multiple of the page size");
 
@@ -138,7 +142,7 @@ private:
 
 		freelist *link;
 	};
-	
+
 	enum class frame_type {
 		null,
 		slab,
@@ -154,7 +158,7 @@ private:
 		frame(const frame &) = delete;
 
 		frame &operator= (const frame &) = delete;
-		
+
 		bool contains(void *p) {
 			auto adr = reinterpret_cast<uintptr_t>(p);
 			return adr >= address && adr < address + length;
@@ -187,7 +191,7 @@ private:
 			return a.address < b.address;
 		}
 	};
-	
+
 	using frame_tree_type = frg::rbtree<
 		frame,
 		&frame::frame_hook,
@@ -229,15 +233,15 @@ private:
 };
 
 // --------------------------------------------------------
-// slab_allocator
+// slab_pool
 // --------------------------------------------------------
 
 template<typename Policy, typename Mutex>
-slab_allocator<Policy, Mutex>::slab_allocator(Policy &plcy)
+slab_pool<Policy, Mutex>::slab_pool(Policy &plcy)
 : _plcy{plcy}, _usedPages{0} { }
 
 template<typename Policy, typename Mutex>
-void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
+void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 	if(enable_checking)
 		_verify_integrity();
 
@@ -262,7 +266,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 			FRG_ASSERT(object);
 			FRG_ASSERT(slb->contains(object));
 			if(object->link && !slb->contains(object->link))
-				FRG_ASSERT(!"slab_allocator corruption. Possible write to unallocated object");
+				FRG_ASSERT(!"slab_pool corruption. Possible write to unallocated object");
 			slb->available = object->link;
 			slb->num_reserved++;
 
@@ -280,7 +284,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 			FRG_ASSERT(object);
 			FRG_ASSERT(slb->contains(object));
 			if(object->link && !slb->contains(object->link))
-				FRG_ASSERT(!"slab_allocator corruption. Possible write to unallocated object");
+				FRG_ASSERT(!"slab_pool corruption. Possible write to unallocated object");
 			slb->available = object->link;
 			slb->num_reserved++;
 
@@ -297,7 +301,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 			if(!bkt->head_slb || slb->address < bkt->head_slb->address)
 				bkt->head_slb = slb;
 		}
-	
+
 		bucket_guard.unlock();
 
 		//if(logAllocations)
@@ -309,7 +313,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 	}else{
 		auto area_size = (length + page_size - 1) & ~(page_size - 1);
 		auto fra = _construct_large(area_size);
-		
+
 		unique_lock<Mutex> tree_guard(_tree_mutex);
 		_frame_tree.insert(fra);
 		_usedPages += (fra->length + huge_padding) / page_size;
@@ -325,7 +329,7 @@ void *slab_allocator<Policy, Mutex>::allocate(size_t length) {
 }
 
 template<typename Policy, typename Mutex>
-void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
+void *slab_pool<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 	if(enable_checking)
 		_verify_integrity();
 
@@ -360,10 +364,10 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 	}else{
 		FRG_ASSERT(fra->type == frame_type::large);
 		FRG_ASSERT(address == fra->address);
-		
+
 		if(new_length < fra->length)
 			return pointer;
-		
+
 		void *new_pointer = allocate(new_length);
 		if(!new_pointer)
 			return nullptr;
@@ -375,13 +379,13 @@ void *slab_allocator<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 }
 
 template<typename Policy, typename Mutex>
-void slab_allocator<Policy, Mutex>::free(void *pointer) {	
+void slab_pool<Policy, Mutex>::free(void *pointer) {
 	if(enable_checking)
 		_verify_integrity();
 
 	if(!pointer)
 		return;
-	
+
 	//if(logAllocations)
 	//	std::cout << "frg/slab: Free " << pointer << std::endl;
 
@@ -399,14 +403,14 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 		FRG_ASSERT(address == fra->address);
 //				infoLogger() << "[" << pointer
 //						<< "] Large free from varea " << fra << endLog;
-		
+
 		// Remove the virtual area from the area-list.
 		_frame_tree.remove(fra);
 		_usedPages -= (fra->length + huge_padding) / page_size;
 
 		// Call into the Policy without holding locks.
 		tree_guard.unlock();
-		
+
 		_plcy.unmap((uintptr_t)fra->address - huge_padding, fra->length + huge_padding);
 		if(enable_checking)
 			_verify_integrity();
@@ -443,13 +447,13 @@ void slab_allocator<Policy, Mutex>::free(void *pointer) {
 	}
 
 	bucket_guard.unlock();
-	
+
 	if(enable_checking)
 		_verify_integrity();
 }
 
 template<typename Policy, typename Mutex>
-void slab_allocator<Policy, Mutex>::deallocate(void *pointer, size_t size) {	
+void slab_pool<Policy, Mutex>::deallocate(void *pointer, size_t size) {
 	if(!pointer)
 		return;
 
@@ -491,7 +495,7 @@ void slab_allocator<Policy, Mutex>::deallocate(void *pointer, size_t size) {
 
 
 template<typename Policy, typename Mutex>
-auto slab_allocator<Policy, Mutex>::_find_frame(uintptr_t address)
+auto slab_pool<Policy, Mutex>::_find_frame(uintptr_t address)
 -> frame * {
 	auto current = _frame_tree.get_root();
 	while(current) {
@@ -510,14 +514,14 @@ auto slab_allocator<Policy, Mutex>::_find_frame(uintptr_t address)
 }
 
 template<typename Policy, typename Mutex>
-auto slab_allocator<Policy, Mutex>::_construct_slab(int index)
+auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 -> slab_frame * {
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// Allocate virtual memory for the slab.
 	uintptr_t address = _plcy.map(2 * slabsize);
 	address = (address + slabsize - 1) & ~(slabsize - 1);
-	
+
 	auto item_size = bucket_to_size(index);
 	size_t overhead = 0;
 	while(overhead < sizeof(slab_frame)) // FIXME.
@@ -542,14 +546,14 @@ auto slab_allocator<Policy, Mutex>::_construct_slab(int index)
 }
 
 template<typename Policy, typename Mutex>
-auto slab_allocator<Policy, Mutex>::_construct_large(size_t area_size)
+auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 -> frame * {
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// Allocate virtual memory for the frame.
 	FRG_ASSERT(!(area_size & (page_size - 1)));
 	uintptr_t address = _plcy.map(area_size + huge_padding);
-	
+
 	auto fra = new ((void *)address) frame(frame_type::large,
 			address + huge_padding, area_size);
 
@@ -560,14 +564,14 @@ auto slab_allocator<Policy, Mutex>::_construct_large(size_t area_size)
 }
 
 template<typename Policy, typename Mutex>
-void slab_allocator<Policy, Mutex>::_verify_integrity() {
+void slab_pool<Policy, Mutex>::_verify_integrity() {
 	unique_lock<Mutex> tree_guard(_tree_mutex);
 	if(_frame_tree.get_root())
 		_verify_frame_integrity(_frame_tree.get_root());
 }
 
 template<typename Policy, typename Mutex>
-void slab_allocator<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
+void slab_pool<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
 	if(fra->type == frame_type::slab) {
 		auto slb = static_cast<slab_frame *>(fra);
 		auto bkt = &_bkts[slb->index];
@@ -585,6 +589,36 @@ void slab_allocator<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
 	if(_frame_tree.get_right(fra))
 		_verify_frame_integrity(frame_tree_type::get_right(fra));
 }
+
+// --------------------------------------------------------
+// slab_allocator
+// --------------------------------------------------------
+
+template<typename Policy, typename Mutex>
+class slab_allocator {
+public:
+	slab_allocator(slab_pool<Policy, Mutex> *pool)
+	: pool_{pool} { }
+
+	void *allocate(size_t size) {
+		return pool_->allocate(size);
+	}
+
+	void deallocate(void *pointer, size_t size) {
+		pool_->deallocate(pointer, size);
+	}
+
+	void free(void *pointer) {
+		pool_->free(pointer);
+	}
+
+	void *reallocate(void *pointer, size_t new_size) {
+		return pool_->realloc(pointer, new_size);
+	}
+
+private:
+	slab_pool<Policy, Mutex> *pool_;
+};
 
 } // namespace frg
 
