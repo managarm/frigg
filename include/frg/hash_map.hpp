@@ -1,6 +1,8 @@
 #ifndef FRG_HASHMAP_HPP
 #define FRG_HASHMAP_HPP
 
+#include <initializer_list>
+
 #include <frg/allocation.hpp>
 #include <frg/hash.hpp>
 #include <frg/macros.hpp>
@@ -74,7 +76,7 @@ public:
 	class const_iterator {
 	friend class hash_map;
 	public:
-		const_iterator &operator++ () const {
+		const_iterator &operator++ () {
 			FRG_ASSERT(item);
 			item = item->next;
 			if (item)
