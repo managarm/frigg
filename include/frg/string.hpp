@@ -114,12 +114,20 @@ public:
 		_buffer[_length] = 0;
 	}
 
+	// Compatibility/transition constructor.
+	basic_string(Allocator allocator, const Char *c_string)
+	: basic_string{c_string, std::move(allocator)} { }
+
 	basic_string(const Char *buffer, size_t size, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _length{size} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, buffer, sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
+
+	// Compatibility/transition constructor.
+	basic_string(Allocator allocator, const Char *buffer, size_t size)
+	: basic_string{buffer, size, std::move(allocator)} { }
 
 	basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _length{view.size()} {
@@ -128,7 +136,11 @@ public:
 		_buffer[_length] = 0;
 	}
 
-	basic_string( size_t size, Char c = 0, Allocator allocator = Allocator())
+	// Compatibility/transition constructor.
+	basic_string(Allocator allocator, const basic_string_view<Char> &view)
+	: basic_string{view, std::move(allocator)} { }
+
+	basic_string(size_t size, Char c = 0, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _length{size} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		for(size_t i = 0; i < size; i++)
