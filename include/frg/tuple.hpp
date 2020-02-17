@@ -4,7 +4,7 @@
 #include <tuple>
 #include <utility>
 
-#include <frg/macros.hpp> 
+#include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -18,6 +18,10 @@ namespace _tuple {
 
 		storage(T item, Types... tail)
 		: item(std::move(item)), tail(std::move(tail)...) { }
+
+		template<typename... UTypes>
+		storage(const storage<UTypes...> &other)
+		: item(other.item), tail(other.tail) { }
 
 		T item;
 		storage<Types...> tail;
@@ -64,6 +68,7 @@ namespace _tuple {
 			return stor.item;
 		}
 	};
+
 } // namespace _tuple
 
 template<typename... Types>
@@ -73,6 +78,29 @@ public:
 
 	tuple(Types... args)
 	: _stor(std::move(args)...) { }
+
+	template<typename... UTypes>
+	friend class tuple;
+
+	template<size_t n, typename... UTypes>
+	struct _tuple_is_constructible {
+		static constexpr bool value = std::is_constructible<typename _tuple::nth_type<n,
+				 Types...>::type, typename _tuple::nth_type<n, UTypes...>::type>::
+					 value && _tuple_is_constructible<n - 1,
+				 UTypes...>::value;
+	};
+
+	template<typename... UTypes>
+	struct _tuple_is_constructible<0, UTypes...> {
+		static constexpr bool value = std::is_constructible<typename _tuple::nth_type<0,
+				 Types...>::type, typename _tuple::nth_type<0, UTypes...>::type>::
+					 value;
+	};
+
+	template<typename... UTypes,
+		typename = std::enable_if_t<_tuple_is_constructible<
+			sizeof...(UTypes) - 1, Types..., const UTypes&...>::value>>
+	tuple(const tuple<UTypes...> &other) : _stor(other._stor) { }
 
 	template<int n>
 	typename _tuple::nth_type<n, Types...>::type &get() {
