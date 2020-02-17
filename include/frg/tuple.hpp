@@ -1,8 +1,10 @@
 #ifndef FRG_TUPLE_HPP
 #define FRG_TUPLE_HPP
 
+#include <stddef.h>
 #include <tuple>
 #include <utility>
+#include <type_traits>
 
 #include <frg/macros.hpp>
 
