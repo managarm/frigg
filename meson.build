@@ -27,6 +27,7 @@ if not get_option('frigg_no_install')
 		'include/frg/tuple.hpp',
 		'include/frg/utility.hpp',
 		'include/frg/vector.hpp',
+		'include/frg/unique.hpp',
 		subdir: 'frg')
 endif
 
