@@ -48,12 +48,11 @@ struct unique_ptr {
 		return _ptr;
 	}
 
-	void release() {
+	T *release() {
 		T *old = _ptr;
 		_ptr = nullptr;
 
-		if (old)
-			_allocator.free(_ptr);
+		return old;
 	}
 
 	operator bool() {
