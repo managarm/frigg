@@ -74,11 +74,9 @@ private:
 
 template <typename T, typename Allocator, typename ...Args>
 unique_ptr<T, Allocator> make_unique(Allocator allocator, Args &&...args) {
-	return unique_ptr<T, Allocator>{
-		std::move(allocator),
-		new (allocator.allocate(sizeof(T))) T{
-			std::forward<Args>(args)...}
-	};
+	T *ptr = new (allocator.allocate(sizeof(T))) T{
+			std::forward<Args>(args)...};
+	return unique_ptr<T, Allocator>{std::move(allocator), ptr};
 }
 
 }
