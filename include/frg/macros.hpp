@@ -21,6 +21,7 @@ extern "C" {
 			__builtin_trap(); \
 		FRG_INTF(panic)(__FILE__ ":" FRG_EVALSTRINGIFY(__LINE__) \
 				": Assertion '" #x "' failed!"); \
+		__builtin_trap(); \
 	}\
 } while(0)
 
