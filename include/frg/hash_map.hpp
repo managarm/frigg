@@ -38,9 +38,12 @@ public:
 			if(item)
 				return *this;
 
-			while(bucket < map._capacity) {
-				item = map._table[bucket];
+			FRG_ASSERT(bucket < map->_capacity);
+			while(true) {
 				bucket++;
+				if(bucket == map->_capacity)
+					break;
+				item = map->_table[bucket];
 				if(item)
 					break;
 			}
@@ -65,10 +68,10 @@ public:
 		}
 
 	private:
-		iterator(hash_map &map, size_t bucket, chain *item)
+		iterator(hash_map *map, size_t bucket, chain *item)
 		: map(map), item(item), bucket(bucket) { }
 
-		hash_map &map;
+		hash_map *map;
 		chain *item;
 		size_t bucket;
 	};
@@ -82,9 +85,12 @@ public:
 			if (item)
 				return *this;
 
-			while(bucket < map._capacity) {
-				item = map._table[bucket];
+			FRG_ASSERT(bucket < map->_capacity);
+			while(true) {
 				bucket++;
+				if(bucket == map->_capacity)
+					break;
+				item = map->_table[bucket];
 				if(item)
 					break;
 			}
@@ -108,10 +114,10 @@ public:
 			return item != nullptr;
 		}
 	private:
-		const_iterator(const hash_map &map, size_t bucket, const chain *item)
+		const_iterator(const hash_map *map, size_t bucket, const chain *item)
 		: map(map), item(item), bucket(bucket) { }
 
-		const hash_map &map;
+		const hash_map *map;
 		const chain *item;
 		size_t bucket;
 	};
@@ -132,7 +138,7 @@ public:
 	}
 
 	iterator end() {
-		return iterator(*this, _capacity + 1, nullptr);
+		return iterator(this, _capacity + 1, nullptr);
 	}
 
 	iterator find(const Key &key) {
@@ -150,11 +156,11 @@ public:
 
 	iterator begin() {
 		if(!_size)
-			return iterator(*this, _capacity, nullptr);
+			return iterator(this, _capacity, nullptr);
 
 		for(size_t bucket = 0; bucket < _capacity; bucket++) {
 			if(_table[bucket])
-				return iterator(*this, bucket, _table[bucket]);
+				return iterator(this, bucket, _table[bucket]);
 		}
 		
 		FRG_ASSERT(!"hash_map corrupted");
@@ -162,7 +168,7 @@ public:
 	}
 
 	const_iterator end() const {
-		return const_iterator(*this, _capacity + 1, nullptr);
+		return const_iterator(this, _capacity, nullptr);
 	}
 
 	const_iterator find(const Key &key) const {
