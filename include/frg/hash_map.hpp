@@ -189,6 +189,10 @@ public:
 
 	optional<Value> remove(const Key &key);
 
+	size_t size() const {
+		return _size;
+	}
+
 private:
 	void rehash();
 	
