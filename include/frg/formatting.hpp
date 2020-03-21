@@ -164,6 +164,11 @@ void format_object(const char *object, format_options fo, F &formatter) {
 	formatter.append(object);
 }
 
+template<typename F, typename Allocator>
+void format_object(const frg::string<Allocator> &object, format_options fo, F &formatter) {
+	formatter.append(object.data());
+}
+
 template<typename F>
 void format_object(const void *object, format_options fo, F &formatter) {
 	formatter.append("0x");
@@ -268,7 +273,7 @@ void printf_format(A agent, const char *s, va_struct *vsp) {
 				opts.precision = value;
 			}
 		}
-		
+
 		auto szmod = printf_size_mod::default_size;
 		if(*s == 'l') {
 			++s;
