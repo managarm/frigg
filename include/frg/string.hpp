@@ -219,6 +219,21 @@ public:
 		return *this;
 	}
 
+	basic_string &operator+= (Char c) {
+		/* TODO: SUPER INEFFICIENT should be done with a _capacity variable */
+		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 2);
+		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
+		new_buffer[_length] = c;
+		new_buffer[_length + 1] = 0;
+
+		if (_buffer)
+			_allocator.free(_buffer);
+		_length++;
+		_buffer = new_buffer;
+
+		return *this;
+	}
+
 	Char *data() {
 		return _buffer;
 	}
