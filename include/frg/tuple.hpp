@@ -140,11 +140,100 @@ namespace _tuple {
 	auto apply(F functor, tuple<Args...> args, std::index_sequence<I...>) {
 		return functor(std::move(args.template get<I>())...);
 	}
+
+	template<size_t, typename, typename, size_t>
+	struct make_tuple_impl;
+
+	template<size_t idx, typename Tuple, typename... Types, size_t size>
+	struct make_tuple_impl<idx, tuple<Types...>, Tuple, size> :
+	make_tuple_impl<idx + 1, tuple<Types..., typename std::tuple_element<idx, Tuple>::type>,
+	Tuple, size>
+	{};
+
+	template<size_t size, typename Tuple, typename... Types>
+	struct make_tuple_impl<size, tuple<Types...>, Tuple, size> {
+		using type = tuple<Types...>;
+	};
+
+	template<typename T>
+	struct do_make_tuple
+	: public make_tuple_impl<0, tuple<>, std::remove_reference_t<T>, std::tuple_size<
+	std::remove_reference_t<T>>::value>
+	{};
+
+	template<typename...>
+	struct tuple_combiner;
+
+	template<>
+	struct tuple_combiner<> {
+		using type = tuple<>;
+	};
+
+	template<typename... Ts>
+	struct tuple_combiner<tuple<Ts...>> {
+		using type = tuple<Ts...>;
+	};
+
+	template<typename... T1, typename... T2, typename... Remainder>
+	struct tuple_combiner<tuple<T1...>, tuple<T2...>, Remainder...> {
+		using type = typename tuple_combiner<tuple<T1..., T2...>, Remainder...>::type;
+	};
+
+	template<typename... Tuples>
+	struct tuple_cat_result {
+		typedef typename tuple_combiner<
+			typename do_make_tuple<Tuples>::type...>::type type;
+	};
+
+	template<typename...>
+	struct make_indices_from_1st;
+
+	template<>
+	struct make_indices_from_1st<> {
+		typedef typename std::make_index_sequence<0> type;
+	};
+
+	template<typename Tuple, typename... Tuples>
+	struct make_indices_from_1st<Tuple, Tuples...> {
+		typedef typename std::make_index_sequence<std::tuple_size<
+			typename std::remove_reference<Tuple>::type>::value> type;
+	};
+
+	template<typename Ret, typename Indices, typename... Tuples>
+	struct tuple_concater;
+
+	template<typename Ret, size_t... Indices, typename Tuple, typename... Tuples>
+	struct tuple_concater<Ret, std::index_sequence<Indices...>, Tuple, Tuples...> {
+		template<typename... Res>
+		static constexpr Ret do_concat(Tuple&& tp, Tuples&&... tps, Res&&... res) {
+			typedef typename make_indices_from_1st<Tuples...>::type index;
+			typedef tuple_concater<Ret, index, Tuples...> next;
+			return next::do_concat(std::forward<Tuples>(tps)...,
+					std::forward<Res>(res)...,
+					tp.template get<Indices>()...);
+		}
+	};
+
+	template<typename Ret>
+	struct tuple_concater<Ret, std::index_sequence<>> {
+		template <typename... Res>
+		static constexpr Ret do_concat(Res&&... res) {
+			return Ret(std::forward<Res>(res)...);
+		}
+	};
 } // namespace tuple
 
 template<typename F, typename... Args>
 auto apply(F functor, tuple<Args...> args) {
 	return _tuple::apply(std::move(functor), std::move(args), std::index_sequence_for<Args...>());
+}
+
+template <typename... Tuples,
+	 typename Ret = typename _tuple::tuple_cat_result<Tuples...>::type>
+Ret tuple_cat(Tuples&&... args) {
+	typedef typename _tuple::make_indices_from_1st<Tuples...>::type index;
+	typedef _tuple::tuple_concater<Ret, index, Tuples...> concater;
+	return concater::do_concat(std::forward<Tuples>(args)...);
 }
 
 } // namespace frg
