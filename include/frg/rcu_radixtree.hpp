@@ -57,7 +57,8 @@ public:
 			auto idx = idx_of(k, n->depth);
 			if(n->depth == ll) {
 				auto cn = static_cast<entry_node *>(n);
-				if(!(cn->mask.load(std::memory_order_acquire) & (uint16_t(1) << idx)))
+				auto mask = cn->mask.load(std::memory_order_acquire);
+				if(!(mask & (uint16_t(1) << idx)))
 					return nullptr;
 				return std::launder(reinterpret_cast<T *>(cn->entries[idx].buffer));
 			}else{
@@ -142,7 +143,8 @@ public:
 //				std::cout << "Case 3" << std::endl;
 				auto cs = static_cast<entry_node *>(s);
 				auto mask = cs->mask.load(std::memory_order_acquire);
-				FRG_ASSERT(!(mask & (uint16_t(1) << idx)));
+				if(mask & (uint16_t(1) << idx))
+					return {std::launder(reinterpret_cast<T *>(cs->entries[idx].buffer)), false};
 
 				auto entry = new (cs->entries[idx].buffer) T{std::forward<Args>(args)...};
 
