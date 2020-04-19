@@ -32,6 +32,8 @@ struct stack_buffer_logger {
 		}
 
 		item &operator<< (endlog_t) {
+			FRG_ASSERT(_off < Limit);
+			_buffer[_off] = 0;
 			_logger->_emit(_buffer);
 			return *this;
 		}
@@ -39,22 +41,22 @@ struct stack_buffer_logger {
 		void append(char s) {
 			FRG_ASSERT(_off < Limit);
 			if(_off + 1 == Limit) {
+				_buffer[_off] = 0;
 				_logger->_emit(_buffer);
 				_off = 0;
 			}
 			_buffer[_off++] = s;
-			_buffer[_off] = 0;
 		}
 
 		void append(const char *str) {
 			while(*str) {
 				FRG_ASSERT(_off < Limit);
 				if(_off + 1 == Limit) {
+					_buffer[_off] = 0;
 					_logger->_emit(_buffer);
 					_off = 0;
 				}
 				_buffer[_off++] = *str++;
-				_buffer[_off] = 0;
 			}
 		}
 
