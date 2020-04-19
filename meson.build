@@ -8,6 +8,7 @@ if not get_option('frigg_no_install')
 		'include/frg/container_of.hpp',
 		'include/frg/eternal.hpp',
 		'include/frg/formatting.hpp',
+		'include/frg/functional.hpp',
 		'include/frg/hash.hpp',
 		'include/frg/hash_map.hpp',
 		'include/frg/intrusive.hpp',
