@@ -25,6 +25,10 @@ namespace _tuple {
 		storage(const storage<UTypes...> &other)
 		: item(other.item), tail(other.tail) { }
 
+		template<typename... UTypes>
+		storage(storage<UTypes...> &&other)
+		: item(std::move(other.item)), tail(std::move(other.tail)) { }
+
 		T item;
 		storage<Types...> tail;
 	};
@@ -103,6 +107,11 @@ public:
 		typename = std::enable_if_t<_tuple_is_constructible<
 			sizeof...(UTypes) - 1, const UTypes &...>::value>>
 	tuple(const tuple<UTypes...> &other) : _stor(other._stor) { }
+
+	template<typename... UTypes,
+		typename = std::enable_if_t<_tuple_is_constructible<
+			sizeof...(UTypes) - 1, UTypes &&...>::value>>
+	tuple(tuple<UTypes...> &&other) : _stor(std::move(other._stor)) { }
 
 	template<int n>
 	typename _tuple::nth_type<n, Types...>::type &get() {
