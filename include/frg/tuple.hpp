@@ -101,7 +101,7 @@ public:
 
 	template<typename... UTypes,
 		typename = std::enable_if_t<_tuple_is_constructible<
-			sizeof...(UTypes) - 1, Types..., const UTypes&...>::value>>
+			sizeof...(UTypes) - 1, const UTypes &...>::value>>
 	tuple(const tuple<UTypes...> &other) : _stor(other._stor) { }
 
 	template<int n>
