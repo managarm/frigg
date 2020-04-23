@@ -7,6 +7,7 @@
 #include <frg/macros.hpp>
 #include <frg/mutex.hpp>
 #include <frg/rbtree.hpp>
+#include <frg/detection.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -27,10 +28,26 @@ struct bitop_impl<unsigned long> {
 	}
 };
 
+template<>
+struct bitop_impl<unsigned int> {
+	static constexpr int clz(unsigned int x) {
+		return __builtin_clz(x);
+	}
+};
+
 template<typename T, size_t N>
 constexpr size_t array_size(const T (&)[N]) {
 	return N;
 }
+
+template<typename Policy>
+using policy_slabsize_t = decltype(Policy::slabsize);
+
+template<typename Policy>
+using policy_pagesize_t = decltype(Policy::pagesize);
+
+template<typename Policy>
+using policy_num_buckets_t = decltype(Policy::num_buckets);
 
 template<typename Policy, typename Mutex>
 class slab_pool {
@@ -103,7 +120,12 @@ private:
 	}
 
 	// This variable controls the number of buckets that we actually use.
-	static constexpr int num_buckets = 13;
+	static constexpr int num_buckets = [](){
+		if constexpr (is_detected_v<policy_num_buckets_t, Policy>)
+			return Policy::num_buckets;
+		else
+			return 13;
+	}();
 
 	static constexpr size_t max_bucket_size = bucket_to_size(num_buckets - 1);
 
@@ -121,10 +143,20 @@ private:
 	static_assert(test_bucket_calculation(num_buckets),
 		"The bucket size calculation seems to be broken");
 
-	static constexpr size_t page_size = 0x1000;
+	static constexpr size_t page_size = [](){
+		if constexpr (is_detected_v<policy_pagesize_t, Policy>)
+			return Policy::pagesize;
+		else
+			return 0x1000;
+	}();
 
 	// Size of the content of a slab.
-	static constexpr size_t slabsize = 1 << 18;
+	static constexpr size_t slabsize = [](){
+		if constexpr (is_detected_v<policy_slabsize_t, Policy>)
+			return Policy::slabsize;
+		else
+			return 1 << 18;
+	}();
 
 	static_assert(!(slabsize & (page_size - 1)),
 			"Slab content size must be a multiple of the page size");
