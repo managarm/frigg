@@ -29,6 +29,7 @@ if not get_option('frigg_no_install')
 		'include/frg/utility.hpp',
 		'include/frg/vector.hpp',
 		'include/frg/unique.hpp',
+		'include/frg/detection.hpp',
 		subdir: 'frg')
 endif
 
