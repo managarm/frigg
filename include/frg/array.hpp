@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <utility>
 #include <type_traits>
+#include <tuple>
 
 namespace frg {
 
@@ -82,6 +83,40 @@ public:
 		return N;
 	}
 };
+
+namespace details {
+	template<typename ...Ts>
+	struct concat_size;
+
+	template<typename ...Ts>
+	inline constexpr size_t concat_size_v = concat_size<Ts...>::value;
+
+	template<typename T, typename ...Ts>
+	struct concat_size<T, Ts...>
+	: std::integral_constant<size_t, std::tuple_size_v<T> + concat_size_v<Ts...>> { };
+
+	template<>
+	struct concat_size<>
+	: std::integral_constant<size_t, 0> { };
+
+	template<typename X, size_t N>
+	constexpr void concat_insert(frg::array<X, N> &, size_t) { }
+
+	template<typename X, size_t N, typename T, typename... Ts>
+	constexpr void concat_insert(frg::array<X, N> &res, size_t at, const T &other, const Ts &...tail) {
+		size_t n = std::tuple_size_v<T>;
+		for(size_t i = 0; i < n; ++i)
+			res[at + i] = other[i];
+		concat_insert(res, at + n, tail...);
+	}
+} // namespace details
+
+template<typename X, typename ...Ts>
+constexpr auto array_concat(const Ts &...arrays) {
+	frg::array<X, details::concat_size_v<Ts...>> res{};
+	details::concat_insert(res, 0, arrays...);
+	return res;
+}
 
 } // namespace frg
 
