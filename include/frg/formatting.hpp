@@ -516,6 +516,17 @@ private:
 	const T *_xp;
 };
 
+static inline char *strchr(const char *s, int c) {
+	while (*s) {
+		if (*s == c)
+			return const_cast<char *>(s);
+
+		s++;
+	}
+
+	return nullptr;
+}
+
 struct escape_fmt {
 	template<typename F>
 	friend void format_object(escape_fmt self, format_options fo, F &formatter) {
