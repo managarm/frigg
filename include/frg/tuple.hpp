@@ -141,6 +141,7 @@ namespace _tuple {
 		return functor(std::move(args.template get<I>())...);
 	}
 
+	// Turns a set of tuple-like types into a tuple
 	template<size_t, typename, typename, size_t>
 	struct make_tuple_impl;
 
@@ -155,12 +156,14 @@ namespace _tuple {
 		using type = tuple<Types...>;
 	};
 
+	// Helper struct to turn a tuple-like T into a tuple<T>
 	template<typename T>
 	struct do_make_tuple
 	: public make_tuple_impl<0, tuple<>, std::remove_reference_t<T>, std::tuple_size<
 	std::remove_reference_t<T>>::value>
 	{};
 
+	// Computes the return type of a tuple_cat call
 	template<typename...>
 	struct tuple_combiner;
 
@@ -179,12 +182,16 @@ namespace _tuple {
 		using type = typename tuple_combiner<tuple<T1..., T2...>, Remainder...>::type;
 	};
 
+	// Computes the return type of a tuple_cat call taking
+	// a pack of tuple-like types
 	template<typename... Tuples>
 	struct tuple_cat_result {
 		typedef typename tuple_combiner<
 			typename do_make_tuple<Tuples>::type...>::type type;
 	};
 
+	// Builds an std::integer_sequence of the tuple_size of the
+	// first tuple passed to the template pack
 	template<typename...>
 	struct make_indices_from_1st;
 
@@ -199,6 +206,7 @@ namespace _tuple {
 			typename std::remove_reference<Tuple>::type>::value> type;
 	};
 
+	// Performs the actual concatenation for tuple_cat
 	template<typename Ret, typename Indices, typename... Tuples>
 	struct tuple_concater;
 
