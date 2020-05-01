@@ -193,6 +193,11 @@ public:
 		return erased;
 	}
 
+	void clear() {
+		while(!empty())
+			pop_front();
+	}
+
 	void splice(iterator it, intrusive_list &other) {
 		FRG_ASSERT(!it._current);
 		
