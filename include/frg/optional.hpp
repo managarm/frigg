@@ -101,6 +101,9 @@ public:
 		FRG_ASSERT(_non_null);
 		return &_stor.object;
 	}
+	T &value() {
+		return _stor.object;
+	}
 
 	friend void swap(optional &first, optional &second) {
 		using std::swap;
@@ -119,6 +122,13 @@ public:
 
 		swap(first._non_null, second._non_null);
 	}
+
+	template <typename ...Args>
+	void emplace(Args &&...args) {
+		new (&_stor.object) T(std::forward<Args>(args)...);
+		_non_null = true;
+	}
+
 private:
 	union storage_union {
 		T object;
