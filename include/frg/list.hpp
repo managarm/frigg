@@ -1,8 +1,8 @@
-#ifndef FRG_LIST_HPP
-#define FRG_LIST_HPP
+#pragma once
 
 #include <type_traits>
 #include <utility>
+#include <frg/allocation.hpp>
 #include <frg/intrusive.hpp>
 #include <frg/macros.hpp>
 #include <frg/utility.hpp>
@@ -242,6 +242,52 @@ using default_list_hook = intrusive_list_hook<
 	std::add_pointer_t<T>
 >;
 
-} // namespace frg
+template<typename T, typename Allocator>
+struct list {
+private:
+	struct item {
+		template<typename... Args>
+		item(Args &&... args)
+		: object(std::forward<Args>(args)...) { }
 
-#endif // FRG_LIST_HPP
+		T object;
+		frg::default_list_hook<item> hook;
+	};
+
+public:
+	list(Allocator allocator = {})
+	: allocator_{std::move(allocator)} { }
+
+	template<typename... Args>
+	void emplace_back(Args &&... args) {
+		auto e = frg::construct<item>(allocator_, std::forward<Args>(args)...);
+		items_.push_back(e);
+	}
+
+	bool empty() {
+		return items_.empty();
+	}
+
+	T &front() {
+		return items_.front()->object;
+	}
+
+	void pop_front() {
+		auto e = items_.pop_front();
+		frg::destruct(allocator_, e);
+	}
+
+private:
+	Allocator allocator_;
+
+	frg::intrusive_list<
+		item,
+		frg::locate_member<
+			item,
+			frg::default_list_hook<item>,
+			&item::hook
+		>
+	> items_;
+};
+
+} // namespace frg
