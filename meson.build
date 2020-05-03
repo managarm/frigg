@@ -35,3 +35,9 @@ endif
 
 frigg_dep = declare_dependency(include_directories: incl)
 
+analyzer = executable(
+		'slab_trace_analyzer',
+		'slab_trace_analyzer.cpp',
+		cpp_args: ['-std=c++17', '-O3'],
+		build_by_default: false,
+		native: true)
