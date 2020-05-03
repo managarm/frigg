@@ -49,6 +49,15 @@ using policy_pagesize_t = decltype(Policy::pagesize);
 template<typename Policy>
 using policy_num_buckets_t = decltype(Policy::num_buckets);
 
+template<typename Policy>
+using policy_output_trace_t = decltype(std::declval<Policy>().output_trace(uint8_t(0)));
+
+template<typename Policy>
+using policy_walk_stack_t = decltype(std::declval<Policy>().walk_stack(std::declval<void(uintptr_t)>()));
+
+template<typename Policy>
+using policy_enable_trace_t = decltype(std::declval<Policy>().enable_trace());
+
 template<typename Policy, typename Mutex>
 class slab_pool {
 public:
@@ -255,10 +264,12 @@ private:
 	void _verify_integrity();
 	void _verify_frame_integrity(frame *fra);
 
+	void _trace(char c, void *ptr, size_t size);
 private:
 	Policy &_plcy;
 
 	Mutex _tree_mutex;
+	Mutex _trace_mutex;
 	frame_tree_type _frame_tree;
 	size_t _usedPages;
 	bucket _bkts[num_buckets];
@@ -341,6 +352,7 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 		object->~freelist();
 		if(enable_checking)
 			_verify_integrity();
+		_trace('a', object, length);
 		return object;
 	}else{
 		auto area_size = (length + page_size - 1) & ~(page_size - 1);
@@ -356,6 +368,7 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 		//			(void *)fra->address << std::endl;
 		if(enable_checking)
 			_verify_integrity();
+		_trace('a', reinterpret_cast<void *>(fra->address), length);
 		return reinterpret_cast<void *>(fra->address);
 	}
 }
@@ -414,6 +427,8 @@ template<typename Policy, typename Mutex>
 void slab_pool<Policy, Mutex>::free(void *pointer) {
 	if(enable_checking)
 		_verify_integrity();
+
+	_trace('f', pointer, 0);
 
 	if(!pointer)
 		return;
@@ -486,6 +501,8 @@ void slab_pool<Policy, Mutex>::free(void *pointer) {
 
 template<typename Policy, typename Mutex>
 void slab_pool<Policy, Mutex>::deallocate(void *pointer, size_t size) {
+	_trace('f', pointer, 0);
+
 	if(!pointer)
 		return;
 
@@ -620,6 +637,34 @@ void slab_pool<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
 		_verify_frame_integrity(frame_tree_type::get_left(fra));
 	if(_frame_tree.get_right(fra))
 		_verify_frame_integrity(frame_tree_type::get_right(fra));
+}
+
+template<typename Policy, typename Mutex>
+void slab_pool<Policy, Mutex>::_trace(char c, void *ptr, size_t size) {
+	if constexpr (is_detected_v<policy_output_trace_t, Policy>
+			&& is_detected_v<policy_walk_stack_t, Policy>
+			&& is_detected_v<policy_enable_trace_t, Policy>) {
+		if (_plcy.enable_trace()) {
+			unique_lock<Mutex> guard{_trace_mutex};
+
+			_plcy.output_trace(c);
+
+			auto send_value = [this](uintptr_t val) {
+				for (int i = 0; i < 8; i++)
+					_plcy.output_trace((val >> (i * 8)) & 0xFF);
+			};
+
+			send_value(reinterpret_cast<uintptr_t>(ptr));
+			if (c == 'a')
+				send_value(size);
+
+			_plcy.walk_stack([&send_value](uintptr_t val){
+				send_value(val);
+			});
+
+			send_value(0xA5A5A5A5A5A5A5A5);
+		}
+	}
 }
 
 // --------------------------------------------------------
