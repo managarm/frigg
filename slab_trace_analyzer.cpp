@@ -208,6 +208,10 @@ int main(int argc, char **argv) {
 	}
 
 	size_t total_all = 0;
+
+	char *linebuf = nullptr;
+	size_t linecap = 0;
+
 	for (auto &[stack, l] : leaks) {
 		size_t avg = std::accumulate(l.begin(), l.end(), 0) / l.size();
 		size_t total = std::accumulate(l.begin(), l.end(), 0);
@@ -232,17 +236,16 @@ int main(int argc, char **argv) {
 
 		printf("\n  found in:\n");
 		for (auto p : stack) {
-			char linebuf[1024];
-
 			fprintf(stdin_f, "0x%016lx\n", p);
 			fflush(stdin_f);
-			fgets(linebuf, 1024, stdout_f);
+			getline(&linebuf, &linecap, stdout_f);
 
 			printf("\t%016lx -> %s", p, linebuf);
 		}
 		printf("--------------------------------------\n\n");
 	}
 
+	free(linebuf);
 	fclose(stdin_f);
 	fclose(stdout_f);
 	close(stdin_pipe[1]);
