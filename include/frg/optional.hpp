@@ -78,6 +78,22 @@ public:
 		return *this;
 	}
 
+	template<class U>
+	optional &operator= (optional<U> &&other) {
+		if (other) {
+			if (_non_null) {
+				_stor.object = std::move(*other);
+			} else {
+				new (&_stor.object) T(std::move(*other));
+				_non_null = true;
+			}
+		} else {
+			_reset();
+		}
+		return *this;
+	}
+
+
 	constexpr operator bool() const {
 		return _non_null;
 	}
