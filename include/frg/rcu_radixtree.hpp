@@ -46,6 +46,51 @@ public:
 	rcu_radixtree(Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _root{nullptr} {}
 
+	rcu_radixtree(const rcu_radixtree &) = delete;
+
+	~rcu_radixtree() {
+		node *n = _root;
+		_root = nullptr;
+
+		while(n) {
+			node *tn = nullptr;
+			if(n->depth == ll) {
+				auto cn = static_cast<entry_node *>(n);
+
+				auto mask = cn->mask.load(std::memory_order_relaxed);
+				for(int idx = 0; idx < 16; ++idx) {
+					if(!(mask & (uint16_t(1) << idx)))
+						continue;
+					auto p = std::launder(reinterpret_cast<T *>(cn->entries[idx].buffer));
+					p->~T();
+				}
+
+				tn = cn->parent;
+				frg::destruct(_allocator, cn);
+			}else{
+				auto cn = static_cast<link_node *>(n);
+
+				// If this link_node still has children, delete them first.
+				for(int idx = 0; idx < 16; ++idx) {
+					if(cn->links[idx]) {
+						tn = cn->links[idx];
+						cn->links[idx] = nullptr;
+						break;
+					}
+				}
+
+				// When this link_node is a leaf, delete it.
+				if(!tn) {
+					tn = cn->parent;
+					frg::destruct(_allocator, cn);
+				}
+			}
+			n = tn;
+		}
+	}
+
+	rcu_radixtree &operator= (const rcu_radixtree &) = delete;
+
 	T *find(uint64_t k) {
 		auto n = _root.load(std::memory_order_acquire);
 		while(true) {
