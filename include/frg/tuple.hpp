@@ -218,7 +218,7 @@ namespace _tuple {
 			typedef tuple_concater<Ret, index, Tuples...> next;
 			return next::do_concat(std::forward<Tuples>(tps)...,
 					std::forward<Res>(res)...,
-					tp.template get<Indices>()...);
+					std::move(tp.template get<Indices>())...);
 		}
 	};
 
