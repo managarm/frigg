@@ -58,6 +58,9 @@ using policy_walk_stack_t = decltype(std::declval<Policy>().walk_stack(std::decl
 template<typename Policy>
 using policy_enable_trace_t = decltype(std::declval<Policy>().enable_trace());
 
+template<typename Policy>
+using policy_map_aligned_t = decltype(std::declval<Policy>().map(size_t(0), size_t(0)));
+
 template<typename Policy, typename Mutex>
 class slab_pool {
 public:
@@ -568,8 +571,13 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// Allocate virtual memory for the slab.
-	uintptr_t address = _plcy.map(2 * slabsize);
-	address = (address + slabsize - 1) & ~(slabsize - 1);
+	uintptr_t address;
+	if constexpr (is_detected_v<policy_map_aligned_t, Policy>) {
+		address = _plcy.map(slabsize, slabsize);
+	} else {
+		address = _plcy.map(2 * slabsize);
+		address = (address + slabsize - 1) & ~(slabsize - 1);
+	}
 
 	auto item_size = bucket_to_size(index);
 	size_t overhead = 0;
@@ -601,7 +609,12 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 
 	// Allocate virtual memory for the frame.
 	FRG_ASSERT(!(area_size & (page_size - 1)));
-	uintptr_t address = _plcy.map(area_size + huge_padding);
+	uintptr_t address;
+	if constexpr (is_detected_v<policy_map_aligned_t, Policy>) {
+		address = _plcy.map(area_size + huge_padding, page_size);
+	} else {
+		address = _plcy.map(area_size + huge_padding);
+	}
 
 	auto fra = new ((void *)address) frame(frame_type::large,
 			address + huge_padding, area_size);
