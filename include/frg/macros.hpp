@@ -27,7 +27,7 @@ extern "C" {
 
 #define FRG_DEBUG_ASSERT(x) do { \
 	if(!(x)) { \
-		if(!FRG_INTF(panic)) \
+		if(!FRG_INTF(log)) \
 			break; \
 		FRG_INTF(log)(__FILE__ ":" FRG_EVALSTRINGIFY(__LINE__) \
 				": Assertion '" #x "' failed!"); \

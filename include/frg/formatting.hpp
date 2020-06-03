@@ -145,6 +145,9 @@ namespace _fmt_basics {
 		FRG_DEBUG_ASSERT(width == 0);
 		FRG_DEBUG_ASSERT(padding == ' ');
 
+		if (!precision)
+			precision = 6;
+
 		uint64_t n = static_cast<uint64_t>(number);
 		print_int(formatter, n, 10);
 		number -= n;
@@ -166,7 +169,8 @@ namespace _fmt_basics {
 
 	template<typename T, typename F>
 	void format_float(T object, format_options fo, F &formatter) {
-		print_float(formatter, object);
+		print_float(formatter, object, fo.minimum_width, fo.precision,
+				fo.fill_zeros ? '0' : ' ');
 	}
 };
 
@@ -530,7 +534,9 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 	switch(t) {
 	case 'f':
 	case 'F':
-		_fmt_basics::print_float(formatter, va_arg(vsp->args, double));
+		_fmt_basics::print_float(formatter, va_arg(vsp->args, double),
+				opts.minimum_width, opts.precision,
+				opts.fill_zeros ? '0' : ' ');
 		break;
 	case 'g':
 	case 'G':
