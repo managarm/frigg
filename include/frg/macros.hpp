@@ -7,7 +7,7 @@
 #define FRG_INTF(x) frg_ ## x
 
 extern "C" {
-	void FRG_INTF(log)(const char *cstring);
+	[[gnu::weak]] void FRG_INTF(log)(const char *cstring);
 	[[gnu::weak]] void FRG_INTF(panic)(const char *cstring);
 }
 
@@ -22,6 +22,15 @@ extern "C" {
 		FRG_INTF(panic)(__FILE__ ":" FRG_EVALSTRINGIFY(__LINE__) \
 				": Assertion '" #x "' failed!"); \
 		__builtin_trap(); \
+	}\
+} while(0)
+
+#define FRG_DEBUG_ASSERT(x) do { \
+	if(!(x)) { \
+		if(!FRG_INTF(panic)) \
+			break; \
+		FRG_INTF(log)(__FILE__ ":" FRG_EVALSTRINGIFY(__LINE__) \
+				": Assertion '" #x "' failed!"); \
 	}\
 } while(0)
 
