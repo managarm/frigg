@@ -137,6 +137,37 @@ namespace _fmt_basics {
 			print_int(formatter, object, 10);
 		}
 	}
+
+	template<typename P, typename T>
+	void print_float(P &formatter, T number, int width = 0, int precision = 6,
+			char padding = ' ') {
+		// TODO(geert): implement these
+		FRG_DEBUG_ASSERT(width == 0);
+		FRG_DEBUG_ASSERT(padding == ' ');
+
+		uint64_t n = static_cast<uint64_t>(number);
+		print_int(formatter, n, 10);
+		number -= n;
+
+		formatter.append('.');
+
+		number *= 10;
+		n = static_cast<uint64_t>(number);
+		number -= n;
+		int i = 0;
+		while (n > 0 && i < precision) {
+			formatter.append('0' + n);
+			number *= 10;
+			n = static_cast<uint64_t>(number);
+			number -= n;
+			i++;
+		}
+	}
+
+	template<typename T, typename F>
+	void format_float(T object, format_options fo, F &formatter) {
+		print_float(formatter, object);
+	}
 };
 
 template<typename F>
@@ -156,6 +187,16 @@ void format_object(int object, format_options fo, F &formatter) {
 
 template<typename F>
 void format_object(long object, format_options fo, F &formatter) {
+	_fmt_basics::format_integer(object, fo, formatter);
+}
+
+template<typename F>
+void format_object(float object, format_options fo, F &formatter) {
+	_fmt_basics::format_integer(object, fo, formatter);
+}
+
+template<typename F>
+void format_object(double object, format_options fo, F &formatter) {
 	_fmt_basics::format_integer(object, fo, formatter);
 }
 
@@ -489,6 +530,8 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 	switch(t) {
 	case 'f':
 	case 'F':
+		_fmt_basics::print_float(formatter, va_arg(vsp->args, double));
+		break;
 	case 'g':
 	case 'G':
 	case 'e':
