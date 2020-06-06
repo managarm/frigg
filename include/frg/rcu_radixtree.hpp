@@ -317,10 +317,10 @@ public:
 			return std::launder(reinterpret_cast<T *>(_n->entries[_idx].buffer));
 		}
 
-		bool operator== (const iterator &other) {
+		bool operator== (const iterator &other) const {
 			return _n == other._n && _idx == other._idx;
 		}
-		bool operator!= (const iterator &other) {
+		bool operator!= (const iterator &other) const {
 			return !(*this == other);
 		}
 
