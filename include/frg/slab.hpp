@@ -1,5 +1,4 @@
-#ifndef FRG_SLAB_HPP
-#define FRG_SLAB_HPP
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -476,7 +475,7 @@ void slab_pool<Policy, Mutex>::free(void *pointer) {
 	auto bkt = &_bkts[slb->index];
 
 	size_t item_size = bucket_to_size(slb->index);
-	FRG_ASSERT(((address - slb->address) % item_size) == 0);
+	FRG_ASSERT(!enable_checking || !((address - slb->address) % item_size));
 //				infoLogger() << "[" << pointer
 //						<< "] Small free from varea " << slb << endLog;
 
@@ -524,7 +523,7 @@ void slab_pool<Policy, Mutex>::deallocate(void *pointer, size_t size) {
 	auto bkt = &_bkts[slb->index];
 
 	size_t item_size = bucket_to_size(slb->index);
-	FRG_ASSERT(((address - slb->address) % item_size) == 0);
+	FRG_ASSERT(!enable_checking || !((address - slb->address) % item_size));
 //				infoLogger() << "[" << pointer
 //						<< "] Small free from varea " << slb << endLog;
 
@@ -711,5 +710,3 @@ private:
 };
 
 } // namespace frg
-
-#endif // FRG_SLAB_HPP
