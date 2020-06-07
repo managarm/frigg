@@ -22,6 +22,11 @@ public:
 	// the actual array
 	value_type _stor[N];
 
+	friend void swap(array &a, array &b) {
+	    for (size_t i = 0; i < N; i++)
+		std::swap(a._stor[i], b._stor[i]);
+	}
+
 	constexpr reference operator[](size_type pos) {
 		return _stor[pos];
 	}
