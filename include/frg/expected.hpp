@@ -27,13 +27,21 @@ bool indicates_error(E v) {
 	return v != E{};
 }
 
+// Conditionally add a non-trivial destructor.
+// This should probably work with requires clauses on ~expected()
+// but on Clang 10, it does not.
+template<typename E, typename T>
+struct destructor_crtp;
+
 template<typename E, typename T = void>
-struct expected {
+struct expected : destructor_crtp<E, T> {
 	static_assert(std::is_default_constructible_v<E>
 			&& std::is_trivially_copy_constructible_v<E>
 			&& std::is_trivially_move_constructible_v<E>
 			&& std::is_trivially_destructible_v<E>);
 	static_assert(!std::is_convertible_v<E, T> && !std::is_convertible_v<T, E>);
+
+	friend struct destructor_crtp<E, T>;
 
     expected()
 	requires (std::is_default_constructible_v<T>)
@@ -72,18 +80,6 @@ struct expected {
     : e_{} {
         FRG_ASSERT(!indicates_error(e_));
         new (stor_) T{std::move(val)};
-    }
-
-	~expected()
-	requires (std::is_trivially_destructible_v<T>)
-	= default;
-
-    ~expected()
-	requires (!std::is_trivially_destructible_v<T>) {
-        if(!indicates_error(e_)) {
-            auto p = std::launder(reinterpret_cast<T *>(stor_));
-            p->~T();
-        }
     }
 
 	expected &operator= (const expected &other)
@@ -164,6 +160,22 @@ struct expected {
 private:
     alignas(alignof(T)) char stor_[sizeof(T)];
     E e_;
+};
+
+template<typename E, typename T>
+requires (std::is_trivially_destructible_v<T>)
+struct destructor_crtp<E, T> { };
+
+template<typename E, typename T>
+requires (!std::is_trivially_destructible_v<T>)
+struct destructor_crtp<E, T> {
+	~destructor_crtp() {
+		auto self = static_cast<expected<E, T> *>(this);
+		if(!indicates_error(self->e_)) {
+			auto p = std::launder(reinterpret_cast<T *>(self->stor_));
+			p->~T();
+		}
+	}
 };
 
 template<typename E>
