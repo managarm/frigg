@@ -9,14 +9,14 @@
     auto ex = (expr); \
     if(!ex) \
         return ex.error(); \
-    ex.value(); \
+    value_or_void(ex); \
 })
 
 #define FRG_CO_TRY(expr) ({ \
     auto ex = (expr); \
     if(!ex) \
         co_return ex.error(); \
-    ex.value(); \
+    value_or_void(ex); \
 })
 
 namespace frg {
@@ -206,5 +206,12 @@ struct expected<E, void> {
 private:
     E e_;
 };
+
+// Helper function for the FRG_TRY macros.
+template<typename E, typename T>
+auto value_or_void(expected<E, T> &ex) {
+	if constexpr (requires { ex.value(); })
+		return ex.value();
+}
 
 } // namespace frg
