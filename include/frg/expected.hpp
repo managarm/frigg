@@ -34,7 +34,7 @@ template<typename E, typename T>
 struct destructor_crtp;
 
 template<typename E, typename T = void>
-struct expected : destructor_crtp<E, T> {
+struct [[nodiscard]] expected : destructor_crtp<E, T> {
 	static_assert(std::is_default_constructible_v<E>
 			&& std::is_trivially_copy_constructible_v<E>
 			&& std::is_trivially_move_constructible_v<E>
@@ -179,7 +179,7 @@ struct destructor_crtp<E, T> {
 };
 
 template<typename E>
-struct expected<E, void> {
+struct [[nodiscard]] expected<E, void> {
 	static_assert(std::is_default_constructible_v<E>
 			&& std::is_trivially_copy_constructible_v<E>
 			&& std::is_trivially_move_constructible_v<E>
