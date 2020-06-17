@@ -24,6 +24,7 @@ if not get_option('frigg_no_install')
 		'include/frg/qs.hpp',
 		'include/frg/random.hpp',
 		'include/frg/rbtree.hpp',
+		'include/frg/std_compat.hpp',
 		'include/frg/rcu_radixtree.hpp',
 		'include/frg/slab.hpp',
 		'include/frg/string.hpp',
