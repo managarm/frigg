@@ -137,7 +137,12 @@ tuple<typename std::remove_reference_t<Types>...> make_tuple(Types &&... args) {
 
 namespace _tuple {
 	template<typename F, typename... Args, size_t... I>
-	auto apply(F functor, tuple<Args...> args, std::index_sequence<I...>) {
+	auto apply(F functor, const tuple<Args...> &args, std::index_sequence<I...>) {
+		return functor(args.template get<I>()...);
+	}
+
+	template<typename F, typename... Args, size_t... I>
+	auto apply(F functor, tuple<Args...> &&args, std::index_sequence<I...>) {
 		return functor(std::move(args.template get<I>())...);
 	}
 
@@ -232,7 +237,12 @@ namespace _tuple {
 } // namespace tuple
 
 template<typename F, typename... Args>
-auto apply(F functor, tuple<Args...> args) {
+auto apply(F functor, const tuple<Args...> &args) {
+	return _tuple::apply(std::move(functor), args, std::index_sequence_for<Args...>());
+}
+
+template<typename F, typename... Args>
+auto apply(F functor, tuple<Args...> &&args) {
 	return _tuple::apply(std::move(functor), std::move(args), std::index_sequence_for<Args...>());
 }
 
