@@ -27,6 +27,7 @@ if not get_option('frigg_no_install')
 		'include/frg/std_compat.hpp',
 		'include/frg/rcu_radixtree.hpp',
 		'include/frg/slab.hpp',
+		'include/frg/span.hpp',
 		'include/frg/string.hpp',
 		'include/frg/tuple.hpp',
 		'include/frg/utility.hpp',
