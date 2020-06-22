@@ -21,6 +21,10 @@
 
 namespace frg {
 
+struct success_tag { };
+
+inline constexpr success_tag success;
+
 // Contextually convert to bool but also handle enum classes.
 template<typename E>
 bool indicates_error(E v) {
@@ -46,6 +50,7 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
     expected()
 	requires (std::is_default_constructible_v<T>)
     : e_{} {
+        FRG_ASSERT(!indicates_error(e_));
         new (stor_) T{};
     }
 
@@ -70,6 +75,13 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		if(!indicates_error(e_))
 			new (stor_) T{std::move(*std::launder(reinterpret_cast<T *>(other.stor_)))};
 	}
+
+    expected(success_tag)
+	requires (std::is_default_constructible_v<T>)
+    : e_{} {
+        FRG_ASSERT(!indicates_error(e_));
+        new (stor_) T{};
+    }
 
     expected(E e)
     : e_{e} {
@@ -186,6 +198,11 @@ struct [[nodiscard]] expected<E, void> {
 			&& std::is_trivially_destructible_v<E>);
 
     expected()
+    : e_{} {
+        FRG_ASSERT(!indicates_error(e_));
+    }
+
+    expected(success_tag)
     : e_{} {
         FRG_ASSERT(!indicates_error(e_));
     }
