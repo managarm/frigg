@@ -234,6 +234,12 @@ public:
 		return *this;
 	}
 
+	// used to disable deallocation upon object destruction
+	void detach() {
+		_buffer = nullptr;
+		_length = 0;
+	}
+
 	Char *data() {
 		return _buffer;
 	}
