@@ -80,7 +80,7 @@ public:
 		return iterator{ptr};
 	}
 
-	intrusive_list()
+	constexpr intrusive_list()
 	: _front{nullptr}, _back{nullptr} { }
 
 	iterator push_front(owner_pointer element) {
