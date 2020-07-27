@@ -16,7 +16,7 @@ struct intrusive_list_hook {
 	using owner_pointer = OwnerPointer;
 	using borrow_pointer = BorrowPointer;
 
-	intrusive_list_hook()
+	constexpr intrusive_list_hook()
 	: next{nullptr}, previous{nullptr}, in_list{false} { }
 
 	owner_pointer next;
