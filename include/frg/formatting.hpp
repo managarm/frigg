@@ -209,6 +209,12 @@ void format_object(const char *object, format_options fo, F &formatter) {
 	formatter.append(object);
 }
 
+template<typename F>
+void format_object(const frg::string_view &object, format_options fo, F &formatter) {
+	for(size_t i = 0; i < object.size(); ++i)
+		formatter.append(object[i]);
+}
+
 template<typename F, typename Allocator>
 void format_object(const frg::string<Allocator> &object, format_options fo, F &formatter) {
 	formatter.append(object.data());
