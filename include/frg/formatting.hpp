@@ -557,6 +557,21 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 
 // ----------------------------------------------------------------------------
 
+struct char_fmt {
+	template<typename F>
+	friend void format_object(char_fmt self, format_options fo, F &formatter) {
+		(void)fo;
+		formatter.append(self.c_);
+	}
+
+	template<typename T>
+	char_fmt(const T &x)
+	: c_{static_cast<char>(x)} { }
+
+private:
+	const char c_;
+};
+
 template<typename T>
 struct hex_fmt {
 	template<typename F>
