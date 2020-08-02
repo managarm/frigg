@@ -55,6 +55,9 @@ template<typename Policy>
 using policy_walk_stack_t = decltype(std::declval<Policy>().walk_stack(std::declval<void(uintptr_t)>()));
 
 template<typename Policy>
+using policy_poison_t = decltype(std::declval<Policy>().poison(nullptr, size_t(0)));
+
+template<typename Policy>
 using policy_enable_trace_t = decltype(std::declval<Policy>().enable_trace());
 
 template<typename Policy>
@@ -174,6 +177,8 @@ private:
 
 	// TODO: Refactor the huge frame padding.
 	static constexpr size_t huge_padding = page_size;
+
+	static constexpr bool has_poisoning = is_detected_v<policy_poison_t, Policy>;
 
 	struct freelist {
 		freelist()
@@ -352,6 +357,10 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
 		object->~freelist();
+		if constexpr (has_poisoning) {
+			_plcy.poison(object, sizeof(freelist));
+			_plcy.unpoison(object, length);
+		}
 		if(enable_checking)
 			_verify_integrity();
 		_trace('a', object, length);
@@ -398,8 +407,14 @@ void *slab_pool<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 		auto slb = static_cast<slab_frame *>(fra);
 		size_t item_size = bucket_to_size(slb->index);
 
-		if(new_length <= item_size)
+		if(new_length <= item_size) {
+			if constexpr (has_poisoning) {
+				_plcy.unpoison_expand(pointer, item_size);
+				_plcy.poison(pointer, item_size);
+				_plcy.unpoison(pointer, new_length);
+			}
 			return pointer;
+		}
 
 		void *new_pointer = allocate(new_length);
 		if(!new_pointer)
@@ -460,7 +475,12 @@ void slab_pool<Policy, Mutex>::free(void *pointer) {
 		// Call into the Policy without holding locks.
 		tree_guard.unlock();
 
-		_plcy.unmap((uintptr_t)fra->address - huge_padding, fra->length + huge_padding);
+		// Note: we cannot access fra->length after poison().
+		auto base = fra->address - huge_padding;
+		auto size = fra->length + huge_padding;
+		if constexpr (has_poisoning)
+			_plcy.poison(reinterpret_cast<void *>(base), size);
+		_plcy.unmap(base, size);
 		if(enable_checking)
 			_verify_integrity();
 		return;
@@ -484,7 +504,13 @@ void slab_pool<Policy, Mutex>::free(void *pointer) {
 	bool was_unavailable = !slb->available;
 	FRG_ASSERT(slb->num_reserved);
 
+	if constexpr (has_poisoning) {
+		_plcy.unpoison_expand(pointer, item_size);
+		_plcy.poison(pointer, item_size);
+		_plcy.unpoison(pointer, sizeof(freelist));
+	}
 	auto object = new (pointer) freelist;
+
 	FRG_ASSERT(!slb->available || slb->contains(slb->available));
 	object->link = slb->available;
 	slb->available = object;
@@ -532,7 +558,12 @@ void slab_pool<Policy, Mutex>::deallocate(void *pointer, size_t size) {
 	bool was_unavailable = !slb->available;
 	FRG_ASSERT(slb->num_reserved);
 
+	if constexpr (has_poisoning) {
+		_plcy.poison(pointer, size);
+		_plcy.unpoison(pointer, sizeof(freelist));
+	}
 	auto object = new (pointer) freelist;
+
 	FRG_ASSERT(!slb->available || slb->contains(slb->available));
 	object->link = slb->available;
 	slb->available = object;
@@ -583,7 +614,11 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 	while(overhead < sizeof(slab_frame)) // FIXME.
 		overhead += item_size;
 	FRG_ASSERT(overhead < slabsize);
-	auto slb = new ((void *)address) slab_frame(address + overhead, slabsize - overhead, index);
+
+	if constexpr (has_poisoning)
+		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(slab_frame));
+	auto slb = new (reinterpret_cast<void *>(address)) slab_frame(
+			address + overhead, slabsize - overhead, index);
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
@@ -591,7 +626,9 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 	// Partition the slab into individual objects.
 	freelist *first = nullptr;
 	for(size_t off = 0; off < slb->length; off += item_size) {
-		auto object = new (reinterpret_cast<char *>(slb->address) + off) freelist;
+		if constexpr (has_poisoning)
+			_plcy.unpoison(reinterpret_cast<void *>(slb->address + off), sizeof(freelist));
+		auto object = new (reinterpret_cast<void *>(slb->address + off)) freelist;
 		object->link = first;
 		first = object;
 		//infoLogger() << "[slab] fill " << chunk << frg::endLog;
@@ -614,6 +651,8 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 	} else {
 		address = _plcy.map(area_size + huge_padding);
 	}
+	if constexpr (has_poisoning)
+		_plcy.unpoison(reinterpret_cast<void *>(address), area_size + huge_padding);
 
 	auto fra = new ((void *)address) frame(frame_type::large,
 			address + huge_padding, area_size);
