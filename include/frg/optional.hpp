@@ -4,6 +4,7 @@
 #include <new>
 #include <utility>
 
+#include <frg/eternal.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
@@ -24,71 +25,98 @@ public:
 
 	optional(const T &object)
 	: _non_null{true} {
-		new (&_stor.object) T(object);
+		new (_stor.buffer) T(object);
 	}
 
 	optional(T &&object)
 	: _non_null{true} {
-		new (&_stor.object) T(std::move(object));
+		new (_stor.buffer) T(std::move(object));
 	}
 
 	template<typename U = value_type, typename =
 		std::enable_if_t<std::is_constructible_v<T, U&&>>>
 	constexpr optional(U &&value)
 	: _non_null{true} {
-		new (&_stor.object) T(std::forward<U>(value));
+		new (_stor.buffer) T(std::forward<U>(value));
 	}
 
 	optional(const optional &other)
 	: _non_null{other._non_null} {
 		if(_non_null)
-			new (&_stor.object) T(other._stor.object);
+			new (_stor.buffer) T(*other._object());
 	}
 
 	optional(optional &&other)
 	: _non_null{other._non_null} {
-		if(_non_null) {
-			new (&_stor.object) T(std::move(other._stor.object));
-			other._non_null = false;
-		}
+		if(_non_null)
+			new (_stor.buffer) T(std::move(*other._object()));
 	}
 
 	~optional() {
 		if(_non_null)
-			_stor.object.~T();
+			_reset();
 	}
 
-	optional &operator= (optional other) {
-		swap(*this, other);
-		return *this;
-	}
-
-	template<class U>
-	optional &operator= (const optional<U> &other) {
-		if (other) {
+	optional &operator= (const optional &other) {
+		if (other._non_null) {
 			if (_non_null) {
-				_stor.object = *other;
+				*_object() = *other._object();
 			} else {
-				new (&_stor.object) T(*other);
+				new (_stor.buffer) T(*other._object());
 				_non_null = true;
 			}
 		} else {
-			_reset();
+			if(_non_null)
+				_reset();
 		}
 		return *this;
 	}
 
-	template<class U>
-	optional &operator= (optional<U> &&other) {
-		if (other) {
+	optional &operator= (optional &&other) {
+		if (other._non_null) {
 			if (_non_null) {
-				_stor.object = std::move(*other);
+				*_object() = std::move(*other._object());
 			} else {
-				new (&_stor.object) T(std::move(*other));
+				new (_stor.buffer) T(std::move(*other._object()));
 				_non_null = true;
 			}
 		} else {
-			_reset();
+			if(_non_null)
+				_reset();
+		}
+		return *this;
+	}
+
+	// Exactly the same as above but for more general types.
+	template<class U>
+	optional &operator= (const optional<U> &other) {
+		if (other._non_null) {
+			if (_non_null) {
+				*_object() = *other._object();
+			} else {
+				new (_stor.buffer) T(*other._object());
+				_non_null = true;
+			}
+		} else {
+			if(_non_null)
+				_reset();
+		}
+		return *this;
+	}
+
+	// Exactly the same as above but for more general types.
+	template<class U>
+	optional &operator= (optional<U> &&other) {
+		if (other._non_null) {
+			if (_non_null) {
+				*_object() = std::move(*other._object());
+			} else {
+				new (_stor.buffer) T(std::move(*other._object()));
+				_non_null = true;
+			}
+		} else {
+			if(_non_null)
+				_reset();
 		}
 		return *this;
 	}
@@ -107,59 +135,43 @@ public:
 
 	constexpr const T &operator* () const {
 		FRG_ASSERT(_non_null);
-		return _stor.object;
+		return *_object();
 	}
 	constexpr T &operator* () {
 		FRG_ASSERT(_non_null);
-		return _stor.object;
+		return *_object();
 	}
 	T *operator-> () {
 		FRG_ASSERT(_non_null);
-		return &_stor.object;
+		return _object();
 	}
 	T &value() {
-		return _stor.object;
-	}
-
-	friend void swap(optional &first, optional &second) {
-		using std::swap;
-
-		if(first._non_null && second._non_null) {
-			swap(first._stor.object, second._stor.object);
-		}else if(first._non_null && !second._non_null) {
-			T tmp{std::move(first._stor.object)};
-			first._stor.object.~T();
-			new (&second._stor.object) T(std::move(tmp));
-		}else if(!first._non_null && second._non_null) {
-			T tmp{std::move(second._stor.object)};
-			second._stor.object.~T();
-			new (&first._stor.object) T(std::move(tmp));
-		}
-
-		swap(first._non_null, second._non_null);
+		FRG_ASSERT(_non_null);
+		return *_object();
 	}
 
 	template <typename ...Args>
 	void emplace(Args &&...args) {
-		new (&_stor.object) T(std::forward<Args>(args)...);
+		if(_non_null)
+			_reset();
+		new (_stor.buffer) T(std::forward<Args>(args)...);
 		_non_null = true;
 	}
 
 private:
-	union storage_union {
-		T object;
-		
-		storage_union() { }
-		~storage_union() { } // handled by super class destructor
-	};
+	const T *_object() const {
+		return std::launder(reinterpret_cast<const T *>(_stor.buffer));
+	}
+	T *_object() {
+		return std::launder(reinterpret_cast<T *>(_stor.buffer));
+	}
 
 	void _reset() {
-		if (_non_null)
-			_stor.object.~T();
+		_object()->~T();
 		_non_null = false;
 	}
 
-	storage_union _stor;
+	aligned_storage<sizeof(T), alignof(T)> _stor;
 	bool _non_null;
 };
 
