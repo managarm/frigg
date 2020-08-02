@@ -185,12 +185,22 @@ void format_object(unsigned long object, format_options fo, F &formatter) {
 }
 
 template<typename F>
+void format_object(unsigned long long object, format_options fo, F &formatter) {
+	_fmt_basics::format_integer(object, fo, formatter);
+}
+
+template<typename F>
 void format_object(int object, format_options fo, F &formatter) {
 	_fmt_basics::format_integer(object, fo, formatter);
 }
 
 template<typename F>
 void format_object(long object, format_options fo, F &formatter) {
+	_fmt_basics::format_integer(object, fo, formatter);
+}
+
+template<typename F>
+void format_object(long long object, format_options fo, F &formatter) {
 	_fmt_basics::format_integer(object, fo, formatter);
 }
 
