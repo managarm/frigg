@@ -247,6 +247,7 @@ enum class printf_size_mod {
 	default_size,
 	long_size,
 	longlong_size,
+	longdouble_size,
 	native_size
 };
 
@@ -348,6 +349,10 @@ void printf_format(A agent, const char *s, va_struct *vsp) {
 			}
 		}else if(*s == 'z') {
 			szmod = printf_size_mod::native_size;
+			++s;
+			FRG_ASSERT(*s);
+		} else if(*s == 'L') {
+			szmod = printf_size_mod::longdouble_size;
 			++s;
 			FRG_ASSERT(*s);
 		}
@@ -550,9 +555,16 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 	switch(t) {
 	case 'f':
 	case 'F':
-		_fmt_basics::print_float(formatter, va_arg(vsp->args, double),
-				opts.minimum_width, opts.precision,
-				opts.fill_zeros ? '0' : ' ');
+		if (szmod == printf_size_mod::longdouble_size) {
+			_fmt_basics::print_float(formatter, va_arg(vsp->args, long double),
+					opts.minimum_width, opts.precision,
+					opts.fill_zeros ? '0' : ' ');
+		} else {
+			FRG_ASSERT(szmod == printf_size_mod::default_size);
+			_fmt_basics::print_float(formatter, va_arg(vsp->args, double),
+					opts.minimum_width, opts.precision,
+					opts.fill_zeros ? '0' : ' ');
+		}
 		break;
 	case 'g':
 	case 'G':
