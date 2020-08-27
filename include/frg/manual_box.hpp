@@ -22,9 +22,22 @@ public:
 		_initialized = true;
 	}
 
+	template<typename F, typename... Args>
+	void construct_with(F f) {
+		FRG_ASSERT(!_initialized);
+		new(&_storage) T{f()};
+		_initialized = true;
+	}
+
+	void destruct() {
+		FRG_ASSERT(_initialized);
+		get()->T::~T();
+		_initialized = false;
+	}
+
 	T *get() {
 		FRG_ASSERT(_initialized);
-		return reinterpret_cast<T *>(&_storage);
+		return std::launder(reinterpret_cast<T *>(&_storage));
 	}
 	
 	bool valid() {
