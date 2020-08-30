@@ -335,12 +335,12 @@ namespace _to_string_impl {
 	string<Pool> to_allocated_string(Pool &pool, T v, int radix = 10, size_t precision = 1,
 			const char *digits = small_digits) {
 		constexpr auto m = num_digits<T>();
-		assert(v >= 0);
+		FRG_ASSERT(v >= 0);
 
 		char buffer[m];
 		size_t n = 0;
 		while(v) {
-			assert(n < m);
+			FRG_ASSERT(n < m);
 			buffer[n++] = digits[v % radix];
 			v /= radix;
 		}
