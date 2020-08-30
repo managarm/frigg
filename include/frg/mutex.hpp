@@ -74,12 +74,12 @@ private:
 
 template<typename Mutex>
 unique_lock<Mutex> guard(Mutex *mutex) {
-	return unique_lock<Mutex>(mutex);
+	return unique_lock<Mutex>(*mutex);
 }
 
 template<typename Mutex>
 unique_lock<Mutex> guard(dont_lock_t, Mutex *mutex) {
-	return unique_lock<Mutex>(dont_lock, mutex);
+	return unique_lock<Mutex>(dont_lock, *mutex);
 }
 
 } // namespace frg
