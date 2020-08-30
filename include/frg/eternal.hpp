@@ -3,6 +3,7 @@
 
 #include <new>
 #include <utility>
+#include <algorithm>
 
 #include <frg/macros.hpp>
 
@@ -15,6 +16,12 @@ struct alignas(Align) aligned_storage {
 
 	char buffer[Size];
 };
+
+template <typename ...T>
+using aligned_union = aligned_storage<
+	std::max({sizeof(T)...}),
+	std::max({alignof(T)...})
+>;
 
 // Container for an object that deletes the object's destructor.
 // eternal<T> always has a trivial destructor.
