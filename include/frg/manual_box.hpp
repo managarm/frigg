@@ -18,7 +18,7 @@ public:
 	template<typename... Args>
 	void initialize(Args &&... args) {
 		FRG_ASSERT(!_initialized);
-		new(&_storage) T{std::forward<Args>(args)...};
+		new(&_storage) T(std::forward<Args>(args)...);
 		_initialized = true;
 	}
 
@@ -39,8 +39,12 @@ public:
 		FRG_ASSERT(_initialized);
 		return std::launder(reinterpret_cast<T *>(&_storage));
 	}
-	
+
 	bool valid() {
+		return _initialized;
+	}
+
+	operator bool () {
 		return _initialized;
 	}
 
