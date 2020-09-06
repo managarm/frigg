@@ -376,13 +376,18 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 		break;
 	case 'c':
 		FRG_ASSERT(!opts.fill_zeros);
-		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(szmod == printf_size_mod::default_size);
 		FRG_ASSERT(!opts.precision);
-		for (int i = 0; i < opts.minimum_width - 1; i++)
-			formatter.append(' ');
-		formatter.append((char)va_arg(vsp->args, int));
+		if (opts.left_justify) {
+			formatter.append((char)va_arg(vsp->args, int));
+			for (int i = 0; i < opts.minimum_width - 1; i++)
+				formatter.append(' ');
+		} else {
+			for (int i = 0; i < opts.minimum_width - 1; i++)
+				formatter.append(' ');
+			formatter.append((char)va_arg(vsp->args, int));
+		}
 		break;
 	case 's': {
 		FRG_ASSERT(!opts.fill_zeros);
