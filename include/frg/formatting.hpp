@@ -76,7 +76,7 @@ namespace _fmt_basics {
 	// precision: Minimum number of digits in the ouput (always padded with zeros).
 	template<typename P, typename T>
 	void print_digits(P &formatter, T number, bool negative, int radix,
-			int width, int precision, char padding) {
+			int width, int precision, char padding, bool left_justify) {
 		const char *digits = "0123456789abcdef";
 
 		// print the number in reverse order and determine #digits.
@@ -93,7 +93,7 @@ namespace _fmt_basics {
 			buffer[k++] = '-';
 		}
 
-		if(max(k, precision) < width)
+		if(!left_justify && max(k, precision) < width)
 			for(int i = 0; i < width - max(k, precision); i++)
 				formatter.append(padding);
 		if(k < precision)
@@ -101,6 +101,10 @@ namespace _fmt_basics {
 				formatter.append('0');
 		for(int i = k - 1; i >= 0; i--)
 			formatter.append(buffer[i]);
+
+		if(left_justify && max(k, precision) < width)
+			for(int i = max(k, precision); i < width; i++)
+				formatter.append(padding);
 	}
 
 	template<typename T>
@@ -118,12 +122,14 @@ namespace _fmt_basics {
 	// computing (~x + 1).
 	template<typename P, typename T>
 	void print_int(P &formatter, T number, int radix, int width = 0,
-			int precision = 1, char padding = ' ') {
+			int precision = 1, char padding = ' ', bool left_justify = false) {
 		if(number < 0) {
 			auto absv = ~static_cast<typename make_unsigned<T>::type>(number) + 1;
-			print_digits(formatter, absv, true, radix, width, precision, padding);
+			print_digits(formatter, absv, true, radix, width, precision, padding,
+					left_justify);
 		}else{
-			print_digits(formatter, number, false, radix, width, precision, padding);
+			print_digits(formatter, number, false, radix, width, precision, padding,
+					left_justify);
 		}
 	}
 
@@ -447,7 +453,6 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	switch(t) {
 	case 'd':
 	case 'i': {
-		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		long number;
 		if(szmod == printf_size_mod::long_size) {
@@ -464,19 +469,18 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			// print nothing in this case
 		}else{
 			_fmt_basics::print_int(formatter, number, 10, opts.minimum_width,
-					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
+					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
+					opts.left_justify);
 		}
 	} break;
 	case 'o': {
-		// TODO: Implement this correctly
-		FRG_ASSERT(!opts.left_justify);
-
 		auto print = [&] (auto number) {
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
 				_fmt_basics::print_int(formatter, number, 8, opts.minimum_width,
-						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
+						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
+						opts.left_justify);
 			}
 		};
 
@@ -491,15 +495,14 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		}
 	} break;
 	case 'x': {
-		// TODO: Implement this correctly
-		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		auto print = [&] (auto number) {
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
 				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
-						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
+						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
+						opts.left_justify);
 			}
 		};
 		if(szmod == printf_size_mod::long_size) {
@@ -510,14 +513,14 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		}
 	} break;
 	case 'X': {
-		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		auto print = [&] (auto number) {
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
 				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
-						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ');
+						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
+						opts.left_justify);
 			}
 		};
 		if(szmod == printf_size_mod::long_size) {
@@ -527,26 +530,29 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		}
 	} break;
 	case 'u': {
-		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(!opts.precision);
 		if(szmod == printf_size_mod::longlong_size) {
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long long),
 					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ');
+					1, opts.fill_zeros ? '0' : ' ',
+					opts.left_justify);
 		}else if(szmod == printf_size_mod::long_size) {
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long),
 					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ');
+					1, opts.fill_zeros ? '0' : ' ',
+					opts.left_justify);
 		}else if(szmod == printf_size_mod::native_size) {
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, size_t),
 					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ');
+					1, opts.fill_zeros ? '0' : ' ',
+					opts.left_justify);
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned int),
 					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ');
+					1, opts.fill_zeros ? '0' : ' ',
+					opts.left_justify);
 		}
 	} break;
 	default:
