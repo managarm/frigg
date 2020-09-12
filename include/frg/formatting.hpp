@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <frg/macros.hpp>
 #include <frg/optional.hpp>
 #include <frg/string.hpp>
@@ -65,6 +66,22 @@ struct format_options {
 	bool plus_becomes_space = false;
 	bool alt_conversion = false;
 	bool fill_zeros = false;
+	bool group_thousands = false;
+};
+
+struct locale_options {
+	locale_options()
+	: decimal_point("."), thousands_sep(""), grouping("\255") { }
+
+	locale_options(const char *d_p, const char *t_s, const char *grp)
+	: decimal_point(d_p), thousands_sep(t_s), grouping(grp) {
+		thousands_sep_size = strlen(thousands_sep);
+	}
+
+	const char *decimal_point;
+	const char *thousands_sep;
+	const char *grouping;
+	size_t thousands_sep_size;
 };
 
 // ----------------------------------------------------------------------------
@@ -76,34 +93,81 @@ namespace _fmt_basics {
 	// precision: Minimum number of digits in the ouput (always padded with zeros).
 	template<typename P, typename T>
 	void print_digits(P &formatter, T number, bool negative, int radix,
-			int width, int precision, char padding, bool left_justify) {
+			int width, int precision, char padding, bool left_justify,
+			bool group_thousands, locale_options locale_opts) {
 		const char *digits = "0123456789abcdef";
+		char buffer[32];
+
+		int k = 0; // number of digits
+		int c = 0; // number of chars since last grouping
+		int g = 0; // grouping index
+		int r = 0; // amount of times we repeated the last grouping
+		size_t extra = 0; // extra chars printed due to seperator
+
+		auto step_grouping = [&] () {
+			if (!group_thousands)
+				return;
+
+			if (++c == locale_opts.grouping[g]) {
+				if (locale_opts.grouping[g + 1] > 0)
+					g++;
+				else
+					r++;
+				c = 0;
+				extra += locale_opts.thousands_sep_size;
+			}
+		};
+
+		auto emit_grouping = [&] () {
+			if (!group_thousands)
+				return;
+
+			if (--c == 0) {
+				formatter.append(locale_opts.thousands_sep);
+				if (!r || !--r)
+					g--;
+				c = locale_opts.grouping[g];
+			}
+		};
 
 		// print the number in reverse order and determine #digits.
-		char buffer[32];
-		int k = 0; // number of digits
 		do {
 			FRG_ASSERT(k < 32); // TODO: variable number of digits
 			buffer[k++] = digits[number % radix];
 			number /= radix;
+			step_grouping();
 		} while(number);
 
-		if(negative) {
-			FRG_ASSERT(k < 32); // TODO: variable number of digits
-			buffer[k++] = '-';
+		if (k < precision)
+			for (int i = 0; i < precision - k; i++)
+				step_grouping();
+
+		if (!c)
+			c = locale_opts.grouping[g];
+
+		int final_width = max(k, precision) + extra;
+
+		if(!left_justify && final_width < width)
+			for(int i = 0; i < width - final_width; i++)
+				formatter.append(padding);
+
+		if(negative)
+			formatter.append('-');
+
+		if(k < precision) {
+			for(int i = 0; i < precision - k; i++) {
+				formatter.append('0');
+				emit_grouping();
+			}
 		}
 
-		if(!left_justify && max(k, precision) < width)
-			for(int i = 0; i < width - max(k, precision); i++)
-				formatter.append(padding);
-		if(k < precision)
-			for(int i = 0; i < precision - k; i++)
-				formatter.append('0');
-		for(int i = k - 1; i >= 0; i--)
+		for(int i = k - 1; i >= 0; i--) {
 			formatter.append(buffer[i]);
+			emit_grouping();
+		}
 
-		if(left_justify && max(k, precision) < width)
-			for(int i = max(k, precision); i < width; i++)
+		if(left_justify && final_width < width)
+			for(int i = final_width; i < width; i++)
 				formatter.append(padding);
 	}
 
@@ -122,14 +186,15 @@ namespace _fmt_basics {
 	// computing (~x + 1).
 	template<typename P, typename T>
 	void print_int(P &formatter, T number, int radix, int width = 0,
-			int precision = 1, char padding = ' ', bool left_justify = false) {
+			int precision = 1, char padding = ' ', bool left_justify = false,
+			bool group_thousands = false, locale_options locale_opts = {}) {
 		if(number < 0) {
 			auto absv = ~static_cast<typename make_unsigned<T>::type>(number) + 1;
 			print_digits(formatter, absv, true, radix, width, precision, padding,
-					left_justify);
+					left_justify, group_thousands, locale_opts);
 		}else{
 			print_digits(formatter, number, false, radix, width, precision, padding,
-					left_justify);
+					left_justify, group_thousands, locale_opts);
 		}
 	}
 
@@ -146,7 +211,8 @@ namespace _fmt_basics {
 
 	template<typename P, typename T>
 	void print_float(P &formatter, T number, int width = 0, int precision = 6,
-			char padding = ' ') {
+			char padding = ' ', bool group_thousands = false,
+			locale_options locale_opts = {}) {
 		// TODO(geert): implement these
 		FRG_DEBUG_ASSERT(width == 0);
 		FRG_DEBUG_ASSERT(padding == ' ');
@@ -158,7 +224,7 @@ namespace _fmt_basics {
 		print_int(formatter, n, 10);
 		number -= n;
 
-		formatter.append('.');
+		formatter.append(locale_opts.decimal_point);
 
 		number *= 10;
 		n = static_cast<uint64_t>(number);
@@ -298,6 +364,10 @@ void printf_format(A agent, const char *s, va_struct *vsp) {
 				FRG_ASSERT(*s);
 			}else if(*s == '0') {
 				opts.fill_zeros = true;
+				++s;
+				FRG_ASSERT(*s);
+			}else if(*s == '\'') {
+				opts.group_thousands = true;
 				++s;
 				FRG_ASSERT(*s);
 			}else{
@@ -449,7 +519,7 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 
 template<typename F>
 void do_printf_ints(F &formatter, char t, format_options opts,
-		printf_size_mod szmod, va_struct *vsp) {
+		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
 	switch(t) {
 	case 'd':
 	case 'i': {
@@ -470,7 +540,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		}else{
 			_fmt_basics::print_int(formatter, number, 10, opts.minimum_width,
 					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify);
+					opts.left_justify, opts.group_thousands, locale_opts);
 		}
 	} break;
 	case 'o': {
@@ -480,7 +550,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			}else{
 				_fmt_basics::print_int(formatter, number, 8, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
-						opts.left_justify);
+						opts.left_justify, false, locale_opts);
 			}
 		};
 
@@ -502,7 +572,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			}else{
 				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
-						opts.left_justify);
+						opts.left_justify, false, locale_opts);
 			}
 		};
 		if(szmod == printf_size_mod::long_size) {
@@ -520,7 +590,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			}else{
 				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
-						opts.left_justify);
+						opts.left_justify, false, locale_opts);
 			}
 		};
 		if(szmod == printf_size_mod::long_size) {
@@ -536,23 +606,27 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long long),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify);
+					opts.left_justify,
+					opts.group_thousands, locale_opts);
 		}else if(szmod == printf_size_mod::long_size) {
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify);
+					opts.left_justify,
+					opts.group_thousands, locale_opts);
 		}else if(szmod == printf_size_mod::native_size) {
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, size_t),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify);
+					opts.left_justify,
+					opts.group_thousands, locale_opts);
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned int),
 					10, opts.minimum_width,
 					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify);
+					opts.left_justify,
+					opts.group_thousands, locale_opts);
 		}
 	} break;
 	default:
@@ -562,19 +636,21 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 
 template<typename F>
 void do_printf_floats(F &formatter, char t, format_options opts,
-		printf_size_mod szmod, va_struct *vsp) {
+		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
 	switch(t) {
 	case 'f':
 	case 'F':
 		if (szmod == printf_size_mod::longdouble_size) {
 			_fmt_basics::print_float(formatter, va_arg(vsp->args, long double),
 					opts.minimum_width, opts.precision,
-					opts.fill_zeros ? '0' : ' ');
+					opts.fill_zeros ? '0' : ' ',
+					opts.group_thousands, locale_opts);
 		} else {
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			_fmt_basics::print_float(formatter, va_arg(vsp->args, double),
 					opts.minimum_width, opts.precision,
-					opts.fill_zeros ? '0' : ' ');
+					opts.fill_zeros ? '0' : ' ',
+					opts.group_thousands, locale_opts);
 		}
 		break;
 	case 'g':
