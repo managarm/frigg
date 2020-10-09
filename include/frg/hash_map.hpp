@@ -148,7 +148,7 @@ public:
 		unsigned int bucket = ((unsigned int)_hasher(key) % _capacity);
 		for (chain *item = _table[bucket]; item != nullptr; item = item->next) {
 			if (item->entry.template get<0>() == key)
-				return iterator(*this, bucket, item);
+				return iterator(this, bucket, item);
 		}
 
 		return end();
@@ -178,7 +178,7 @@ public:
 		unsigned int bucket = ((unsigned int)_hasher(key)) % _capacity;
 		for (const chain *item = _table[bucket]; item != nullptr; item = item->next) {
 			if (item->entry.template get<0>() == key)
-				return const_iterator(*this, bucket, item);
+				return const_iterator(this, bucket, item);
 		}
 
 		return end();
