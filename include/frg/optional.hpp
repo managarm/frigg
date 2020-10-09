@@ -90,11 +90,11 @@ public:
 	// Exactly the same as above but for more general types.
 	template<class U>
 	optional &operator= (const optional<U> &other) {
-		if (other._non_null) {
+		if (other) {
 			if (_non_null) {
-				*_object() = *other._object();
+				*_object() = *other;
 			} else {
-				new (_stor.buffer) T(*other._object());
+				new (_stor.buffer) T(*other);
 				_non_null = true;
 			}
 		} else {
@@ -107,11 +107,11 @@ public:
 	// Exactly the same as above but for more general types.
 	template<class U>
 	optional &operator= (optional<U> &&other) {
-		if (other._non_null) {
+		if (other) {
 			if (_non_null) {
-				*_object() = std::move(*other._object());
+				*_object() = std::move(*other);
 			} else {
-				new (_stor.buffer) T(std::move(*other._object()));
+				new (_stor.buffer) T(std::move(*other));
 				_non_null = true;
 			}
 		} else {
