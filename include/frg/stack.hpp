@@ -28,6 +28,11 @@ public:
 		_container.push_back(value);
 	}
 
+	template<typename... Args>
+	void emplace(Args&&... args) {
+		_container.emplace_back(std::forward<Args>(args)...);
+	}
+
 	size_t size() const {
 		return _container.size();
 	}
