@@ -2,6 +2,7 @@
 
 #include <new>
 #include <utility>
+#include <type_traits>
 
 #include <frg/macros.hpp>
 

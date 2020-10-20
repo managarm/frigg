@@ -9,6 +9,7 @@
 #include <frg/optional.hpp>
 #include <frg/string.hpp>
 #include <frg/utility.hpp>
+#include <frg/expected.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -82,6 +83,11 @@ struct locale_options {
 	const char *thousands_sep;
 	const char *grouping;
 	size_t thousands_sep_size;
+};
+
+enum class format_error {
+	success,
+	agent_error,
 };
 
 // ----------------------------------------------------------------------------
@@ -324,13 +330,15 @@ enum class printf_size_mod {
 };
 
 template<typename A>
-void printf_format(A agent, const char *s, va_struct *vsp) {
+frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp) {
 	while(*s) {
 		if(*s != '%') {
 			size_t n = 1;
 			while(s[n] && s[n] != '%')
 				n++;
-			agent(s, n);
+			auto res = agent(s, n);
+			if (!res)
+				return res;
 			s += n;
 			continue;
 		}
@@ -339,7 +347,9 @@ void printf_format(A agent, const char *s, va_struct *vsp) {
 		FRG_ASSERT(*s);
 
 		if(*s == '%') {
-			agent('%');
+			auto res = agent('%');
+			if (!res)
+				return res;
 			++s;
 			continue;
 		}
@@ -433,9 +443,14 @@ void printf_format(A agent, const char *s, va_struct *vsp) {
 			FRG_ASSERT(*s);
 		}
 
-		agent(*s, opts, szmod);
+		auto res = agent(*s, opts, szmod);
+		if(!res)
+			return res;
+
 		++s;
 	}
+
+	return {};
 }
 
 template<typename F>
