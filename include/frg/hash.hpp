@@ -35,6 +35,14 @@ public:
 	}
 };
 
+template<>
+class hash<unsigned int> {
+public:
+	unsigned int operator() (int v) const {
+		return v;
+	}
+};
+
 template<typename T>
 class hash<T *> {
 public:
