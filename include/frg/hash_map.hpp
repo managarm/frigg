@@ -51,7 +51,7 @@ public:
 			return *this;
 		}
 
-		bool operator== (const iterator &other) {
+		bool operator== (const iterator &other) const {
 			return (bucket == other.bucket) &&
 				(item == other.item);
 		}
