@@ -7,6 +7,10 @@ struct stl_allocator {
 		return operator new(size);
 	}
 
+	void deallocate(void *ptr, size_t size) {
+		operator delete(ptr, size);
+	}
+
 	void free(void *ptr) {
 		operator delete(ptr);
 	}
