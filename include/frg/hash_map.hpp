@@ -138,7 +138,7 @@ public:
 	}
 
 	iterator end() {
-		return iterator(this, _capacity + 1, nullptr);
+		return iterator(this, _capacity, nullptr);
 	}
 
 	iterator find(const Key &key) {
