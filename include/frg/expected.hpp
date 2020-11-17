@@ -55,14 +55,12 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		new (stor_) T{};
 	}
 
-	template<typename = std::enable_if<!std::is_trivially_copy_constructible_v<T>>>
 	expected(const expected &other)
 	: e_{other.e_} {
 		if(!indicates_error(e_))
-			new (stor_) T{*std::launder(reinterpret_cast<T *>(other.stor_))};
+			new (stor_) T{*std::launder(reinterpret_cast<const T *>(other.stor_))};
 	}
 
-	template<typename = std::enable_if<!std::is_trivially_move_constructible_v<T>>>
 	expected(expected &&other)
 	: e_{other.e_} {
 		if(!indicates_error(e_))
@@ -87,9 +85,8 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		new (stor_) T{std::move(val)};
 	}
 
-	template<typename = std::enable_if<!std::is_trivially_copy_assignable_v<T>>>
 	expected &operator= (const expected &other) {
-		if(indicates_error(other.e_)) {
+		if(!indicates_error(other.e_)) {
 			T temp{*std::launder(reinterpret_cast<T *>(other.stor_))};
 			if(!indicates_error(e_))
 				std::launder(reinterpret_cast<T *>(stor_))->~T();
@@ -102,9 +99,8 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		}
 	}
 
-	template<typename = std::enable_if<!std::is_trivially_move_assignable_v<T>>>
 	expected &operator= (expected &&other) {
-		if(indicates_error(other.e_)) {
+		if(!indicates_error(other.e_)) {
 			T temp{std::move(*std::launder(reinterpret_cast<T *>(other.stor_)))};
 			if(!indicates_error(e_))
 				std::launder(reinterpret_cast<T *>(stor_))->~T();
