@@ -258,6 +258,20 @@ public:
 		return _length;
 	}
 
+	Char *begin() {
+		return _buffer;
+	}
+	const Char *begin() const {
+		return _buffer;
+	}
+
+	Char *end() {
+		return _buffer + _length;
+	}
+	const Char *end() const {
+		return _buffer + _length;
+	}
+
 	bool operator== (const basic_string_view<Char> &other) const {
 		if(_length != other.size())
 			return false;
