@@ -19,6 +19,16 @@ struct span {
 		return n_;
 	}
 
+	span subspan(size_t disp) {
+		FRG_ASSERT(disp <= n_);
+		return {p_ + disp, n_ - disp};
+	}
+
+	span subspan(size_t disp, size_t length) {
+		FRG_ASSERT(disp + length <= n_);
+		return {p_ + disp, length};
+	}
+
 private:
 	T *p_;
 	size_t n_;
