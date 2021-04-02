@@ -8,6 +8,9 @@ namespace frg FRG_VISIBILITY {
 
 template<typename T>
 struct span {
+	span()
+	: p_{nullptr}, n_{0} { }
+
 	span(T *p, size_t n)
 	: p_{p}, n_{n} { }
 
@@ -17,6 +20,10 @@ struct span {
 
 	size_t size() const {
 		return n_;
+	}
+
+	T &operator[] (size_t i) const {
+		return p_[i];
 	}
 
 	span subspan(size_t disp) {
