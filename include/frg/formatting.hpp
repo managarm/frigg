@@ -247,11 +247,10 @@ namespace _fmt_basics {
 				}
 			}
 
-			if (inf) {
+			if (inf)
 				formatter.append(use_capitals ? "INF" : "inf");
-			} else {
+			else
 				formatter.append(use_capitals ? "NAN" : "nan");
-			}
 
 			if (left_justify) {
 				while (pad_length > 0) {
@@ -264,9 +263,8 @@ namespace _fmt_basics {
 		}
 
 		// At this point, we've already printed the sign, so pretend it's positive.
-		if (number < 0) {
+		if (number < 0)
 			number = -number;
-		}
 
 		// TODO: The cast below is UB if number is out of range.
 		FRG_ASSERT(number < 0x1p40);
@@ -298,6 +296,8 @@ namespace _fmt_basics {
 		if (precision > 0)
 			formatter.append(locale_opts.decimal_point);
 
+		// TODO: This doesn't account for rounding properly.
+		// e.g 1.2 formatted with %.2f gives 1.19, but it should be 1.20
 		number *= 10;
 		n = static_cast<uint64_t>(number);
 		number -= n;
