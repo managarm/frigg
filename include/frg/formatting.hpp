@@ -226,20 +226,77 @@ namespace _fmt_basics {
 
 	template<typename P, typename T>
 	void print_float(P &formatter, T number, int width = 0, int precision = 6,
-			char padding = ' ', bool group_thousands = false,
-			locale_options locale_opts = {}) {
-		// TODO(geert): implement these
-		FRG_DEBUG_ASSERT(width == 0);
+			char padding = ' ', bool left_justify = false, bool use_capitals = false,
+			bool group_thousands = false, locale_options locale_opts = {}) {
 		FRG_DEBUG_ASSERT(padding == ' ');
 
-		if (!precision)
-			precision = 6;
+		bool has_sign = false;
+		if (number < 0) {
+			formatter.append('-');
+			has_sign = true;
+		}
 
+		bool inf = __builtin_isinf(number), nan = __builtin_isnan(number);
+		if (inf || nan) {
+			auto total_length = 3 + has_sign;
+			auto pad_length = width > total_length ? width - total_length : 0;
+			if (!left_justify) {
+				while (pad_length > 0) {
+					formatter.append(padding);
+					pad_length--;
+				}
+			}
+
+			if (inf) {
+				formatter.append(use_capitals ? "INF" : "inf");
+			} else {
+				formatter.append(use_capitals ? "NAN" : "nan");
+			}
+
+			if (left_justify) {
+				while (pad_length > 0) {
+					formatter.append(padding);
+					pad_length--;
+				}
+			}
+
+			return;
+		}
+
+		// At this point, we've already printed the sign, so pretend it's positive.
+		if (number < 0) {
+			number = -number;
+		}
+
+		// TODO: The cast below is UB if number is out of range.
+		FRG_ASSERT(number < 0x1p40);
 		uint64_t n = static_cast<uint64_t>(number);
+
+		// Compute the number of decimal digits in the integer part of n
+		// TODO: Don't assume base 10
+		auto int_length = 0;
+		auto x = n;
+		do {
+			x /= 10;
+			int_length++;
+		} while (x != 0);
+
+		// Plus one for the decimal point
+		auto total_length = has_sign + int_length + (precision > 0 ? 1 + precision : 0);
+		auto pad_length = width > total_length ? width - total_length : 0;
+
+		if (!left_justify) {
+			while (pad_length > 0) {
+				formatter.append(padding);
+				pad_length--;
+			}
+		}
+
 		print_int(formatter, n, 10);
 		number -= n;
 
-		formatter.append(locale_opts.decimal_point);
+		if (precision > 0)
+			formatter.append(locale_opts.decimal_point);
 
 		number *= 10;
 		n = static_cast<uint64_t>(number);
@@ -252,11 +309,24 @@ namespace _fmt_basics {
 			number -= n;
 			i++;
 		}
+
+		while (i < precision) {
+			formatter.append('0');
+			i++;
+		}
+
+		if (left_justify) {
+			while (pad_length > 0) {
+				formatter.append(padding);
+				pad_length--;
+			}
+		}
 	}
 
 	template<typename T, typename F>
 	void format_float(T object, format_options fo, F &formatter) {
-		print_float(formatter, object, fo.minimum_width, fo.precision,
+		int precision_or_default = fo.precision.has_value() ? *fo.precision : 6;
+		print_float(formatter, object, fo.minimum_width, precision_or_default,
 				fo.fill_zeros ? '0' : ' ');
 	}
 };
@@ -418,7 +488,7 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 				opts.precision = va_arg(vsp->args, int);
 			}else{
 				int value = 0;
-				FRG_ASSERT(*s >= '0' && *s <= '9');
+				// If no integer follows the '.', then precision is taken to be zero
 				while(*s >= '0' && *s <= '9') {
 					value = value * 10 + (*s - '0');
 					++s;
@@ -633,7 +703,6 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	} break;
 	case 'u': {
 		FRG_ASSERT(!opts.alt_conversion);
-		FRG_ASSERT(!opts.precision);
 		if(szmod == printf_size_mod::longlong_size) {
 			_fmt_basics::print_int(formatter, va_arg(vsp->args, unsigned long long),
 					10, opts.minimum_width,
@@ -669,19 +738,22 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 template<typename F>
 void do_printf_floats(F &formatter, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
+	int precision_or_default = opts.precision.has_value() ? *opts.precision : 6;
+	bool use_capitals = true;
 	switch(t) {
 	case 'f':
+		use_capitals = false;
 	case 'F':
 		if (szmod == printf_size_mod::longdouble_size) {
 			_fmt_basics::print_float(formatter, va_arg(vsp->args, long double),
-					opts.minimum_width, opts.precision,
-					opts.fill_zeros ? '0' : ' ',
+					opts.minimum_width, precision_or_default,
+					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
 					opts.group_thousands, locale_opts);
 		} else {
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			_fmt_basics::print_float(formatter, va_arg(vsp->args, double),
-					opts.minimum_width, opts.precision,
-					opts.fill_zeros ? '0' : ' ',
+					opts.minimum_width, precision_or_default,
+					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
 					opts.group_thousands, locale_opts);
 		}
 		break;
