@@ -86,6 +86,13 @@ public:
 		return *pointer;
 	}
 
+	void pop_back() {
+		FRG_ASSERT(_size);
+		auto container = _get_container();
+		container[_size - 1].~T();
+		--_size;
+	}
+
 	template<typename... Args>
 	void resize(size_t new_size, Args&&... args) {
 		_ensure_capacity(new_size);
@@ -129,6 +136,25 @@ public:
 		auto container = _get_container();
 		return container[index];
 	}
+
+	value_type &front() {
+		FRG_ASSERT(_size);
+		return _get_container()[0];
+	}
+	const value_type &front() const {
+		FRG_ASSERT(_size);
+		return _get_container()[0];
+	}
+
+	value_type &back() {
+		FRG_ASSERT(_size);
+		return _get_container()[_size - 1];
+	}
+	const value_type &back() const {
+		FRG_ASSERT(_size);
+		return _get_container()[_size - 1];
+	}
+
 private:
 	bool _is_small() const {
 		return _capacity <= N;
