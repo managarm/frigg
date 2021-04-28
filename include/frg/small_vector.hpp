@@ -1,12 +1,13 @@
-#ifndef FRG_SMALL_VECTOR_HPP
-#define FRG_SMALL_VECTOR_HPP
+#pragma once
 
 #include <utility>
 #include <stdint.h>
-#include <frg/eternal.hpp>
-#include <frg/array.hpp>
 
-namespace frg {
+#include <frg/array.hpp>
+#include <frg/eternal.hpp>
+#include <frg/macros.hpp>
+
+namespace frg FRG_VISIBILITY {
 
 template<typename T, size_t N, typename Allocator>
 class small_vector {
@@ -35,7 +36,7 @@ public:
 		auto other_size = other.size();
 		_ensure_capacity(other_size);
 		auto container = _get_container();
-		for (int i = 0; i < other_size; i++)
+		for (size_t i = 0; i < other_size; i++)
 			new (&container[i]) T(other[i]);
 		_size = other_size;
 	}
@@ -43,6 +44,14 @@ public:
 	small_vector(small_vector &&other)
 	: small_vector(other._allocator) {
 		swap(*this, other);
+	}
+
+	~small_vector() {
+		auto container = _get_container();
+		for (size_t i = 0; i < _size; i++)
+			container[i].~T();
+		if(!_is_small())
+			_allocator.deallocate(container, sizeof(T) * _capacity);
 	}
 
 	size_t size() const {
@@ -166,5 +175,3 @@ private:
 };
 
 } // namespace frg
-
-#endif // FRG_SMALL_VECTOR_HPP
