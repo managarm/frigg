@@ -7,6 +7,7 @@ if not get_option('frigg_no_install')
 		'include/frg/allocation.hpp',
 		'include/frg/array.hpp',
 		'include/frg/container_of.hpp',
+		'include/frg/dyn_array.hpp',
 		'include/frg/eternal.hpp',
 		'include/frg/expected.hpp',
 		'include/frg/formatting.hpp',
