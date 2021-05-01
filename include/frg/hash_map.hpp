@@ -122,7 +122,7 @@ public:
 		size_t bucket;
 	};
 
-	hash_map(const Hash &hasher, Allocator allocator = Allocator());
+	constexpr hash_map(const Hash &hasher, Allocator allocator = Allocator());
 	hash_map(const Hash &hasher, std::initializer_list<entry_type> init,
 			Allocator allocator = Allocator());
 	hash_map(const hash_map &) = delete;
@@ -204,7 +204,7 @@ private:
 };
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
-hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
+constexpr hash_map<Key, Value, Hash, Allocator>::hash_map(const Hash &hasher,
 		Allocator allocator)
 : _hasher(hasher), _allocator(std::move(allocator)), _table(nullptr), _capacity(0), _size(0) { }
 
@@ -228,7 +228,7 @@ hash_map<Key, Value, Hash, Allocator>::~hash_map() {
 			item = next;
 		}
 	}
-	_allocator.free(_table);
+	_allocator.deallocate(_table, sizeof(chain *) * _capacity);
 }
 
 template<typename Key, typename Value, typename Hash, typename Allocator>
@@ -353,7 +353,7 @@ void hash_map<Key, Value, Hash, Allocator>::rehash() {
 		}
 	}
 
-	_allocator.free(_table);
+	_allocator.deallocate(_table, sizeof(chain *) * _capacity);
 	_table = new_table;
 	_capacity = new_capacity;
 }
