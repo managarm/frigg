@@ -29,7 +29,7 @@ struct locate_tag { };
 template<typename T, typename Locate>
 struct intrusive_list : private composition<locate_tag, Locate> {
 private:
-	using hook = std::remove_reference_t<std::result_of_t<Locate(T &)>>;
+	using hook = std::remove_reference_t<std::invoke_result_t<Locate, T &>>;
 	using owner_pointer = typename hook::owner_pointer;
 	using borrow_pointer = typename hook::borrow_pointer;
 	using traits = intrusive_traits<T, owner_pointer, borrow_pointer>;
