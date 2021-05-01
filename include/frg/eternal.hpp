@@ -40,6 +40,13 @@ public:
 		return *reinterpret_cast<T *>(&_storage);
 	}
 
+	T &operator*() {
+		return *reinterpret_cast<T *>(&_storage);
+	}
+	T *operator->() {
+		return reinterpret_cast<T *>(&_storage);
+	}
+
 private:
 	aligned_storage<sizeof(T), alignof(T)> _storage;
 };
