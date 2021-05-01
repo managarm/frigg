@@ -228,6 +228,7 @@ namespace _fmt_basics {
 	void print_float(P &formatter, T number, int width = 0, int precision = 6,
 			char padding = ' ', bool left_justify = false, bool use_capitals = false,
 			bool group_thousands = false, locale_options locale_opts = {}) {
+		(void)group_thousands;
 		FRG_DEBUG_ASSERT(padding == ' ');
 
 		bool has_sign = false;
@@ -372,23 +373,23 @@ void format_object(double object, format_options fo, F &formatter) {
 }
 
 template<typename F>
-void format_object(const char *object, format_options fo, F &formatter) {
+void format_object(const char *object, format_options, F &formatter) {
 	formatter.append(object);
 }
 
 template<typename F>
-void format_object(const frg::string_view &object, format_options fo, F &formatter) {
+void format_object(const frg::string_view &object, format_options, F &formatter) {
 	for(size_t i = 0; i < object.size(); ++i)
 		formatter.append(object[i]);
 }
 
 template<typename F, typename Allocator>
-void format_object(const frg::string<Allocator> &object, format_options fo, F &formatter) {
+void format_object(const frg::string<Allocator> &object, format_options, F &formatter) {
 	formatter.append(object.data());
 }
 
 template<typename F>
-void format_object(const void *object, format_options fo, F &formatter) {
+void format_object(const void *object, format_options, F &formatter) {
 	formatter.append("0x");
 	_fmt_basics::format_integer(reinterpret_cast<uintptr_t>(object),
 			format_options{}.with_conversion(format_conversion::hex), formatter);
