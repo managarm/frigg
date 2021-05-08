@@ -71,6 +71,12 @@ public:
 		_size = 0;
 	}
 
+	void detach() {
+		_size = 0;
+		_capacity = 0;
+		_elements = nullptr;
+	}
+
 	T *data() {
 		return _elements;
 	}
