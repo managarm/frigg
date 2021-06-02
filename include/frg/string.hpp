@@ -332,7 +332,7 @@ namespace _to_string_impl {
 	}
 
 	template<typename T>
-	constexpr size_t num_digits(int radix) {
+	constexpr size_t num_digits(int) {
 		return 33;
 		//TODO: This is actually something like: max(num_digits(std::numeric_limits<T>::max(), radix),
 		//		num_digits(std::numeric_limits<T>::min(), radix) + 1);
