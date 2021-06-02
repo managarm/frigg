@@ -49,16 +49,7 @@ template<typename Policy>
 using policy_num_buckets_t = decltype(Policy::num_buckets);
 
 template<typename Policy>
-using policy_output_trace_t = decltype(std::declval<Policy>().output_trace(uint8_t(0)));
-
-template<typename Policy>
-using policy_walk_stack_t = decltype(std::declval<Policy>().walk_stack(std::declval<void(uintptr_t)>()));
-
-template<typename Policy>
 using policy_poison_t = decltype(std::declval<Policy>().poison(nullptr, size_t(0)));
-
-template<typename Policy>
-using policy_enable_trace_t = decltype(std::declval<Policy>().enable_trace());
 
 template<typename Policy>
 using policy_map_aligned_t = decltype(std::declval<Policy>().map(size_t(0), size_t(0)));
@@ -178,6 +169,14 @@ private:
 	// TODO: Refactor the huge frame padding.
 	static constexpr size_t huge_padding = page_size;
 
+	// Necessary because Clang 9 does not support lambdas in unevaluated contexts.
+	static constexpr auto walk_archetype = [] (uintptr_t) { };
+
+	static constexpr bool has_trace_support =
+		requires (Policy p) { p.enable_trace(); }
+		&& requires (Policy p, void *buffer, size_t size) { p.output_trace(buffer, size); }
+		&& requires (Policy p) { p.walk_stack(walk_archetype); };
+
 	static constexpr bool has_poisoning = is_detected_v<policy_poison_t, Policy>;
 
 	struct freelist {
@@ -276,7 +275,6 @@ private:
 	Policy &_plcy;
 
 	Mutex _tree_mutex;
-	Mutex _trace_mutex;
 	frame_tree_type _frame_tree;
 	size_t _usedPages;
 	bucket _bkts[num_buckets];
@@ -692,29 +690,45 @@ void slab_pool<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
 
 template<typename Policy, typename Mutex>
 void slab_pool<Policy, Mutex>::_trace(char c, void *ptr, size_t size) {
-	if constexpr (is_detected_v<policy_output_trace_t, Policy>
-			&& is_detected_v<policy_walk_stack_t, Policy>
-			&& is_detected_v<policy_enable_trace_t, Policy>) {
-		if (_plcy.enable_trace()) {
-			unique_lock<Mutex> guard{_trace_mutex};
+	if constexpr (has_trace_support) {
+		if (!_plcy.enable_trace())
+			return;
 
-			_plcy.output_trace(c);
+		const int num_frames = 12;
+		const size_t bufsize = 1 // Record type.
+			+ 16                 // Pointer and size.
+			+ num_frames * 8     // Stack trace.
+			+ 8;                 // Terminator.
+		uint8_t buffer[bufsize];
+		size_t n = 0;
 
-			auto send_value = [this](uintptr_t val) {
-				for (int i = 0; i < 8; i++)
-					_plcy.output_trace((val >> (i * 8)) & 0xFF);
-			};
+		auto add_byte = [&] (uint8_t val) {
+			assert(n + 1 <= bufsize);
+			buffer[n++] = val;
+		};
 
-			send_value(reinterpret_cast<uintptr_t>(ptr));
-			if (c == 'a')
-				send_value(size);
+		auto add_word = [&] (uintptr_t val) {
+			assert(n + 8 <= bufsize);
+			for (int i = 0; i < 8; i++)
+				buffer[n++] = (val >> (i * 8)) & 0xFF;
+		};
 
-			_plcy.walk_stack([&send_value](uintptr_t val){
-				send_value(val);
-			});
+		add_byte(c);
+		add_word(reinterpret_cast<uintptr_t>(ptr));
+		if (c == 'a')
+			add_word(size);
 
-			send_value(0xA5A5A5A5A5A5A5A5);
-		}
+		int k = 0;
+		_plcy.walk_stack([&](uintptr_t val){
+			if(k >= num_frames)
+				return;
+			add_word(val);
+			++k;
+		});
+
+		add_word(0xA5A5A5A5A5A5A5A5);
+
+		_plcy.output_trace(buffer, n);
 	}
 }
 
