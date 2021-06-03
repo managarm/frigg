@@ -703,12 +703,12 @@ void slab_pool<Policy, Mutex>::_trace(char c, void *ptr, size_t size) {
 		size_t n = 0;
 
 		auto add_byte = [&] (uint8_t val) {
-			assert(n + 1 <= bufsize);
+			FRG_ASSERT(n + 1 <= bufsize);
 			buffer[n++] = val;
 		};
 
 		auto add_word = [&] (uintptr_t val) {
-			assert(n + 8 <= bufsize);
+			FRG_ASSERT(n + 8 <= bufsize);
 			for (int i = 0; i < 8; i++)
 				buffer[n++] = (val >> (i * 8)) & 0xFF;
 		};
