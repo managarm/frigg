@@ -155,6 +155,14 @@ private:
 			return 0x1000;
 	}();
 
+	static constexpr size_t sb_size = [] {
+		if constexpr (requires { Policy::sb_size; }) {
+			return Policy::sb_size;
+		}else{
+			return 1 << 18;
+		}
+	}();
+
 	// Size of the content of a slab.
 	static constexpr size_t slabsize = [](){
 		if constexpr (is_detected_v<policy_slabsize_t, Policy>)
@@ -163,8 +171,12 @@ private:
 			return 1 << 18;
 	}();
 
+	static_assert(sb_size >= slabsize);
+
+	static_assert(!(sb_size & (page_size - 1)),
+			"Superblock size must be a multiple of the page size");
 	static_assert(!(slabsize & (page_size - 1)),
-			"Slab content size must be a multiple of the page size");
+			"Slab size must be a multiple of the page size");
 
 	// TODO: Refactor the huge frame padding.
 	static constexpr size_t huge_padding = page_size;
@@ -212,6 +224,15 @@ private:
 		}
 
 		const frame_type type;
+
+		// Base address of this superblock.
+		// This is the address that is returned by Policy::map().
+		uintptr_t sb_base;
+
+		// Memory reserved for this superblock. Generally larger than 'length'.
+		// This is the length passed to Policy::map();
+		size_t sb_reservation;
+
 		const uintptr_t address;
 		const size_t length;
 		rbtree_hook frame_hook;
@@ -264,8 +285,74 @@ private:
 
 private:
 	frame *_find_frame(uintptr_t address);
+
+	//--------------------------------------------------------------------------------------
+	// Slab handling.
+	//--------------------------------------------------------------------------------------
+
 	slab_frame *_construct_slab(int index);
+
+	void free_in_slab_(slab_frame *slb, void *p) {
+		size_t item_size = bucket_to_size(slb->index);
+		FRG_ASSERT(slb->contains(p));
+		FRG_ASSERT(!enable_checking
+				|| !((reinterpret_cast<uintptr_t>(p) - slb->address) % item_size));
+
+		if constexpr (has_poisoning) {
+			_plcy.unpoison_expand(p, item_size);
+			_plcy.poison(p, item_size);
+			_plcy.unpoison(p, sizeof(freelist));
+		}
+		auto object = new (p) freelist;
+
+		auto bkt = &_bkts[slb->index];
+		unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
+		{
+			bool reinsert_into_bucket = !slb->available;
+			FRG_ASSERT(slb->num_reserved);
+
+			FRG_ASSERT(!slb->available || slb->contains(slb->available));
+			object->link = slb->available;
+			slb->available = object;
+
+			if(reinsert_into_bucket) {
+				bkt->partial_tree.insert(slb);
+				if(!bkt->head_slb || slb->address < bkt->head_slb->address)
+					bkt->head_slb = slb;
+			}
+		}
+	}
+
+	//--------------------------------------------------------------------------------------
+	// Huge superblock handling.
+	//--------------------------------------------------------------------------------------
+
 	frame *_construct_large(size_t area_size);
+
+	void free_huge_(frame *sup, void *p) {
+		FRG_ASSERT(sup->address == reinterpret_cast<uintptr_t>(p));
+
+		// Remove the virtual area from the area-list.
+		{
+			unique_lock<Mutex> tree_guard(_tree_mutex);
+
+			_frame_tree.remove(sup);
+			_usedPages -= (sup->length + huge_padding) / page_size;
+		}
+
+		// Note: we cannot access sup after poison().
+		auto sb_base = sup->sb_base;
+		auto sb_reservation = sup->sb_reservation;
+		auto obj_address = sup->address;
+		auto obj_size = sup->length;
+		if constexpr (has_poisoning) {
+			_plcy.poison(reinterpret_cast<void *>(sb_base), sizeof(frame));
+			_plcy.poison(reinterpret_cast<void *>(obj_address), obj_size);
+		}
+		_plcy.unmap(sb_base, sb_reservation);
+	}
+
+	//--------------------------------------------------------------------------------------
 
 	void _verify_integrity();
 	void _verify_frame_integrity(frame *fra);
@@ -439,138 +526,59 @@ void *slab_pool<Policy, Mutex>::realloc(void *pointer, size_t new_length) {
 }
 
 template<typename Policy, typename Mutex>
-void slab_pool<Policy, Mutex>::free(void *pointer) {
+void slab_pool<Policy, Mutex>::free(void *p) {
 	if(enable_checking)
 		_verify_integrity();
 
-	_trace('f', pointer, 0);
+	_trace('f', p, 0);
 
-	if(!pointer)
+	if(!p)
 		return;
 
 	//if(logAllocations)
-	//	std::cout << "frg/slab: Free " << pointer << std::endl;
+	//	std::cout << "frg/slab: Free " << p << std::endl;
 
-	auto address = reinterpret_cast<uintptr_t>(pointer);
-
-	unique_lock<Mutex> tree_guard(_tree_mutex);
-	auto fra = _find_frame(address);
-	if(!fra)
-		FRG_ASSERT(!"Pointer is not part of any virtual area");
-
-	// First, we handle cases that need to operate with the _tree_mutex held.
-	if(fra->type == frame_type::large) {
-		//if(logAllocations)
-		//	std::cout << "    From area " << fra << std::endl;
-		FRG_ASSERT(address == fra->address);
-//				infoLogger() << "[" << pointer
-//						<< "] Large free from varea " << fra << endLog;
-
-		// Remove the virtual area from the area-list.
-		_frame_tree.remove(fra);
-		_usedPages -= (fra->length + huge_padding) / page_size;
-
-		// Call into the Policy without holding locks.
-		tree_guard.unlock();
-
-		// Note: we cannot access fra->length after poison().
-		auto base = fra->address - huge_padding;
-		auto size = fra->length + huge_padding;
-		if constexpr (has_poisoning)
-			_plcy.poison(reinterpret_cast<void *>(base), size);
-		_plcy.unmap(base, size);
-		if(enable_checking)
-			_verify_integrity();
-		return;
+	auto address = reinterpret_cast<uintptr_t>(p);
+	auto sup = reinterpret_cast<frame *>((address - 1) & ~(sb_size - 1));
+	if(sup->type == frame_type::slab) {
+		auto slb = static_cast<slab_frame *>(sup);
+		free_in_slab_(slb, p);
+	}else{
+		FRG_ASSERT(sup->type == frame_type::large);
+		free_huge_(sup, p);
 	}
-
-	// As we deallocate from a slab, we can drop the _tree_mutex now.
-	FRG_ASSERT(fra->type == frame_type::slab);
-	tree_guard.unlock();
-
-	auto slb = static_cast<slab_frame *>(fra);
-	FRG_ASSERT(reinterpret_cast<uintptr_t>(slb) == (address & ~(slabsize - 1)));
-	auto bkt = &_bkts[slb->index];
-
-	size_t item_size = bucket_to_size(slb->index);
-	FRG_ASSERT(!enable_checking || !((address - slb->address) % item_size));
-//				infoLogger() << "[" << pointer
-//						<< "] Small free from varea " << slb << endLog;
-
-	unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
-
-	bool was_unavailable = !slb->available;
-	FRG_ASSERT(slb->num_reserved);
-
-	if constexpr (has_poisoning) {
-		_plcy.unpoison_expand(pointer, item_size);
-		_plcy.poison(pointer, item_size);
-		_plcy.unpoison(pointer, sizeof(freelist));
-	}
-	auto object = new (pointer) freelist;
-
-	FRG_ASSERT(!slb->available || slb->contains(slb->available));
-	object->link = slb->available;
-	slb->available = object;
-
-	if(was_unavailable) {
-		bkt->partial_tree.insert(slb);
-		if(!bkt->head_slb || slb->address < bkt->head_slb->address)
-			bkt->head_slb = slb;
-	}
-
-	bucket_guard.unlock();
 
 	if(enable_checking)
 		_verify_integrity();
 }
 
 template<typename Policy, typename Mutex>
-void slab_pool<Policy, Mutex>::deallocate(void *pointer, size_t size) {
-	_trace('f', pointer, 0);
+void slab_pool<Policy, Mutex>::deallocate(void *p, size_t size) {
+	if(enable_checking)
+		_verify_integrity();
 
-	if(!pointer)
+	_trace('f', p, 0);
+
+	if(!p)
 		return;
 
 	//if(logAllocations)
-	//	std::cout << "frg/slab: Free " << pointer << std::endl;
+	//	std::cout << "frg/slab: Free " << p << std::endl;
 
-	if(size > max_bucket_size) {
-		this->free(pointer);
-		return;
+	auto address = reinterpret_cast<uintptr_t>(p);
+	auto sup = reinterpret_cast<frame *>((address - 1) & ~(sb_size - 1));
+	if(sup->type == frame_type::slab) {
+		auto slb = static_cast<slab_frame *>(sup);
+		FRG_ASSERT(size <= bucket_to_size(slb->index));
+		free_in_slab_(slb, p);
+	}else{
+		FRG_ASSERT(sup->type == frame_type::large);
+		FRG_ASSERT(size <= sup->length);
+		free_huge_(sup, p);
 	}
 
-	auto address = reinterpret_cast<uintptr_t>(pointer);
-
-	auto slb = reinterpret_cast<slab_frame *>(address & ~(slabsize - 1));
-	FRG_ASSERT(slb->contains(pointer));
-	auto bkt = &_bkts[slb->index];
-
-	size_t item_size = bucket_to_size(slb->index);
-	FRG_ASSERT(!enable_checking || !((address - slb->address) % item_size));
-//				infoLogger() << "[" << pointer
-//						<< "] Small free from varea " << slb << endLog;
-
-	unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
-
-	bool was_unavailable = !slb->available;
-	FRG_ASSERT(slb->num_reserved);
-
-	if constexpr (has_poisoning) {
-		_plcy.poison(pointer, size);
-		_plcy.unpoison(pointer, sizeof(freelist));
-	}
-	auto object = new (pointer) freelist;
-
-	FRG_ASSERT(!slb->available || slb->contains(slb->available));
-	object->link = slb->available;
-	slb->available = object;
-
-	if(was_unavailable) {
-		bkt->partial_tree.insert(slb);
-		if(!bkt->head_slb || slb->address < bkt->head_slb->address)
-			bkt->head_slb = slb;
-	}
+	if(enable_checking)
+		_verify_integrity();
 }
 
 
@@ -599,12 +607,17 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 //	frg::infoLogger() << "Allocate new area for " << (void *)area_size << frg::endLog;
 
 	// Allocate virtual memory for the slab.
+	size_t sb_reservation;
+	uintptr_t sb_base;
 	uintptr_t address;
 	if constexpr (is_detected_v<policy_map_aligned_t, Policy>) {
-		address = _plcy.map(slabsize, slabsize);
+		sb_reservation = slabsize;
+		sb_base = _plcy.map(sb_reservation, sb_size);
+		address = sb_base;
 	} else {
-		address = _plcy.map(2 * slabsize);
-		address = (address + slabsize - 1) & ~(slabsize - 1);
+		sb_reservation = slabsize + sb_size;
+		sb_base = _plcy.map(sb_reservation);
+		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
 
 	auto item_size = bucket_to_size(index);
@@ -617,6 +630,8 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(slab_frame));
 	auto slb = new (reinterpret_cast<void *>(address)) slab_frame(
 			address + overhead, slabsize - overhead, index);
+	slb->sb_base = sb_base;
+	slb->sb_reservation = sb_reservation;
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
@@ -643,17 +658,27 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 
 	// Allocate virtual memory for the frame.
 	FRG_ASSERT(!(area_size & (page_size - 1)));
+	size_t sb_reservation;
+	uintptr_t sb_base;
 	uintptr_t address;
 	if constexpr (is_detected_v<policy_map_aligned_t, Policy>) {
-		address = _plcy.map(area_size + huge_padding, page_size);
+		sb_reservation = area_size + huge_padding;
+		sb_base = _plcy.map(sb_reservation, sb_size);
+		address = sb_base;
 	} else {
-		address = _plcy.map(area_size + huge_padding);
+		sb_reservation = area_size + huge_padding + sb_size;
+		sb_base = _plcy.map(area_size + huge_padding + sb_size);
+		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
-	if constexpr (has_poisoning)
-		_plcy.unpoison(reinterpret_cast<void *>(address), area_size + huge_padding);
+	if constexpr (has_poisoning) {
+		_plcy.unpoison(reinterpret_cast<void *>(sb_base), sizeof(frame));
+		_plcy.unpoison(reinterpret_cast<void *>(address + huge_padding), area_size);
+	}
 
 	auto fra = new ((void *)address) frame(frame_type::large,
 			address + huge_padding, area_size);
+	fra->sb_base = sb_base;
+	fra->sb_reservation = sb_reservation;
 
 	//if(logAllocations)
 	//	std::cout << "frb/slab: New area at " << area << std::endl;
