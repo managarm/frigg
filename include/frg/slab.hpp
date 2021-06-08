@@ -451,6 +451,8 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 			bucket_guard.unlock();
 
 			auto slb = _construct_slab(index);
+			if(!slb)
+				return nullptr;
 
 			object = slb->available;
 			FRG_ASSERT(object);
@@ -492,6 +494,8 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 	}else{
 		auto area_size = (length + page_size - 1) & ~(page_size - 1);
 		auto fra = _construct_large(area_size);
+		if(!fra)
+			return nullptr;
 
 		unique_lock<Mutex> tree_guard(_tree_mutex);
 #ifdef FRG_SLAB_TRACK_REGIONS
@@ -617,10 +621,14 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 	if constexpr (is_detected_v<policy_map_aligned_t, Policy>) {
 		sb_reservation = slabsize;
 		sb_base = _plcy.map(sb_reservation, sb_size);
+		if(!sb_base)
+			return nullptr;
 		address = sb_base;
 	} else {
 		sb_reservation = slabsize + sb_size;
 		sb_base = _plcy.map(sb_reservation);
+		if(!sb_base)
+			return nullptr;
 		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
 
@@ -668,10 +676,14 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 	if constexpr (is_detected_v<policy_map_aligned_t, Policy>) {
 		sb_reservation = area_size + huge_padding;
 		sb_base = _plcy.map(sb_reservation, sb_size);
+		if(!sb_base)
+			return nullptr;
 		address = sb_base;
 	} else {
 		sb_reservation = area_size + huge_padding + sb_size;
 		sb_base = _plcy.map(area_size + huge_padding + sb_size);
+		if(!sb_base)
+			return nullptr;
 		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
 	if constexpr (has_poisoning) {
