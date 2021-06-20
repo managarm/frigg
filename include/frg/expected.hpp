@@ -219,9 +219,9 @@ private:
 
 // Helper function for the FRG_TRY macros.
 template<typename E, typename T>
-auto value_or_void(expected<E, T> &ex) {
+T value_or_void(expected<E, T> &ex) {
 	if constexpr (!std::is_same_v<T, void>)
-		return ex.value();
+		return std::move(ex.value());
 }
 
 } // namespace frg
