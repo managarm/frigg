@@ -138,6 +138,12 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		return *std::launder(reinterpret_cast<const T *>(stor_));
 	}
 
+	T unwrap() {
+		// TODO: Take std::source_location here; print an error message.
+		FRG_ASSERT(!indicates_error(e_));
+		return std::move(*std::launder(reinterpret_cast<T *>(stor_)));
+	}
+
 	template<typename F>
 	expected<E, std::invoke_result_t<F, T>> map(F fun) {
 		if((*this))
@@ -204,6 +210,11 @@ struct [[nodiscard]] expected<E, void> {
 	E error() const {
 		FRG_ASSERT(indicates_error(e_));
 		return e_;
+	}
+
+	void unwrap() {
+		// TODO: Take std::source_location here; print an error message.
+		FRG_ASSERT(!indicates_error(e_));
 	}
 
 	template<typename F>
