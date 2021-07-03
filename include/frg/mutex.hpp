@@ -7,8 +7,10 @@
 namespace frg FRG_VISIBILITY {
 
 struct dont_lock_t { };
+struct adopt_lock_t { };
 
-constexpr dont_lock_t dont_lock = dont_lock_t();
+inline constexpr auto dont_lock = dont_lock_t{};
+inline constexpr auto adopt_lock = adopt_lock_t{};
 
 template<typename Mutex>
 class unique_lock {
@@ -24,6 +26,9 @@ public:
 
 	unique_lock(dont_lock_t, Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{false} { }
+
+	unique_lock(adopt_lock_t, Mutex &mutex)
+	: _mutex{&mutex}, _is_locked{true} { }
 
 	unique_lock(Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{false} {
