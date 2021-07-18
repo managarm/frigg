@@ -6,6 +6,8 @@
 
 #include <frg/macros.hpp>
 
+#include <stddef.h>
+
 namespace frg FRG_VISIBILITY {
 
 template<typename T, typename Allocator, typename... Args>
