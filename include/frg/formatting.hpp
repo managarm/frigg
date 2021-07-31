@@ -228,7 +228,6 @@ namespace _fmt_basics {
 			char padding = ' ', bool left_justify = false, bool use_capitals = false,
 			bool group_thousands = false, locale_options locale_opts = {}) {
 		(void)group_thousands;
-		FRG_DEBUG_ASSERT(padding == ' ');
 
 		bool has_sign = false;
 		if (number < 0) {
@@ -242,7 +241,7 @@ namespace _fmt_basics {
 			auto pad_length = width > total_length ? width - total_length : 0;
 			if (!left_justify) {
 				while (pad_length > 0) {
-					formatter.append(padding);
+					formatter.append(' '); // for infs and nan's, always pad with spaces
 					pad_length--;
 				}
 			}
@@ -254,7 +253,7 @@ namespace _fmt_basics {
 
 			if (left_justify) {
 				while (pad_length > 0) {
-					formatter.append(padding);
+					formatter.append(' '); // for infs and nan's, always pad with spaces
 					pad_length--;
 				}
 			}
