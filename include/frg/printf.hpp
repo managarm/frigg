@@ -353,6 +353,7 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 	switch(t) {
 	case 'f':
 		use_capitals = false;
+		[[fallthrough]];
 	case 'F':
 		if (szmod == printf_size_mod::longdouble_size) {
 			_fmt_basics::print_float(formatter, va_arg(vsp->args, long double),
