@@ -262,6 +262,10 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 
 		if(szmod == printf_size_mod::long_size) {
 			print(va_arg(vsp->args, unsigned long));
+		}else if(szmod == printf_size_mod::longlong_size) {
+			print(va_arg(vsp->args, unsigned long long));
+		}else if(szmod == printf_size_mod::native_size) {
+			print(va_arg(vsp->args, size_t));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(va_arg(vsp->args, unsigned int));
@@ -284,6 +288,10 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 
 		if(szmod == printf_size_mod::long_size) {
 			print(va_arg(vsp->args, unsigned long));
+		}else if(szmod == printf_size_mod::longlong_size) {
+			print(va_arg(vsp->args, unsigned long long));
+		}else if(szmod == printf_size_mod::native_size) {
+			print(va_arg(vsp->args, size_t));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(va_arg(vsp->args, unsigned int));
@@ -306,6 +314,10 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 
 		if(szmod == printf_size_mod::long_size) {
 			print(va_arg(vsp->args, unsigned long));
+		}else if(szmod == printf_size_mod::longlong_size) {
+			print(va_arg(vsp->args, unsigned long long));
+		}else if(szmod == printf_size_mod::native_size) {
+			print(va_arg(vsp->args, size_t));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(va_arg(vsp->args, unsigned int));
