@@ -1,4 +1,8 @@
-project('frigg', 'cpp')
+# frigg is header-only, so we do not need a compiler.
+project('frigg')
+
+# We alreadys need C++ on the build system to build the analyzer.
+add_languages('cpp', native: true)
 
 incl = include_directories('include')
 
