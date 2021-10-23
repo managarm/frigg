@@ -4,6 +4,7 @@
 #include <utility>
 #include <frg/formatting.hpp>
 #include <frg/macros.hpp>
+#include <frg/detection.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -11,18 +12,24 @@ struct endlog_t { };
 //TODO: Make this inline.
 static constexpr endlog_t endlog;
 
+template<typename Sink>
+using sink_begin_t = decltype(std::declval<Sink>().begin());
+
+template<typename Sink>
+using sink_finalize_t = decltype(std::declval<Sink>().finalize(true));
+
 template<typename Sink, size_t Limit = 128>
 struct stack_buffer_logger {
 	struct item {
 		item(stack_buffer_logger *logger)
-		: _logger{logger}, _off{0}, _emitted{false} { }
+		: _logger{logger}, _off{0}, _emitted{false}, _done{false} { }
 
 		item(const item &) = delete;
 
 		item &operator= (const item &) = delete;
 
 		~item() {
-			// TODO: Warn here.
+			_logger->_finalize(_done);
 		}
 
 		template<typename T>
@@ -35,6 +42,7 @@ struct stack_buffer_logger {
 			FRG_ASSERT(_off < Limit);
 			_buffer[_off] = 0;
 			_logger->_emit(_buffer);
+			_done = true;
 			return *this;
 		}
 
@@ -65,6 +73,7 @@ struct stack_buffer_logger {
 		char _buffer[Limit];
 		size_t _off;
 		bool _emitted;
+		bool _done;
 	};
 
 	// constexpr so that this can be initialized statically.
@@ -72,12 +81,20 @@ struct stack_buffer_logger {
 	: _sink{std::move(sink)} { }
 
 	item operator() () {
+		if constexpr (is_detected_v<sink_begin_t, Sink>)
+			_sink.begin();
+
 		return item{this};
 	}
 
 private:
 	void _emit(const char *message) {
 		_sink(message);
+	}
+
+	void _finalize(bool done) {
+		if constexpr (is_detected_v<sink_finalize_t, Sink>)
+			_sink.finalize(done);
 	}
 
 	Sink _sink;
