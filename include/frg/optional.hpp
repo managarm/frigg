@@ -142,9 +142,24 @@ public:
 		FRG_ASSERT(_non_null);
 		return _object();
 	}
-	T &value() {
+	T &value() & {
 		FRG_ASSERT(_non_null);
 		return *_object();
+	}
+
+	const T &value() const & {
+		FRG_ASSERT(_non_null);
+		return *_object();
+	}
+
+	T &&value() && {
+		FRG_ASSERT(_non_null);
+		return std::move(*_object());
+	}
+
+	const T &&value() const && {
+		FRG_ASSERT(_non_null);
+		return std::move(*_object());
 	}
 
 	template <typename ...Args>
