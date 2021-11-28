@@ -24,13 +24,13 @@ public:
 	unique_lock()
 	: _mutex{nullptr}, _is_locked{false} { }
 
-	unique_lock(dont_lock_t, Mutex &mutex)
+	[[nodiscard]] unique_lock(dont_lock_t, Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{false} { }
 
-	unique_lock(adopt_lock_t, Mutex &mutex)
+	[[nodiscard]] unique_lock(adopt_lock_t, Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{true} { }
 
-	unique_lock(Mutex &mutex)
+	[[nodiscard]] unique_lock(Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{false} {
 		lock();
 	}
@@ -89,13 +89,13 @@ public:
 	shared_lock()
 	: _mutex{nullptr}, _is_locked{false} { }
 
-	shared_lock(dont_lock_t, Mutex &mutex)
+	[[nodiscard]] shared_lock(dont_lock_t, Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{false} { }
 
-	shared_lock(adopt_lock_t, Mutex &mutex)
+	[[nodiscard]] shared_lock(adopt_lock_t, Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{true} { }
 
-	shared_lock(Mutex &mutex)
+	[[nodiscard]] shared_lock(Mutex &mutex)
 	: _mutex{&mutex}, _is_locked{false} {
 		lock();
 	}
@@ -143,12 +143,12 @@ private:
 };
 
 template<typename Mutex>
-unique_lock<Mutex> guard(Mutex *mutex) {
+[[nodiscard]] unique_lock<Mutex> guard(Mutex *mutex) {
 	return unique_lock<Mutex>(*mutex);
 }
 
 template<typename Mutex>
-unique_lock<Mutex> guard(dont_lock_t, Mutex *mutex) {
+[[nodiscard]] unique_lock<Mutex> guard(dont_lock_t, Mutex *mutex) {
 	return unique_lock<Mutex>(dont_lock, *mutex);
 }
 
