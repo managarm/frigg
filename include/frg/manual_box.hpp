@@ -44,7 +44,7 @@ public:
 		return _initialized;
 	}
 
-	operator bool () {
+	explicit operator bool () {
 		return _initialized;
 	}
 
