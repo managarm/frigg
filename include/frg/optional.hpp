@@ -122,10 +122,7 @@ public:
 	}
 
 
-	constexpr operator bool() const {
-		return _non_null;
-	}
-	constexpr operator bool() {
+	constexpr explicit operator bool() const {
 		return _non_null;
 	}
 
