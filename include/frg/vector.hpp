@@ -130,6 +130,17 @@ public:
 		return _elements[index];
 	}
 
+	bool operator==(const vector &other) const {
+		if (other.size() != size())
+			return false;
+
+		for (size_t i = 0; i < size(); i++)
+			if (other[i] != _elements[i])
+				return false;
+
+		return true;
+	};
+
 private:
 	void _ensure_capacity(size_t capacity);
 
