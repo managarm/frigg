@@ -139,7 +139,11 @@ public:
 				return false;
 
 		return true;
-	};
+	}
+
+	bool operator!=(const vector &other) const {
+		return !(other == *this);
+	}
 
 private:
 	void _ensure_capacity(size_t capacity);
