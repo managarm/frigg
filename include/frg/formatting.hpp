@@ -400,6 +400,11 @@ void format_object(const void *object, format_options fo, F &formatter) {
 			fo.with_conversion(format_conversion::hex), formatter);
 }
 
+template<typename F>
+void format_object(std::nullptr_t, format_options fo, F &formatter) {
+	format_object(static_cast<const void *>(nullptr), fo, formatter);
+}
+
 // ----------------------------------------------------------------------------
 
 struct char_fmt {
