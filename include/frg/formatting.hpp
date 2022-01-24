@@ -394,10 +394,10 @@ void format_object(const frg::string<Allocator> &object, format_options, F &form
 }
 
 template<typename F>
-void format_object(const void *object, format_options, F &formatter) {
+void format_object(const void *object, format_options fo, F &formatter) {
 	formatter.append("0x");
 	_fmt_basics::format_integer(reinterpret_cast<uintptr_t>(object),
-			format_options{}.with_conversion(format_conversion::hex), formatter);
+			fo.with_conversion(format_conversion::hex), formatter);
 }
 
 // ----------------------------------------------------------------------------
