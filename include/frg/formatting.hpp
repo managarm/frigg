@@ -68,6 +68,7 @@ struct format_options {
 	bool alt_conversion = false;
 	bool fill_zeros = false;
 	bool group_thousands = false;
+	bool use_capitals = false;
 };
 
 struct locale_options {
@@ -215,13 +216,18 @@ namespace _fmt_basics {
 
 	template<typename T, typename F>
 	void format_integer(T object, format_options fo, F &formatter) {
+		int radix = 10;
 		if(fo.conversion == format_conversion::hex) {
-			print_int(formatter, object, 16);
+			radix = 16;
 		}else{
 			FRG_ASSERT(fo.conversion == format_conversion::null
 					|| fo.conversion == format_conversion::decimal);
-			print_int(formatter, object, 10);
 		}
+
+		print_int(formatter, object, radix,
+				fo.minimum_width, fo.precision ? *fo.precision : 1,
+				fo.fill_zeros ? '0' : ' ', fo.left_justify, fo.group_thousands,
+				fo.always_sign, fo.plus_becomes_space, fo.use_capitals);
 	}
 
 	template<typename P, typename T>
