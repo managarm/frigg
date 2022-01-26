@@ -9,6 +9,7 @@
 #include <frg/optional.hpp>
 #include <frg/string.hpp>
 #include <frg/utility.hpp>
+#include <frg/tuple.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -68,6 +69,7 @@ struct format_options {
 	bool alt_conversion = false;
 	bool fill_zeros = false;
 	bool group_thousands = false;
+	bool use_capitals = false;
 };
 
 struct locale_options {
@@ -215,13 +217,18 @@ namespace _fmt_basics {
 
 	template<typename T, typename F>
 	void format_integer(T object, format_options fo, F &formatter) {
+		int radix = 10;
 		if(fo.conversion == format_conversion::hex) {
-			print_int(formatter, object, 16);
+			radix = 16;
 		}else{
 			FRG_ASSERT(fo.conversion == format_conversion::null
 					|| fo.conversion == format_conversion::decimal);
-			print_int(formatter, object, 10);
 		}
+
+		print_int(formatter, object, radix,
+				fo.minimum_width, fo.precision ? *fo.precision : 1,
+				fo.fill_zeros ? '0' : ' ', fo.left_justify, fo.group_thousands,
+				fo.always_sign, fo.plus_becomes_space, fo.use_capitals);
 	}
 
 	template<typename P, typename T>
@@ -388,10 +395,15 @@ void format_object(const frg::string<Allocator> &object, format_options, F &form
 }
 
 template<typename F>
-void format_object(const void *object, format_options, F &formatter) {
+void format_object(const void *object, format_options fo, F &formatter) {
 	formatter.append("0x");
 	_fmt_basics::format_integer(reinterpret_cast<uintptr_t>(object),
-			format_options{}.with_conversion(format_conversion::hex), formatter);
+			fo.with_conversion(format_conversion::hex), formatter);
+}
+
+template<typename F>
+void format_object(std::nullptr_t, format_options fo, F &formatter) {
+	format_object(static_cast<const void *>(nullptr), fo, formatter);
 }
 
 // ----------------------------------------------------------------------------
@@ -475,6 +487,160 @@ private:
 	const void *_buffer;
 	size_t _size;
 };
+
+namespace detail_ {
+	template <typename ...Ts>
+	struct fmt_impl {
+		frg::string_view fmt;
+		frg::tuple<Ts...> args;
+
+		template <typename F>
+		bool format_nth(size_t n, format_options fo, F &formatter) const {
+			if (n >= sizeof...(Ts))
+				return false;
+
+			return ![&]<size_t ...I>(std::index_sequence<I...>) -> bool {
+				return ((I == n
+					? (format(args.template get<I>(), fo, formatter), false)
+					: true) && ...);
+			}(std::make_index_sequence<sizeof...(Ts)>{});
+		}
+
+		// Format specifier syntax:
+		// ([0-9]+)?(:0?[0-9]*[dXx]?)?
+		bool parse_fmt_spec(frg::string_view spec, size_t &pos, format_options &fo) const {
+			enum class modes {
+				pos, fill, width, conv
+			} mode = modes::pos;
+			bool pos_set = false;
+			size_t tmp_pos = 0;
+
+			fo.minimum_width = 0;
+
+			for (size_t i = 0; i < spec.size(); i++) {
+				char c = spec[i];
+
+				switch (mode) {
+					case modes::pos:
+						if (isdigit(c)) {
+							pos_set = true;
+							tmp_pos *= 10;
+							tmp_pos += c - '0';
+						} else if (c == ':') {
+							mode = modes::fill;
+						} else {
+							return false;
+						}
+
+						break;
+
+					case modes::fill:
+						if (c == '0')
+							fo.fill_zeros = true;
+
+						mode = modes::width;
+
+						[[fallthrough]];
+
+					case modes::width:
+						if (isdigit(c)) {
+							fo.minimum_width *= 10;
+							fo.minimum_width += spec[i] - '0';
+						} else {
+							switch (spec[i]) {
+								case 'd': fo.conversion = format_conversion::decimal; break;
+								case 'X': fo.use_capitals = true; [[fallthrough]];
+								case 'x': fo.conversion = format_conversion::hex; break;
+								default: return false;
+							}
+
+							mode = modes::conv;
+						}
+
+						break;
+
+					// Anything after the conversion specifier is illegal.
+					case modes::conv:
+						return false;
+				}
+			}
+
+			if (pos_set)
+				pos = tmp_pos;
+
+			return true;
+		}
+
+		template <typename F>
+		friend void format_object(const fmt_impl &self, format_options fo, F &formatter) {
+			size_t current_arg = 0;
+			size_t arg_fmt_start = 0, arg_fmt_end = 0;
+
+			enum class modes {
+				str, arg
+			} mode = modes::str;
+
+			for (size_t i = 0; i < self.fmt.size(); i++) {
+				auto c = self.fmt[i];
+				auto next = (i + 1) < self.fmt.size() ? self.fmt[i + 1] : 0;
+
+				switch (mode) {
+					case modes::str: {
+						if (c == '{' && next != '{') {
+							mode = modes::arg;
+							arg_fmt_start = i;
+						} else {
+							if (c == '{')
+								i++;
+							formatter.append(c);
+						}
+
+						break;
+					}
+
+					case modes::arg:
+						if (c == '}') {
+							mode = modes::str;
+							arg_fmt_end = i;
+
+							format_options fo{};
+							size_t pos = current_arg++;
+
+							if (!self.parse_fmt_spec(self.fmt.sub_string(arg_fmt_start + 1,
+											arg_fmt_end - arg_fmt_start - 1), pos, fo)) {
+								// Failed to parse format specifier, print it as is
+								format_object(self.fmt.sub_string(arg_fmt_start,
+										arg_fmt_end - arg_fmt_start + 1),
+									fo, formatter);
+
+								break;
+							}
+
+							if (!self.format_nth(pos, fo, formatter)) {
+								// Failed to print argument (arg index out of bounds), print format specifier instead
+								format_object(self.fmt.sub_string(arg_fmt_start,
+										arg_fmt_end - arg_fmt_start + 1),
+									fo, formatter);
+							}
+						}
+						break;
+				}
+			}
+
+			// Unclosed format specifier, print it as is
+			if (mode != modes::str) {
+				format_object(self.fmt.sub_string(arg_fmt_start,
+						self.fmt.size() - arg_fmt_start),
+					fo, formatter);
+			}
+		}
+	};
+} // namespace detail_
+
+template <typename ...Ts>
+auto fmt(frg::string_view fmt, Ts &&...ts) {
+	return detail_::fmt_impl<Ts...>{fmt, frg::tuple<Ts...>{std::forward<Ts>(ts)...}};
+}
 
 // ----------------------------------------------------------------------------
 // Formatting entry points.

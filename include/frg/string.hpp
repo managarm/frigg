@@ -68,7 +68,7 @@ public:
 		return size_t(-1);
 	}
 
-	basic_string_view sub_string(size_t from, size_t size) {
+	basic_string_view sub_string(size_t from, size_t size) const {
 		FRG_ASSERT(from + size <= _length);
 		return basic_string_view(_pointer + from, size);
 	}
