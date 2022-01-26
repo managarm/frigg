@@ -1,8 +1,9 @@
 #ifndef FRG_FORMATTING_HPP
 #define FRG_FORMATTING_HPP
 
+#include <ctype.h>
 #include <stdarg.h>
-#include <stddef.h>
+#include <cstddef>
 #include <stdint.h>
 #include <string.h>
 #include <frg/macros.hpp>
