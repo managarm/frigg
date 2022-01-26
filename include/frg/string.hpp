@@ -272,11 +272,20 @@ public:
 		return _buffer + _length;
 	}
 
-	bool operator== (const basic_string_view<Char> &other) const {
-		if(_length != other.size())
+	friend bool operator== (const basic_string &lhs, const basic_string_view<Char> &other) {
+		if(lhs._length != other.size())
+			return false;
+		for(size_t i = 0; i < lhs._length; i++)
+			if(lhs._buffer[i] != other[i])
+				return false;
+		return true;
+	}
+
+	bool operator== (const basic_string &rhs) const {
+		if(_length != rhs._length)
 			return false;
 		for(size_t i = 0; i < _length; i++)
-			if(_buffer[i] != other[i])
+			if(_buffer[i] != rhs._buffer[i])
 				return false;
 		return true;
 	}
