@@ -129,7 +129,7 @@ public:
 	basic_string(Allocator allocator, const Char *buffer, size_t size)
 	: basic_string{buffer, size, std::move(allocator)} { }
 
-	basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
+	explicit basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _length{view.size()} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
@@ -137,7 +137,7 @@ public:
 	}
 
 	// Compatibility/transition constructor.
-	basic_string(Allocator allocator, const basic_string_view<Char> &view)
+	explicit basic_string(Allocator allocator, const basic_string_view<Char> &view)
 	: basic_string{view, std::move(allocator)} { }
 
 	basic_string(size_t size, Char c = 0, Allocator allocator = Allocator())
@@ -276,22 +276,30 @@ public:
 		return _buffer + _length;
 	}
 
-	friend bool operator== (const basic_string &lhs, const basic_string_view<Char> &other) {
-		if(lhs._length != other.size())
-			return false;
-		for(size_t i = 0; i < lhs._length; i++)
-			if(lhs._buffer[i] != other[i])
-				return false;
+	int compare(const basic_string<Char, Allocator> &other) const {
+		if(_length != other.size())
+			return _length < other.size() ? -1 : 1;
+		for(size_t i = 0; i < _length; i++)
+			if(_buffer[i] != other[i])
+				return _buffer[i] < other[i] ? -1 : 1;
 		return true;
 	}
 
-	bool operator== (const basic_string &rhs) const {
-		if(_length != rhs._length)
-			return false;
+	int compare(const char *other) const {
+		if(_length != strlen(other))
+			return _length < strlen(other) ? -1 : 1;
 		for(size_t i = 0; i < _length; i++)
-			if(_buffer[i] != rhs._buffer[i])
-				return false;
+			if(_buffer[i] != other[i])
+				return _buffer[i] < other[i] ? -1 : 1;
 		return true;
+	}
+
+	bool operator== (const basic_string<Char, Allocator> &other) const {
+		return compare(other) == 0;
+	}
+
+	bool operator== (const char *rhs) const {
+		return compare(rhs) == 0;
 	}
 
 	bool operator!= (const basic_string_view<Char> &other) const {
