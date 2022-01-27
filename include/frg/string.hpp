@@ -258,6 +258,10 @@ public:
 		return _length;
 	}
 
+	bool empty() const {
+		return _length == 0;
+	}
+
 	Char *begin() {
 		return _buffer;
 	}
