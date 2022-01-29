@@ -55,7 +55,7 @@ struct unique_ptr {
 		return old;
 	}
 
-	operator bool() {
+	explicit operator bool() {
 		return _ptr;
 	}
 
