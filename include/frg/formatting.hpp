@@ -1,7 +1,6 @@
 #ifndef FRG_FORMATTING_HPP
 #define FRG_FORMATTING_HPP
 
-#include <ctype.h>
 #include <stdarg.h>
 #include <cstddef>
 #include <stdint.h>
@@ -488,6 +487,10 @@ private:
 	const void *_buffer;
 	size_t _size;
 };
+
+static inline bool isdigit(char c) {
+	return c >= '0' && c <= '9';
+}
 
 namespace detail_ {
 	template <typename ...Ts>
