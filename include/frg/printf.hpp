@@ -94,7 +94,7 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 		format_options opts;
 		while(true) {
 			if (*s >= '0' && *s <= '9' && s[1] && s[1] == '$') {
-				opts.arg_pos = *s - '0';
+				opts.arg_pos = *s - '0' - 1; // args are 1-indexed
 				s += 2;
 				FRG_ASSERT(*s);
 			} else if(*s == '-') {
