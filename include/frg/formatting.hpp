@@ -187,6 +187,10 @@ namespace _fmt_basics {
 	template<typename T>
 	struct make_unsigned;
 
+	template<> struct make_unsigned<signed char> { using type = unsigned char; };
+	template<> struct make_unsigned<unsigned char> { using type = unsigned char; };
+	template<> struct make_unsigned<short> { using type = unsigned short; };
+	template<> struct make_unsigned<unsigned short> { using type = unsigned short; };
 	template<> struct make_unsigned<int> { using type = unsigned int; };
 	template<> struct make_unsigned<unsigned int> { using type = unsigned int; };
 	template<> struct make_unsigned<long> { using type = unsigned long; };
