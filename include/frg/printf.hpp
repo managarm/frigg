@@ -20,6 +20,8 @@ struct va_struct {
 
 enum class printf_size_mod {
 	default_size,
+	char_size,
+	short_size,
 	long_size,
 	longlong_size,
 	longdouble_size,
@@ -177,6 +179,16 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			szmod = printf_size_mod::longdouble_size;
 			++s;
 			FRG_ASSERT(*s);
+		} else if(*s == 'h') {
+			++s;
+			FRG_ASSERT(*s);
+			if(*s == 'h') {
+				szmod = printf_size_mod::char_size;
+				++s;
+				FRG_ASSERT(*s);
+			}else{
+				szmod = printf_size_mod::short_size;
+			}
 		}
 
 		auto res = agent(*s, opts, szmod);
@@ -276,7 +288,11 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	case 'i': {
 		FRG_ASSERT(!opts.alt_conversion);
 		long number;
-		if(szmod == printf_size_mod::long_size) {
+		if(szmod == printf_size_mod::char_size) {
+			number = pop_arg<signed char>(vsp, &opts);
+		}else if(szmod == printf_size_mod::short_size) {
+			number = pop_arg<short>(vsp, &opts);
+		}else if(szmod == printf_size_mod::long_size) {
 			number = pop_arg<long>(vsp, &opts);
 		}else if(szmod == printf_size_mod::longlong_size) {
 			number = pop_arg<long long>(vsp, &opts);
@@ -310,7 +326,11 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			}
 		};
 
-		if(szmod == printf_size_mod::long_size) {
+		if(szmod == printf_size_mod::char_size) {
+			print(pop_arg<unsigned char>(vsp, &opts));
+		}else if(szmod == printf_size_mod::short_size) {
+			print(pop_arg<unsigned short>(vsp, &opts));
+		}else if(szmod == printf_size_mod::long_size) {
 			print(pop_arg<unsigned long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::longlong_size) {
 			print(pop_arg<unsigned long long>(vsp, &opts));
@@ -336,7 +356,11 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			}
 		};
 
-		if(szmod == printf_size_mod::long_size) {
+		if(szmod == printf_size_mod::char_size) {
+			print(pop_arg<unsigned char>(vsp, &opts));
+		}else if(szmod == printf_size_mod::short_size) {
+			print(pop_arg<unsigned short>(vsp, &opts));
+		}else if(szmod == printf_size_mod::long_size) {
 			print(pop_arg<unsigned long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::longlong_size) {
 			print(pop_arg<unsigned long long>(vsp, &opts));
@@ -362,7 +386,11 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			}
 		};
 
-		if(szmod == printf_size_mod::long_size) {
+		if(szmod == printf_size_mod::char_size) {
+			print(pop_arg<unsigned char>(vsp, &opts));
+		}else if(szmod == printf_size_mod::short_size) {
+			print(pop_arg<unsigned short>(vsp, &opts));
+		}else if(szmod == printf_size_mod::long_size) {
 			print(pop_arg<unsigned long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::longlong_size) {
 			print(pop_arg<unsigned long long>(vsp, &opts));
@@ -374,32 +402,31 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		}
 	} break;
 	case 'u': {
-		FRG_ASSERT(!opts.alt_conversion);
-		if(szmod == printf_size_mod::longlong_size) {
-			_fmt_basics::print_int(formatter, pop_arg<unsigned long long>(vsp, &opts),
-					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify, opts.group_thousands, opts.always_sign,
-					opts.plus_becomes_space, false, locale_opts);
+		auto print = [&] (auto number) {
+			FRG_ASSERT(!opts.alt_conversion);
+			if(opts.precision && *opts.precision == 0 && !number) {
+				// print nothing in this case
+			}else{
+				_fmt_basics::print_int(formatter, number, 10, opts.minimum_width,
+						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
+						opts.left_justify, opts.group_thousands, opts.always_sign,
+						opts.plus_becomes_space, false, locale_opts);
+			}
+		};
+
+		if(szmod == printf_size_mod::char_size) {
+			print(pop_arg<unsigned char>(vsp, &opts));
+		}else if(szmod == printf_size_mod::short_size) {
+			print(pop_arg<unsigned short>(vsp, &opts));
 		}else if(szmod == printf_size_mod::long_size) {
-			_fmt_basics::print_int(formatter, pop_arg<unsigned long>(vsp, &opts),
-					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify, opts.group_thousands, opts.always_sign,
-					opts.plus_becomes_space, false, locale_opts);
+			print(pop_arg<unsigned long>(vsp, &opts));
+		}else if(szmod == printf_size_mod::longlong_size) {
+			print(pop_arg<unsigned long long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::native_size) {
-			_fmt_basics::print_int(formatter, pop_arg<size_t>(vsp, &opts),
-					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify, opts.group_thousands, opts.always_sign,
-					opts.plus_becomes_space, false, locale_opts);
+			print(pop_arg<size_t>(vsp, &opts));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
-			_fmt_basics::print_int(formatter, pop_arg<unsigned int>(vsp, &opts),
-					10, opts.minimum_width,
-					1, opts.fill_zeros ? '0' : ' ',
-					opts.left_justify, opts.group_thousands, opts.always_sign,
-					opts.plus_becomes_space, false, locale_opts);
+			print(pop_arg<unsigned int>(vsp, &opts));
 		}
 	} break;
 	default:
