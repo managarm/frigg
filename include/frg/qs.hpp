@@ -99,7 +99,7 @@ struct qs_agent {
 	}
 
 	void online() {
-		assert(!_acked_qs_counter);
+		FRG_ASSERT(!_acked_qs_counter);
 
 		uint64_t ctr;
 		{
@@ -111,7 +111,7 @@ struct qs_agent {
 			// Increment the QS counter if we're the first agent.
 			ctr = _dom->_qs_counter.load(std::memory_order_relaxed);
 			if(_dom->_num_agents == 1) {
-				assert(!_dom->_agents_to_ack.load(std::memory_order_relaxed));
+				FRG_ASSERT(!_dom->_agents_to_ack.load(std::memory_order_relaxed));
 				_dom->_agents_to_ack.store(1, std::memory_order_relaxed);
 				_dom->_qs_counter.store(ctr + 1, std::memory_order_release);
 			}
@@ -121,10 +121,10 @@ struct qs_agent {
 	}
 
 	void offline() {
-		assert(_acked_qs_counter);
+		FRG_ASSERT(_acked_qs_counter);
 
 		// TODO: We need to handle this case here.
-		assert(!_qs_deferred);
+		FRG_ASSERT(!_qs_deferred);
 
 		{
 			lock_guard<M> lock(_dom->_mutex);
@@ -134,7 +134,7 @@ struct qs_agent {
 			// We might need to ack before going offline.
 			auto ctr = _dom->_qs_counter.load(std::memory_order_relaxed);
 			if(_acked_qs_counter != ctr) {
-				assert(_acked_qs_counter + 1 == ctr);
+				FRG_ASSERT(_acked_qs_counter + 1 == ctr);
 
 				// Now ack the QS.
 				if(_dom->_agents_to_ack.fetch_sub(1, std::memory_order_relaxed) == 1) {
@@ -148,10 +148,10 @@ struct qs_agent {
 	}
 
 	void quiescent_state() {
-		assert(_acked_qs_counter);
+		FRG_ASSERT(_acked_qs_counter);
 
 		if(_qs_deferred) {
-			assert(_acked_qs_counter == _dom->_qs_counter.load(std::memory_order_relaxed));
+			FRG_ASSERT(_acked_qs_counter == _dom->_qs_counter.load(std::memory_order_relaxed));
 
 			auto desired = _dom->_desired_qs_counter.load(std::memory_order_relaxed);
 			if(desired > _acked_qs_counter) {
@@ -166,7 +166,7 @@ struct qs_agent {
 			// Check if the QS counter incremented concurrently.
 			auto ctr = _dom->_qs_counter.load(std::memory_order_acquire);
 			if(_acked_qs_counter != ctr) {
-				assert(_acked_qs_counter + 1 == ctr);
+				FRG_ASSERT(_acked_qs_counter + 1 == ctr);
 
 				// Now ack the QS.
 				if(_dom->_agents_to_ack.fetch_sub(1, std::memory_order_relaxed) == 1) {
@@ -211,7 +211,7 @@ struct qs_agent {
 				break;
 		}
 
-		assert(!node->_target_qs_counter);
+		FRG_ASSERT(!node->_target_qs_counter);
 		node->_target_qs_counter = target;
 		_pending.push_back(node);
 	}
