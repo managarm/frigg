@@ -18,6 +18,14 @@ struct span {
 		return p_;
 	}
 
+	T *begin() const {
+		return p_;
+	}
+
+	T *end() const {
+		return p_ + n_;
+	}
+
 	size_t size() const {
 		return n_;
 	}
