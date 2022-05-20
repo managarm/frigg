@@ -47,6 +47,12 @@ endif
 
 frigg_dep = declare_dependency(include_directories: incl)
 
+pkg = import('pkgconfig')
+pkg.generate(
+	name: 'frigg',
+	description: 'Lightweight C++ utilities and algorithms for system programming',
+)
+
 analyzer = executable(
 		'slab_trace_analyzer',
 		'slab_trace_analyzer.cpp',
