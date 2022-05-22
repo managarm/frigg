@@ -47,15 +47,15 @@ if not get_option('frigg_no_install')
 		'include/frg/variant.hpp',
 		'include/frg/vector.hpp',
 		subdir: 'frg')
+
+	pkg = import('pkgconfig')
+	pkg.generate(
+		name: 'frigg',
+		description: 'Lightweight C++ utilities and algorithms for system programming',
+	)
 endif
 
 frigg_dep = declare_dependency(include_directories: incl)
-
-pkg = import('pkgconfig')
-pkg.generate(
-	name: 'frigg',
-	description: 'Lightweight C++ utilities and algorithms for system programming',
-)
 
 analyzer = executable(
 		'slab_trace_analyzer',
