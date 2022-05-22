@@ -8,9 +8,11 @@ incl = include_directories('include')
 
 if not get_option('frigg_no_install')
 	install_headers(
+		'include/frg/algorithm.hpp',
 		'include/frg/allocation.hpp',
 		'include/frg/array.hpp',
 		'include/frg/container_of.hpp',
+		'include/frg/detection.hpp',
 		'include/frg/dyn_array.hpp',
 		'include/frg/eternal.hpp',
 		'include/frg/expected.hpp',
@@ -18,6 +20,7 @@ if not get_option('frigg_no_install')
 		'include/frg/functional.hpp',
 		'include/frg/hash.hpp',
 		'include/frg/hash_map.hpp',
+		'include/frg/interval_tree.hpp',
 		'include/frg/intrusive.hpp',
 		'include/frg/list.hpp',
 		'include/frg/logging.hpp',
@@ -30,18 +33,19 @@ if not get_option('frigg_no_install')
 		'include/frg/qs.hpp',
 		'include/frg/random.hpp',
 		'include/frg/rbtree.hpp',
-		'include/frg/std_compat.hpp',
 		'include/frg/rcu_radixtree.hpp',
 		'include/frg/slab.hpp',
 		'include/frg/small_vector.hpp',
 		'include/frg/span.hpp',
+		'include/frg/spinlock.hpp',
 		'include/frg/stack.hpp',
+		'include/frg/std_compat.hpp',
 		'include/frg/string.hpp',
 		'include/frg/tuple.hpp',
-		'include/frg/utility.hpp',
-		'include/frg/vector.hpp',
 		'include/frg/unique.hpp',
-		'include/frg/detection.hpp',
+		'include/frg/utility.hpp',
+		'include/frg/variant.hpp',
+		'include/frg/vector.hpp',
 		subdir: 'frg')
 endif
 
