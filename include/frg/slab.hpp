@@ -381,7 +381,7 @@ private:
 		auto obj_address = sup->address;
 		auto obj_size = sup->length;
 		if constexpr (has_poisoning) {
-			_plcy.poison(reinterpret_cast<void *>(sb_base), sizeof(frame));
+			_plcy.poison(sup, sizeof(frame));
 			_plcy.poison(reinterpret_cast<void *>(obj_address), obj_size);
 		}
 		_plcy.unmap(sb_base, sb_reservation);
@@ -687,7 +687,7 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
 	if constexpr (has_poisoning) {
-		_plcy.unpoison(reinterpret_cast<void *>(sb_base), sizeof(frame));
+		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(frame));
 		_plcy.unpoison(reinterpret_cast<void *>(address + huge_padding), area_size);
 	}
 
