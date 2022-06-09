@@ -52,7 +52,7 @@ public:
 		return !(*this == other);
 	}
 
-	size_t find_first(Char c, size_t start_from = 0) {
+	size_t find_first(Char c, size_t start_from = 0) const {
 		for(size_t i = start_from; i < _length; i++)
 			if(_pointer[i] == c)
 				return i;
@@ -60,7 +60,7 @@ public:
 		return size_t(-1);
 	}
 
-	size_t find_last(Char c) {
+	size_t find_last(Char c) const {
 		for(size_t i = _length; i > 0; i--)
 			if(_pointer[i - 1] == c)
 				return i - 1;
