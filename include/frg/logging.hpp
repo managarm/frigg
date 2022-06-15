@@ -33,8 +33,8 @@ struct stack_buffer_logger {
 		}
 
 		template<typename T>
-		item &operator<< (T object) {
-			format(object, *this);
+		item &operator<< (T &&object) {
+			format(std::forward<T>(object), *this);
 			return *this;
 		}
 
