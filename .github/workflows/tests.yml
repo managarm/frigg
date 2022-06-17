@@ -1,0 +1,33 @@
+name: Run test suite
+
+on: [push, pull_request]
+
+jobs:
+  run-test-suite:
+    name: Run test suite
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install prerequisites
+        run: |
+          sudo apt-get install ninja-build g++ meson libgtest-dev gcovr
+      - uses: actions/checkout@v2
+      - name: Configure build
+        run: meson --buildtype=debug -Db_coverage=true build
+      - name: Run tests
+        run: ninja -C build test
+      - name: Generate coverage
+        run: |
+          cd build
+          ninja coverage-html
+          ninja coverage-xml
+          ninja coverage-sonarqube
+          ninja coverage-text
+      - name: Upload coverage reports as artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverages
+          path: |
+            build/meson-logs/coverage.xml
+            build/meson-logs/sonarqube.xml
+            build/meson-logs/coverage.txt
+            build/meson-logs/coveragereport/
