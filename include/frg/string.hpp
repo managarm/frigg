@@ -73,6 +73,22 @@ public:
 		return basic_string_view(_pointer + from, size);
 	}
 
+	bool starts_with(basic_string_view other) {
+		if (other.size() > size()) {
+			return false;
+		}
+
+		return sub_string(0, other.size()) == other;
+	}
+
+	bool ends_with(basic_string_view other) {
+		if (other.size() > size()) {
+			return false;
+		}
+
+		return sub_string(size() - other.size(), other.size()) == other;
+	}
+
 	template<typename T>
 	optional<T> to_number() {
 		T value = 0;
@@ -308,6 +324,16 @@ public:
 
 	operator basic_string_view<Char> () const {
 		return basic_string_view<Char>(_buffer, _length);
+	}
+
+	bool starts_with(basic_string_view<Char> other) {
+		auto self = basic_string_view<Char> { *this };
+		return self.starts_with(other);
+	}
+
+	bool ends_with(basic_string_view<Char> other) {
+		auto self = basic_string_view<Char> { *this };
+		return self.ends_with(other);
 	}
 
 private:
