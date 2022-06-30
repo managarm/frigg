@@ -184,20 +184,6 @@ namespace _fmt_basics {
 				formatter.append(padding);
 	}
 
-	template<typename T>
-	struct make_unsigned;
-
-	template<> struct make_unsigned<signed char> { using type = unsigned char; };
-	template<> struct make_unsigned<unsigned char> { using type = unsigned char; };
-	template<> struct make_unsigned<short> { using type = unsigned short; };
-	template<> struct make_unsigned<unsigned short> { using type = unsigned short; };
-	template<> struct make_unsigned<int> { using type = unsigned int; };
-	template<> struct make_unsigned<unsigned int> { using type = unsigned int; };
-	template<> struct make_unsigned<long> { using type = unsigned long; };
-	template<> struct make_unsigned<unsigned long> { using type = unsigned long; };
-	template<> struct make_unsigned<long long> { using type = unsigned long long; };
-	template<> struct make_unsigned<unsigned long long> { using type = unsigned long long; };
-
 	// Signed integer formatting. We cannot print -x as that might not fit into the signed type.
 	// Strategy: Cast to unsigned first (i.e. obtain 2s complement) and negate manually by
 	// computing (~x + 1).
@@ -208,7 +194,7 @@ namespace _fmt_basics {
 			bool plus_becomes_space = false, bool use_capitals = false,
 			locale_options locale_opts = {}) {
 		if(number < 0) {
-			auto absv = ~static_cast<typename make_unsigned<T>::type>(number) + 1;
+			auto absv = ~static_cast<typename std::make_unsigned_t<T>>(number) + 1;
 			print_digits(formatter, absv, true, radix, width, precision, padding,
 					left_justify, group_thousands, always_sign, plus_becomes_space, use_capitals,
 					locale_opts);
