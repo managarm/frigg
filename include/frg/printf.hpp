@@ -31,7 +31,6 @@ enum class printf_size_mod {
 template<typename T>
 T pop_arg(va_struct *vsp, format_options *opts) {
 	auto pop_va_arg = [&] {
-		// TODO: implement std::make_unsigned in cxxshim.
 		if constexpr (std::is_same_v<T, unsigned char> ||
 				std::is_same_v<T, char> ||
 				std::is_same_v<T, signed char> ||
