@@ -292,13 +292,13 @@ public:
 		return _buffer + _length;
 	}
 
-	int compare(const basic_string<Char, Allocator> &other) const {
+	int compare(const basic_string &other) const {
 		if(_length != other.size())
 			return _length < other.size() ? -1 : 1;
 		for(size_t i = 0; i < _length; i++)
 			if(_buffer[i] != other[i])
 				return _buffer[i] < other[i] ? -1 : 1;
-		return true;
+		return 0;
 	}
 
 	int compare(const char *other) const {
@@ -307,10 +307,10 @@ public:
 		for(size_t i = 0; i < _length; i++)
 			if(_buffer[i] != other[i])
 				return _buffer[i] < other[i] ? -1 : 1;
-		return true;
+		return 0;
 	}
 
-	bool operator== (const basic_string<Char, Allocator> &other) const {
+	bool operator== (const basic_string &other) const {
 		return compare(other) == 0;
 	}
 
@@ -318,8 +318,12 @@ public:
 		return compare(rhs) == 0;
 	}
 
-	bool operator!= (const basic_string_view<Char> &other) const {
-		return !(*this == other);
+	bool operator!= (const basic_string &other) const {
+		return compare(other) != 0;
+	}
+
+	bool operator!= (const char *rhs) const {
+		return compare(rhs) != 0;
 	}
 
 	operator basic_string_view<Char> () const {

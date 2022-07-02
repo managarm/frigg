@@ -31,3 +31,21 @@ TEST(strings, view_starts_ends_with) {
 
 	common_startsends_tests(ts1);
 }
+
+TEST(strings, operator_equals_comparison) {
+	string s1 { "Hello" }, s2 { "World" }, s3 { "Hello" };
+
+	EXPECT_NE(s1, s2);
+	EXPECT_NE(s2, s3);
+	EXPECT_EQ(s1, s3);
+}
+
+TEST(strings, compare_method_comparison) {
+	string s1 { "AAA" }, s2 { "AAB" }, s3 { "AA" }, s4 { "AAA" };
+
+	EXPECT_EQ(s1.compare(s2), -1);
+	EXPECT_EQ(s2.compare(s1), 1);
+	EXPECT_EQ(s1.compare(s3), 1);
+	EXPECT_EQ(s3.compare(s1), -1);
+	EXPECT_EQ(s1.compare(s4), 0);
+}
