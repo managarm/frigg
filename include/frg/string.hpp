@@ -1,8 +1,13 @@
 #ifndef FRG_STRING_HPP
 #define FRG_STRING_HPP
 
+#include <initializer_list>
+#include <type_traits>
+#include <algorithm>
+#include <concepts>
 #include <string.h>
 #include <compare>
+#include <utility>
 #include <memory>
 
 #include <frg/hash.hpp>
@@ -527,269 +532,1131 @@ class basic_string_view
 	}
 };
 
-using string_view = basic_string_view<char, char_traits<char>>;
-
-template<typename Char, typename Allocator>
-class basic_string {
-public:
-	typedef Char CharType;
-
-	friend void swap(basic_string &a, basic_string &b) {
-		using std::swap;
-		swap(a._allocator, b._allocator);
-		swap(a._buffer, b._buffer);
-		swap(a._length, b._length);
-	}
-
-	basic_string(Allocator allocator = Allocator())
-	: _allocator{std::move(allocator)}, _buffer{nullptr}, _length{0} { }
-
-	basic_string(const Char *c_string, Allocator allocator = Allocator())
-	: _allocator{std::move(allocator)} {
-		_length = strlen(c_string);
-		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		memcpy(_buffer, c_string, sizeof(Char) * _length);
-		_buffer[_length] = 0;
-	}
-
-	// Compatibility/transition constructor.
-	basic_string(Allocator allocator, const Char *c_string)
-	: basic_string{c_string, std::move(allocator)} { }
-
-	basic_string(const Char *buffer, size_t size, Allocator allocator = Allocator())
-	: _allocator{std::move(allocator)}, _length{size} {
-		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		memcpy(_buffer, buffer, sizeof(Char) * _length);
-		_buffer[_length] = 0;
-	}
-
-	// Compatibility/transition constructor.
-	basic_string(Allocator allocator, const Char *buffer, size_t size)
-	: basic_string{buffer, size, std::move(allocator)} { }
-
-	explicit basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
-	: _allocator{std::move(allocator)}, _length{view.size()} {
-		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
-		_buffer[_length] = 0;
-	}
-
-	// Compatibility/transition constructor.
-	explicit basic_string(Allocator allocator, const basic_string_view<Char> &view)
-	: basic_string{view, std::move(allocator)} { }
-
-	basic_string(size_t size, Char c = 0, Allocator allocator = Allocator())
-	: _allocator{std::move(allocator)}, _length{size} {
-		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		for(size_t i = 0; i < size; i++)
-			_buffer[i] = c;
-		_buffer[_length] = 0;
-	}
-
-	basic_string(const basic_string &other)
-	: _allocator{other._allocator}, _length{other._length} {
-		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		memcpy(_buffer, other._buffer, sizeof(Char) * _length);
-		_buffer[_length] = 0;
-	}
-
-	~basic_string() {
-		if(_buffer)
-			_allocator.free(_buffer);
-	}
-
-	basic_string &operator= (basic_string other) {
-		swap(*this, other);
-		return *this;
-	}
-
-	void resize(size_t new_length) {
-		size_t copy_length = _length;
-		if(copy_length > new_length)
-			copy_length = new_length;
-
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
-		memcpy(new_buffer, _buffer, sizeof(Char) * copy_length);
-		new_buffer[new_length] = 0;
-
-		if(_buffer)
-			_allocator.free(_buffer);
-		_length = new_length;
-		_buffer = new_buffer;
-	}
-
-	// TODO: Inefficient. Does two copies (one here, one in constructor).
-	// TODO: Better: Return expression template?
-	basic_string operator+ (const basic_string_view<Char> &other) {
-		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
-		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
-		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
-		new_buffer[new_length] = 0;
-
-		return basic_string(_allocator, new_buffer, new_length);
-	}
-
-	// TODO: Inefficient. Does two copies (one here, one in constructor).
-	// TODO: Better: Return expression template?
-	basic_string operator+ (Char c) {
-		size_t new_length = _length + 1;
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
-		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
-		new_buffer[_length] = c;
-		new_buffer[new_length] = 0;
-
-		return basic_string(_allocator, new_buffer, new_length);
-	}
-
-	basic_string &operator+= (const basic_string_view<Char> &other) {
-		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
-		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
-		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
-		new_buffer[new_length] = 0;
-
-		if(_buffer)
-			_allocator.free(_buffer);
-		_length = new_length;
-		_buffer = new_buffer;
-
-		return *this;
-	}
-
-	basic_string &operator+= (Char c) {
-		/* TODO: SUPER INEFFICIENT should be done with a _capacity variable */
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 2);
-		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
-		new_buffer[_length] = c;
-		new_buffer[_length + 1] = 0;
-
-		if (_buffer)
-			_allocator.free(_buffer);
-		_length++;
-		_buffer = new_buffer;
-
-		return *this;
-	}
-
-	// used to disable deallocation upon object destruction
-	void detach() {
-		_buffer = nullptr;
-		_length = 0;
-	}
-
-	Char *data() {
-		return _buffer;
-	}
-	const Char *data() const {
-		return _buffer;
-	}
-
-	Char &operator[] (size_t index) {
-		return _buffer[index];
-	}
-	const Char &operator[] (size_t index) const {
-		return _buffer[index];
-	}
-
-	size_t size() const {
-		return _length;
-	}
-
-	bool empty() const {
-		return _length == 0;
-	}
-
-	Char *begin() {
-		return _buffer;
-	}
-	const Char *begin() const {
-		return _buffer;
-	}
-
-	Char *end() {
-		return _buffer + _length;
-	}
-	const Char *end() const {
-		return _buffer + _length;
-	}
-
-	int compare(const basic_string &other) const {
-		if(_length != other.size())
-			return _length < other.size() ? -1 : 1;
-		for(size_t i = 0; i < _length; i++)
-			if(_buffer[i] != other[i])
-				return _buffer[i] < other[i] ? -1 : 1;
-		return 0;
-	}
-
-	int compare(const char *other) const {
-		if(_length != strlen(other))
-			return _length < strlen(other) ? -1 : 1;
-		for(size_t i = 0; i < _length; i++)
-			if(_buffer[i] != other[i])
-				return _buffer[i] < other[i] ? -1 : 1;
-		return 0;
-	}
-
-	bool operator== (const basic_string &other) const {
-		return compare(other) == 0;
-	}
-
-	bool operator== (const char *rhs) const {
-		return compare(rhs) == 0;
-	}
-
-	bool operator!= (const basic_string &other) const {
-		return compare(other) != 0;
-	}
-
-	bool operator!= (const char *rhs) const {
-		return compare(rhs) != 0;
-	}
-
-	operator basic_string_view<Char> () const {
-		return basic_string_view<Char>(_buffer, _length);
-	}
-
-	bool starts_with(basic_string_view<Char> other) {
-		auto self = basic_string_view<Char> { *this };
-		return self.starts_with(other);
-	}
-
-	bool ends_with(basic_string_view<Char> other) {
-		auto self = basic_string_view<Char> { *this };
-		return self.ends_with(other);
-	}
-
-private:
+template<typename Char, typename Traits = char_traits<Char>, typename Allocator = std::allocator<Char>>
+class basic_string
+{
+	private:
 	Allocator _allocator;
-	Char *_buffer;
-	size_t _length;
-};
+	Char *_buffer = nullptr;
+	size_t _length = 0;
+	size_t _cap = 0;
 
-template<typename Allocator>
-using string = basic_string<char, Allocator>;
+	public:
+	using traits_type = Traits;
+	using value_type = Char;
+	using allocator_type = Allocator;
+	using size_type = typename Allocator::size_type;
+	using difference_type = typename Allocator::difference_type;
+	using pointer = typename Allocator::pointer;
+	using const_pointer = typename Allocator::const_pointer;
+	using reference = Char&;
+	using const_reference = const Char&;
 
-template<typename Char>
-class hash<basic_string_view<Char>> {
-public:
-	unsigned int operator() (const basic_string_view<Char> &string) const {
-		unsigned int hash = 0;
-		for(size_t i = 0; i < string.size(); i++)
-			hash += 31 * hash + string[i];
-		return hash;
+	// TODO: use real iterators?
+	using iterator = Char*;
+	using const_iterator = const Char*;
+
+	static constexpr size_type npos = size_type(-1);
+
+	private:
+	constexpr void null_terminate()
+	{
+		if (this->_buffer == nullptr || this->_length == 0) return;
+		this->_buffer[this->_length] = 0;
+	}
+
+	constexpr Char *reallocate(size_t new_cap)
+	{
+		auto new_length = std::min(new_cap, this->_length);
+		auto new_buffer = this->_allocator.allocate(new_cap + 1);
+
+		Traits::copy(new_buffer, this->_buffer, new_length);
+		this->_allocator.deallocate(this->_buffer, this->_cap + 1);
+
+		this->_buffer = new_buffer;
+		this->_cap = new_cap;
+		this->_length = new_length;
+
+		return new_buffer;
+	}
+
+	constexpr size_t it2pos(const_iterator pos)
+	{
+		if (this->_buffer == nullptr || this->_length == 0) return npos;
+		pos = std::max(pos, const_iterator(this->_buffer));
+		pos = std::min(pos, const_iterator(this->_buffer + this->_length));
+
+		return static_cast<size_type>(pos - this->_buffer) / sizeof(Char);
+	}
+
+	constexpr size_t range2count(const_iterator first, const_iterator last)
+	{
+		if (this->_buffer == nullptr || this->_length == 0) return npos;
+		first = std::max(first, const_iterator(this->_buffer));
+		first = std::min(first, const_iterator(this->_buffer + this->_length));
+
+		last = std::max(last, const_iterator(this->_buffer));
+		last = std::min(last, const_iterator(this->_buffer + this->_length));
+
+		last = std::max(first, last);
+
+		return static_cast<size_type>(last - first) / sizeof(Char);
+	}
+
+	public:
+	constexpr basic_string() : basic_string(Allocator()) { }
+	explicit constexpr basic_string(const Allocator &alloc) : _allocator(alloc), _buffer(nullptr), _length(0), _cap(0) { }
+
+	constexpr basic_string(size_type count, Char c, const Allocator &alloc = Allocator()) : _allocator(alloc), _length(count), _cap(count)
+	{
+		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		Traits::assign(this->_buffer, count, c);
+		this->null_terminate();
+	}
+
+	constexpr basic_string(const basic_string &other, size_type pos, size_type count, const Allocator &alloc = Allocator()) : _allocator(alloc)
+	{
+		if (pos + count > other._length) count = other._length - pos;
+		this->_length = this->_cap = count;
+
+		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		Traits::copy(this->_buffer, other._buffer + pos, this->_length);
+		this->null_terminate();
+	}
+	constexpr basic_string(const basic_string &other, size_type pos, const Allocator &alloc = Allocator()) : basic_string(other, pos, other._length, alloc) { }
+
+	constexpr basic_string(const Char *s, size_type count, const Allocator &alloc = Allocator()) : _allocator(alloc), _length(count), _cap(count)
+	{
+		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		Traits::copy(this->_buffer, s, this->_length);
+		this->null_terminate();
+	}
+	constexpr basic_string(const Char *s, const Allocator &alloc = Allocator()) : basic_string(s, Traits::length(s), alloc) { }
+
+	constexpr basic_string(const basic_string &other, const Allocator &alloc) : _allocator(alloc), _length(other._length), _cap(other._length)
+	{
+		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		Traits::copy(this->_buffer, other._buffer, this->_length);
+		this->null_terminate();
+	}
+
+	constexpr basic_string(const basic_string &other) : _allocator(other._allocator), _length(other._length), _cap(other._length)
+	{
+		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		Traits::copy(this->_buffer, other._buffer, this->_length);
+		this->null_terminate();
+	}
+
+	constexpr basic_string(basic_string &&other) = default;
+	constexpr basic_string(basic_string &&other, const Allocator &alloc) : _allocator(alloc), _buffer(std::move(other._buffer)), _length(std::move(other._length)), _cap(std::move(other._length)) { }
+
+	constexpr basic_string(std::initializer_list<Char> ilist, const Allocator &alloc = Allocator()) : basic_string(ilist.begin(), ilist.size(), alloc) { }
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	explicit constexpr basic_string(const type &t, const Allocator &alloc = Allocator()) : basic_string(basic_string_view<Char>(t).data(), basic_string_view<Char>(t).size(), alloc) { }
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>>)
+	constexpr basic_string(const type &t, size_type pos, size_type n, const Allocator &alloc = Allocator()) : basic_string(basic_string_view<Char>(t).substr(pos, n), alloc) { }
+
+	constexpr basic_string(std::nullptr_t) = delete;
+
+	~basic_string()
+	{
+		if (this->_buffer) this->_allocator.deallocate(this->_buffer, this->_cap + 1);
+		this->_length = this->_cap = 0;
+	}
+
+	constexpr basic_string &operator=(const basic_string &str)
+	{
+		return this->assign(str);
+	}
+
+	constexpr basic_string &operator=(basic_string &&str) = default;
+
+	constexpr basic_string &operator=(const Char *s)
+	{
+		return this->assign(s, Traits::length(s));
+	}
+
+	constexpr basic_string &operator=(Char c)
+	{
+		return this->assign(std::addressof(c), 1);
+	}
+
+	constexpr basic_string &operator=(std::initializer_list<Char> ilist)
+	{
+		return this->assign(ilist.begin(), ilist.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &operator=(const type &t)
+	{
+		return this->assign(basic_string_view<Char>(t));
+	}
+
+	constexpr basic_string &operator=(std::nullptr_t) = delete;
+
+	constexpr basic_string &assign(size_type count, Char ch)
+	{
+		this->clear();
+		this->resize(count, ch);
+		this->null_terminate();
+
+		return *this;
+	}
+
+	constexpr basic_string &assign(const basic_string &str)
+	{
+		this->clear();
+		this->append(str);
+
+		return *this;
+	}
+
+	constexpr basic_string &assign(const basic_string &str, size_type pos, size_type count = npos)
+	{
+		if (pos > str._length) return *this;
+		if (pos + count > str._length || count == npos) count = str._length - pos;
+
+		this->clear();
+		this->append(str.data() + pos, count);
+
+		return *this;
+	}
+
+	constexpr basic_string &assign(basic_string &&str)
+	{
+		return this->swap(str);
+	}
+
+	constexpr basic_string &assign(const Char *s, size_type count)
+	{
+		this->clear();
+		this->append(s, count);
+		this->null_terminate();
+
+		return *this;
+	}
+
+	constexpr basic_string &assign(const Char *s)
+	{
+		this->clear();
+		this->append(s, Traits::length(s));
+		this->null_terminate();
+
+		return *this;
+	}
+
+	constexpr basic_string &assign(std::initializer_list<Char> ilist)
+	{
+		return this->assign(ilist.begin(), ilist.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &assign(const type &t)
+	{
+		basic_string_view<Char> sv(t);
+		return this->assign(sv.data(), sv.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &assign(const type &t, size_type pos, size_type count = npos)
+	{
+		basic_string_view<Char> sv(t);
+		if (pos > sv.size()) return *this;
+		if (pos + count > sv.size() || count == npos) count = sv.size() - pos;
+
+		return this->assign(sv.data() + pos, count);
+	}
+
+	constexpr allocator_type get_allocator() const
+	{
+		return this->_allocator;
+	}
+
+	constexpr reference at(size_type index)
+	{
+		index = std::min(index, this->_length - 1);
+		return this->_buffer[index];
+	}
+
+	constexpr const_reference at(size_type index) const
+	{
+		index = std::min(index, this->_length - 1);
+		return this->_buffer[index];
+	}
+
+	constexpr reference operator[](size_type index)
+	{
+		index = std::min(index, this->_length - 1);
+		return this->_buffer[index];
+	}
+
+	constexpr const_reference operator[](size_type index) const
+	{
+		index = std::min(index, this->_length - 1);
+		return this->_buffer[index];
+	}
+
+	constexpr reference front()
+	{
+		return this->operator[](0);
+	}
+
+	constexpr const_reference front() const
+	{
+		return this->operator[](0);
+	}
+
+	constexpr reference back()
+	{
+		return this->operator[](this->_length - 1);
+	}
+
+	constexpr const_reference back() const
+	{
+		return this->operator[](this->_length - 1);
+	}
+
+	constexpr pointer data()
+	{
+		return this->_buffer;
+	}
+
+	constexpr const_pointer data() const
+	{
+		return this->_buffer;
+	}
+
+	constexpr const_pointer c_str() const
+	{
+		return this->_buffer;
+	}
+
+	constexpr operator basic_string_view<Char>() const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length);
+	}
+
+	constexpr iterator begin()
+	{
+		return this->_buffer;
+	}
+
+	constexpr const_iterator cbegin() const
+	{
+		return this->_buffer;
+	}
+
+	constexpr iterator end()
+	{
+		return this->_buffer + this->_length;
+	}
+
+	constexpr const_iterator cend() const
+	{
+		return this->_buffer + this->_length;
+	}
+
+	[[nodiscard]] constexpr bool empty() const
+	{
+		return this->_length == 0;
+	}
+
+	constexpr size_type size() const
+	{
+		return this->_length;
+	}
+
+	constexpr size_type length() const
+	{
+		return this->_length;
+	}
+
+	constexpr size_type max_size() const
+	{
+		return size_type(-1) / sizeof(Char);
+	}
+
+	constexpr size_type capacity() const
+	{
+		return this->_cap;
+	}
+
+	constexpr void shrink_to_fit()
+	{
+		if (this->_length == this->_cap) return;
+		this->_buffer = this->reallocate(this->_length);
+	}
+
+	constexpr void clear()
+	{
+		this->erase();
+	}
+
+	constexpr basic_string &insert(size_type index, size_type count, Char ch)
+	{
+		if (count == 0 || index > this->_length) return *this;
+
+		size_type new_size = this->_length + count;
+		this->resize(new_size);
+
+		Traits::move(this->_buffer + index + count, this->_buffer + index, this->_length  - index);
+		Traits::assign(this->_buffer + index, count, ch);
+
+		this->_length += count;
+		this->null_terminate();
+		return *this;
+	}
+
+	constexpr basic_string &insert(size_type index, const Char *s)
+	{
+		return this->insert(index, s, Traits::length(s));
+	}
+
+	constexpr basic_string &insert(size_type index, const Char *s, size_type count)
+	{
+		if (count == 0 || index > this->_length) return *this;
+
+		size_type new_size = this->_length + count;
+		this->resize(new_size);
+
+		Traits::move(this->_buffer + index + count, this->_buffer + index, this->_length - index);
+		Traits::copy(this->_buffer + index, s, count);
+
+		this->_length += count;
+		this->null_terminate();
+		return *this;
+	}
+
+	constexpr basic_string &insert(size_type index, const basic_string &str)
+	{
+		return this->insert(index, str.c_str(), str.size());
+	}
+
+	constexpr basic_string &insert(size_type index, const basic_string &str, size_type index_str, size_type count = npos)
+	{
+		basic_string newstr = str.substr(index_str, count);
+		return this->insert(index, newstr.c_str(), newstr.size());
+	}
+
+	constexpr iterator insert(const_iterator pos, Char c)
+	{
+		this->insert(this->it2pos(pos), 1, c);
+		return const_cast<iterator>(pos);
+	}
+
+	constexpr iterator insert(const_iterator pos, size_type count, Char c)
+	{
+		this->insert(this->it2pos(pos), count, c);
+		return const_cast<iterator>(pos);
+	}
+
+	constexpr iterator insert(const_iterator pos, std::initializer_list<Char> ilist)
+	{
+		this->insert(this->it2pos(pos), ilist.begin(), ilist.size());
+		return const_cast<iterator>(pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &insert(size_type pos, const type &t)
+	{
+		basic_string_view<Char> sv(t);
+		return this->insert(pos, sv.data(), sv.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &insert(size_type index, const type &t, size_type index_str, size_type count = npos)
+	{
+		basic_string_view<Char> sv(t);
+		if (index_str > sv.size()) return *this;
+		if (index_str + count > sv.size() || count == npos) count = sv.size() - index_str;
+
+		return this->insert(index_str, sv.data(), count);
+	}
+
+	constexpr basic_string &erase(size_type index = 0, size_type count = npos)
+	{
+		if (index > this->_length) return *this;
+		count = std::min(count, this->_length - index);
+		if (count == 0) return *this;
+
+		Traits::move(this->_buffer + index, this->_buffer + index + count, this->_length - (index + count));
+
+		this->_length -= count;
+		this->null_terminate();
+		return *this;
+	}
+
+	constexpr iterator erase(const_iterator pos)
+	{
+		this->erase(this->it2pos(pos), 1);
+		return this->end();
+	}
+
+	constexpr iterator erase(const_iterator first, const_iterator last)
+	{
+		this->erase(this->it2pos(first), this->range2count(first, last));
+		return const_cast<iterator>(first);
+	}
+
+	constexpr void push_back(Char ch)
+	{
+		this->append(1, ch);
+	}
+
+	constexpr void pop_back()
+	{
+		this->erase(this->end() - 1);
+	}
+
+	constexpr basic_string &append(size_type count, Char ch)
+	{
+		return this->insert(this->_length, count, ch);
+	}
+
+	constexpr basic_string &append(const basic_string &str)
+	{
+		return this->insert(this->_length, str);
+	}
+
+	constexpr basic_string &append(const basic_string &str, size_type pos, size_type count = npos)
+	{
+		if (pos > str._length) return *this;
+		if (pos + count > str._length || count == npos) count = str._length - pos;
+
+		return this->insert(this->_length, str.substr);
+	}
+
+	constexpr basic_string &append(const Char *s, size_type count)
+	{
+		return this->insert(this->_length, s, count);
+	}
+
+	constexpr basic_string &append(const Char *s)
+	{
+		return this->insert(this->_length, s, Traits::length(s));
+	}
+
+	constexpr basic_string &append(std::initializer_list<Char> ilist)
+	{
+		return this->append(ilist.begin(), ilist.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &append(const type &t)
+	{
+		basic_string_view<Char> sv(t);
+		return this->append(sv.data(), sv.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &append(const type &t, size_type pos, size_type count = npos)
+	{
+		basic_string_view<Char> sv(t);
+		if (pos >= sv.size()) return *this;
+		if (pos + count > sv.size() || count == npos) count = sv.size() - pos;
+
+		return this->append(sv.data(), sv.size());
+	}
+
+	constexpr basic_string &operator+=(std::initializer_list<Char> ilist)
+	{
+		return this->append(ilist.begin(), ilist.size());
+	}
+
+	constexpr basic_string &operator+=(const basic_string &str)
+	{
+		return this->append(str);
+	}
+
+	constexpr basic_string &operator+=(Char c)
+	{
+		return this->append(1, c);
+	}
+
+	constexpr basic_string &operator+=(const Char *s)
+	{
+		return this->append(s);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &operator+=(const type &t)
+	{
+		basic_string_view<Char> sv(t);
+		return this->append(sv);
+	}
+
+	constexpr int compare(const basic_string &str) const
+	{
+		if (this->_length != str._length) return this->_length < str._length ? -1 : 1;
+		return Traits::compare(this->_buffer, str._buffer, this->_length);
+	}
+
+	constexpr int compare(size_type pos1, size_type count1, const basic_string &str) const
+	{
+		if (pos1 + count1 > this->_length) count1 = this->_length - pos1;
+		if (count1 != str._length) return count1 < str._length ? -1 : 1;
+
+		return Traits::compare(this->_buffer + pos1, str._buffer, count1);
+	}
+
+	constexpr int compare(size_type pos1, size_type count1, const basic_string &str, size_type pos2, size_type count2 = npos) const
+	{
+		if (pos1 + count1 > this->_length) count1 = this->_length - pos1;
+		if (pos2 + count2 > str._length) count2 = str._length - pos2;
+
+		if (count1 != count2) return count1 < count2 ? -1 : 1;
+
+		return Traits::compare(this->_buffer + pos1, str._buffer + pos2, count1);
+	}
+
+	constexpr int compare(const Char *s) const
+	{
+		size_type sl = Traits::length(s);
+		if (this->_length != sl) return this->_length < sl ? -1 : 1;
+
+		return Traits::compare(this->_buffer, s, this->_length);
+	}
+
+	constexpr int compare(size_type pos1, size_type count1, const Char *s) const
+	{
+		size_type sl = Traits::length(s);
+		if (pos1 + count1 > this->_length) count1 = this->_length - pos1;
+		if (count1 != sl) return count1 < sl ? -1 : 1;
+
+		return Traits::compare(this->_buffer + pos1, s, count1);
+	}
+
+	constexpr int compare(size_type pos1, size_type count1, const Char *s, size_type count2) const
+	{
+		if (pos1 + count1 > this->_length) count1 = this->_length - pos1;
+		if (count1 != count2) return count1 < count2 ? -1 : 1;
+
+		return Traits::compare(this->_buffer + pos1, s, count1);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr int compare(const type &t) const
+	{
+		basic_string_view<Char> sv(t);
+		if (this->_length != sv.size()) return this->_length < sv.size() ? -1 : 1;
+
+		return Traits::compare(this->_buffer, sv.data(), this->_length);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr int compare(size_type pos1, size_type count1, const type &t) const
+	{
+		basic_string_view<Char> sv(t);
+		if (count1 != sv.size()) return count1 < sv.size() ? -1 : 1;
+
+		return basic_string_view<Char>(*this).substr(pos1, count1).compare(sv);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr int compare(size_type pos1, size_type count1, const type &t, size_type pos2, size_type count2 = npos) const
+	{
+		basic_string_view<Char> sv(t);
+		sv = sv.substr(pos2, count2);
+		if (count1 != count2) return count1 < count2 ? -1 : 1;
+
+		return basic_string_view<Char>(*this).substr(pos1, count1).compare(sv);
+	}
+
+	constexpr bool starts_with(basic_string_view<Char> sv) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).starts_with(sv);
+	}
+
+	constexpr bool starts_with(Char c) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).starts_with(c);
+	}
+
+	constexpr bool starts_with(const Char *s) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).starts_with(s);
+	}
+
+	constexpr bool ends_with(basic_string_view<Char> sv) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).ends_with(sv);
+	}
+
+	constexpr bool ends_with(Char c) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).ends_with(c);
+	}
+
+	constexpr bool ends_with(const Char *s) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).ends_with(s);
+	}
+
+	constexpr bool contains(basic_string_view<Char> sv) const
+	{
+		return this->find(sv) != npos;
+	}
+
+	constexpr bool contains(Char c) const
+	{
+		return this->find(c) != npos;
+	}
+
+	constexpr bool contains(const Char *s) const
+	{
+		return this->find(s) != npos;
+	}
+
+	constexpr basic_string &replace(size_type pos, size_type count, const basic_string &str)
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		this->erase(pos, count);
+		this->insert(pos, str);
+
+		return *this;
+	}
+
+	constexpr basic_string &replace(const_iterator first, const_iterator last, const basic_string &str)
+	{
+		return this->replace(this->it2pos(first), this->range2count(first, last), str);
+	}
+
+	constexpr basic_string &replace(size_type pos, size_type count, const basic_string &str, size_type pos2, size_type count2 = npos)
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		if (pos2 > str._length) return *this;
+		if (pos2 + count2 > str._length || count2 == npos) count2 = str._length - pos2;
+
+		this->erase(pos, count);
+		this->insert(pos, str, pos2, count2);
+
+		return *this;
+	}
+
+	constexpr basic_string &replace(size_type pos, size_type count, const Char *str, size_type count2)
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		this->erase(pos, count);
+		this->insert(pos, str, count2);
+
+		return *this;
+	}
+
+	constexpr basic_string &replace(const_iterator first, const_iterator last, const Char *str, size_type count2)
+	{
+		return this->replace(this->it2pos(first), this->range2count(first, last), str, count2);
+	}
+
+	constexpr basic_string &replace(size_type pos, size_type count, const Char *str)
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		this->erase(pos, count);
+		this->insert(pos, str, Traits::length(str));
+
+		return *this;
+	}
+
+	constexpr basic_string &replace(const_iterator first, const_iterator last, const Char *str)
+	{
+		return this->replace(this->it2pos(first), this->range2count(first, last), str);
+	}
+
+	constexpr basic_string &replace(size_type pos, size_type count, size_type count2, Char c)
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		this->erase(pos, count);
+		this->insert(pos, count2, c);
+
+		return *this;
+	}
+
+	constexpr basic_string &replace(const_iterator first, const_iterator last, size_type count2, Char c)
+	{
+		return this->replace(this->it2pos(first), this->range2count(first, last), count2, c);
+	}
+
+	constexpr basic_string &replace(const_iterator first, const_iterator last, std::initializer_list<Char> ilist)
+	{
+		return this->replace(this->it2pos(first), this->range2count(first, last), ilist.begin(), ilist.size());
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &replace(size_type pos, size_type count, const type &t)
+	{
+		basic_string_view<Char> sv(t);
+
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		this->erase(pos, count);
+		this->insert(pos, sv.data(), sv.size());
+
+		return *this;
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &replace(const_iterator first, const_iterator last, const type &t)
+	{
+		return this->replace(this->it2pos(first), this->range2count(first, last), t);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr basic_string &replace(size_type pos, size_type count, const type &t, size_type pos2, size_type count2 = npos)
+	{
+		basic_string_view<Char> sv(t);
+
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length) count = this->_length - pos;
+
+		if (pos2 > sv.size()) return *this;
+		if (pos2 + count2 > sv.size() || count2 == npos) count2 = sv.size() - pos2;
+
+		this->erase(pos, count);
+		this->insert(pos, sv.data(), pos2, count2);
+
+		return *this;
+	}
+
+	constexpr basic_string substr(size_type pos = 0, size_type count = npos) const
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length || count == npos) count = this->_length - pos;
+
+		return basic_string(this->_buffer + pos, count);
+	}
+
+	constexpr size_type copy(Char *dest, size_type count, size_type pos = 0) const
+	{
+		if (pos > this->_length) return *this;
+		if (pos + count > this->_length || count == npos) count = this->_length - pos;
+
+		memcpy(dest, this->_buffer + pos, count);
+		return count;
+	}
+
+	constexpr void resize(size_type count)
+	{
+		size_type oldsize = this->_length;
+
+		this->_buffer = this->reallocate(count);
+		if (count > oldsize)
+		{
+			Traits::assign(this->_buffer + oldsize, count - oldsize, 0);
+		}
+		this->_buffer[count] = 0;
+
+		if (count < oldsize) this->_length = count;
+		this->_cap = count;
+	}
+
+	constexpr void resize(size_type count, Char ch)
+	{
+		size_type oldsize = this->_length;
+
+		this->_buffer = this->reallocate(count);
+		if (count > oldsize)
+		{
+			Traits::assign(this->_buffer + oldsize, count - oldsize, ch);
+		}
+		this->_buffer[count] = 0;
+
+		this->_length = this->_cap = count;
+	}
+
+	constexpr void swap(basic_string &other)
+	{
+		using std::swap;
+		swap(this->_buffer, other._buffer);
+		swap(this->_length, other._length);
+		swap(this->_cap, other._cap);
+	}
+
+	constexpr size_type find(const basic_string &str, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find(basic_string_view<Char>(str), pos);
+	}
+
+	constexpr size_type find(const Char *s, size_type pos, size_type count) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find(s, pos, count);
+	}
+
+	constexpr size_type find(const Char *s, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find(s, pos);
+	}
+
+	constexpr size_type find(Char c, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find(c, pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr size_type find(const type &t, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find(basic_string_view<Char>(t), pos);
+	}
+
+	constexpr size_type rfind(const basic_string &str, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).rfind(basic_string_view<Char>(str), pos);
+	}
+
+	constexpr size_type rfind(const Char *s, size_type pos, size_type count) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).rfind(s, pos, count);
+	}
+
+	constexpr size_type rfind(const Char *s, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).rfind(s, pos);
+	}
+
+	constexpr size_type rfind(Char c, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).rfind(c, pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr size_type rfind(const type &t, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).rfind(basic_string_view<Char>(t), pos);
+	}
+
+	constexpr size_type find_first_of(const basic_string &str, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_of(basic_string_view<Char>(str), pos);
+	}
+
+	constexpr size_type find_first_of(const Char *s, size_type pos, size_type count) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_of(s, pos, count);
+	}
+
+	constexpr size_type find_first_of(const Char *s, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_of(s, pos);
+	}
+
+	constexpr size_type find_first_of(Char c, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_of(c, pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr size_type find_first_of(const type &t, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_of(basic_string_view<Char>(t), pos);
+	}
+
+	constexpr size_type find_first_not_of(const basic_string &str, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_not_of(basic_string_view<Char>(str), pos);
+	}
+
+	constexpr size_type find_first_not_of(const Char *s, size_type pos, size_type count) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_not_of(s, pos, count);
+	}
+
+	constexpr size_type find_first_not_of(const Char *s, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_not_of(s, pos);
+	}
+
+	constexpr size_type find_first_not_of(Char c, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_not_of(c, pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr size_type find_first_not_of(const type &t, size_type pos = 0) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_first_not_of(basic_string_view<Char>(t), pos);
+	}
+
+	constexpr size_type find_last_of(const basic_string &str, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_of(basic_string_view<Char>(str), pos);
+	}
+
+	constexpr size_type find_last_of(const Char *s, size_type pos, size_type count) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_of(s, pos, count);
+	}
+
+	constexpr size_type find_last_of(const Char *s, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_of(s, pos);
+	}
+
+	constexpr size_type find_last_of(Char c, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_of(c, pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr size_type find_last_of(const type &t, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_of(basic_string_view<Char>(t), pos);
+	}
+
+	constexpr size_type find_last_not_of(const basic_string &str, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_not_of(basic_string_view<Char>(str), pos);
+	}
+
+	constexpr size_type find_last_not_of(const Char *s, size_type pos, size_type count) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_not_of(s, pos, count);
+	}
+
+	constexpr size_type find_last_not_of(const Char *s, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_not_of(s, pos);
+	}
+
+	constexpr size_type find_last_not_of(Char c, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_not_of(c, pos);
+	}
+
+	template<typename type> requires (std::convertible_to<const type&, basic_string_view<Char>> && !std::convertible_to<const type&, const Char*>)
+	constexpr size_type find_last_not_of(const type &t, size_type pos = npos) const
+	{
+		return basic_string_view<Char>(this->_buffer, this->_length).find_last_not_of(basic_string_view<Char>(t), pos);
+	}
+
+	friend constexpr basic_string operator+(const basic_string &lhs, const basic_string &rhs)
+	{
+		return basic_string<Char>(lhs).append(rhs);
+	}
+
+	friend constexpr basic_string operator+(const basic_string &lhs, const Char *rhs)
+	{
+		return basic_string<Char>(lhs).append(rhs);
+	}
+
+	friend constexpr basic_string operator+(const basic_string &lhs, Char rhs)
+	{
+		return basic_string<Char>(lhs).append(rhs);
+	}
+
+	friend constexpr basic_string operator+(const Char *lhs, const basic_string &rhs)
+	{
+		return basic_string<Char>(lhs).append(rhs);
+	}
+
+	friend constexpr basic_string operator+(Char lhs, const basic_string &rhs)
+	{
+		return basic_string<Char>(std::addressof(lhs), 1).append(rhs);
+	}
+
+	friend constexpr basic_string operator+(basic_string &&lhs, basic_string &&rhs)
+	{
+		const auto _size = lhs.size() + rhs.size();
+		return (_size > lhs.capacity() && _size <= rhs.capacity()) ? std::move(rhs.insert(0, lhs)) : std::move(lhs.append(rhs));
+	}
+
+	friend constexpr basic_string operator+(basic_string &&lhs, const basic_string &rhs)
+	{
+		return std::move(lhs.append(rhs));
+	}
+
+	friend constexpr basic_string operator+(basic_string &&lhs, const Char *rhs)
+	{
+		return std::move(lhs.append(rhs));
+	}
+
+	friend constexpr basic_string operator+(basic_string &&lhs, Char rhs)
+	{
+		return std::move(lhs.append(1, rhs));
+	}
+
+	friend constexpr basic_string operator+(const basic_string &lhs, basic_string &&rhs)
+	{
+		return std::move(rhs.insert(0, lhs));
+	}
+
+	friend constexpr basic_string operator+(const Char *lhs, basic_string &&rhs)
+	{
+		return std::move(rhs.insert(0, lhs));
+	}
+
+	friend constexpr basic_string operator+(Char lhs, basic_string &&rhs)
+	{
+		return std::move(rhs.insert(0, 1, lhs));
+	}
+
+	friend constexpr bool operator==(const basic_string &lhs, const basic_string &rhs)
+	{
+		return lhs.compare(rhs) == 0;
+	}
+
+	friend constexpr bool operator==(const basic_string &lhs, const Char *rhs)
+	{
+		return lhs.compare(rhs) == 0;
+	}
+
+	friend constexpr auto operator<=>(const basic_string &lhs, const basic_string &rhs)
+	{
+		return lhs.compare(rhs) <=> 0;
+	}
+
+	friend constexpr auto operator<=>(const basic_string &lhs, const Char *rhs)
+	{
+		return lhs.compare(rhs) <=> 0;
+	}
+
+	friend constexpr void swap(basic_string &lhs, basic_string &rhs)
+	{
+		lhs.swap(rhs);
+	}
+
+	basic_string_view<Char> sub_view() const
+	{
+		return basic_string_view<Char>(_buffer, this->_length);
+	}
+	basic_string_view<Char> sub_view(size_type start) const
+	{
+		return basic_string_view<Char>(_buffer + start, this->_length - start);
+	}
+	basic_string_view<Char> sub_view(size_type start, size_type length) const
+	{
+		return basic_string_view<Char>(_buffer + start, (start + length) > this->_length ? this->_length - start : length);
 	}
 };
 
-template<typename Char, typename Allocator>
-class hash<basic_string<Char, Allocator>> {
-public:
-	unsigned int operator() (const basic_string<Char, Allocator> &string) const {
-		unsigned int hash = 0;
-		for(size_t i = 0; i < string.size(); i++)
-			hash += 31 * hash + string[i];
-		return hash;
+using string = basic_string<char>;
+using string_view = basic_string_view<char>;
+
+template<typename Char, typename Traits, typename Allocator>
+struct hash<basic_string<Char, Traits, Allocator>>
+{
+	size_t operator()(const basic_string<Char, Traits, Allocator> &str) const
+	{
+		return MurmurHash2_64A(str.data(), str.length());
+	}
+};
+
+template<typename Char, typename Traits>
+struct hash<basic_string_view<Char, Traits>>
+{
+	size_t operator()(const basic_string_view<Char, Traits> &str) const
+	{
+		return MurmurHash2_64A(str.data(), str.length());
 	}
 };
 
@@ -819,7 +1686,7 @@ namespace _to_string_impl {
 	constexpr auto small_digits = "0123456789abcdef";
 
 	template<typename T, typename Pool>
-	string<Pool> to_allocated_string(Pool &pool, T v, int radix = 10, size_t precision = 1,
+	basic_string<char, char_traits<char>, Pool> to_allocated_string(Pool &pool, T v, int radix = 10, size_t precision = 1,
 			const char *digits = small_digits) {
 		constexpr auto m = num_digits<T>();
 		FRG_ASSERT(v >= 0);
@@ -832,7 +1699,7 @@ namespace _to_string_impl {
 			v /= radix;
 		}
 
-		string<Pool> result(pool);
+		basic_string<char, char_traits<char>, Pool> result(pool);
 		auto len = max(precision, n);
 		result.resize(max(precision, n));
 
@@ -862,9 +1729,9 @@ inline namespace literals
 			return string(str, len);
 		}
 
-		inline std::string_view operator""sv(const char *str, size_t len)
+		inline string_view operator""sv(const char *str, size_t len)
 		{
-			return std::string_view(str, len);
+			return string_view(str, len);
 		}
 
 		#pragma GCC diagnostic pop
