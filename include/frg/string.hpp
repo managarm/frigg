@@ -545,10 +545,10 @@ class basic_string
 	using traits_type = Traits;
 	using value_type = Char;
 	using allocator_type = Allocator;
-	using size_type = typename Allocator::size_type;
-	using difference_type = typename Allocator::difference_type;
-	using pointer = typename Allocator::pointer;
-	using const_pointer = typename Allocator::const_pointer;
+	using size_type = size_t;
+	using difference_type = ptrdiff_t;
+	using pointer = Char*;
+	using const_pointer = const Char*;
 	using reference = Char&;
 	using const_reference = const Char&;
 
@@ -568,7 +568,7 @@ class basic_string
 	constexpr Char *reallocate(size_t new_cap)
 	{
 		auto new_length = std::min(new_cap, this->_length);
-		auto new_buffer = this->_allocator.allocate(new_cap + 1);
+		auto new_buffer = static_cast<Char*>(this->_allocator.allocate(new_cap + 1));
 
 		Traits::copy(new_buffer, this->_buffer, new_length);
 		this->_allocator.deallocate(this->_buffer, this->_cap + 1);
@@ -609,7 +609,7 @@ class basic_string
 
 	constexpr basic_string(size_type count, Char c, const Allocator &alloc = Allocator()) : _allocator(alloc), _length(count), _cap(count)
 	{
-		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		this->_buffer = static_cast<Char*>(this->_allocator.allocate(this->_length + 1));
 		Traits::assign(this->_buffer, count, c);
 		this->null_terminate();
 	}
@@ -619,7 +619,7 @@ class basic_string
 		if (pos + count > other._length) count = other._length - pos;
 		this->_length = this->_cap = count;
 
-		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		this->_buffer = static_cast<Char*>(this->_allocator.allocate(this->_length + 1));
 		Traits::copy(this->_buffer, other._buffer + pos, this->_length);
 		this->null_terminate();
 	}
@@ -627,7 +627,7 @@ class basic_string
 
 	constexpr basic_string(const Char *s, size_type count, const Allocator &alloc = Allocator()) : _allocator(alloc), _length(count), _cap(count)
 	{
-		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		this->_buffer = static_cast<Char*>(this->_allocator.allocate(this->_length + 1));
 		Traits::copy(this->_buffer, s, this->_length);
 		this->null_terminate();
 	}
@@ -635,14 +635,14 @@ class basic_string
 
 	constexpr basic_string(const basic_string &other, const Allocator &alloc) : _allocator(alloc), _length(other._length), _cap(other._length)
 	{
-		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		this->_buffer = static_cast<Char*>(this->_allocator.allocate(this->_length + 1));
 		Traits::copy(this->_buffer, other._buffer, this->_length);
 		this->null_terminate();
 	}
 
 	constexpr basic_string(const basic_string &other) : _allocator(other._allocator), _length(other._length), _cap(other._length)
 	{
-		this->_buffer = this->_allocator.allocate(this->_length + 1);
+		this->_buffer = static_cast<Char*>(this->_allocator.allocate(this->_length + 1));
 		Traits::copy(this->_buffer, other._buffer, this->_length);
 		this->null_terminate();
 	}
@@ -1639,7 +1639,8 @@ class basic_string
 	}
 };
 
-using string = basic_string<char>;
+template<typename Allocator>
+using string = basic_string<char, char_traits<char>, Allocator>;
 using string_view = basic_string_view<char>;
 
 template<typename Char, typename Traits, typename Allocator>
@@ -1686,7 +1687,7 @@ namespace _to_string_impl {
 	constexpr auto small_digits = "0123456789abcdef";
 
 	template<typename T, typename Pool>
-	basic_string<char, char_traits<char>, Pool> to_allocated_string(Pool &pool, T v, int radix = 10, size_t precision = 1,
+	string<Pool> to_allocated_string(Pool &pool, T v, int radix = 10, size_t precision = 1,
 			const char *digits = small_digits) {
 		constexpr auto m = num_digits<T>();
 		FRG_ASSERT(v >= 0);
@@ -1699,7 +1700,7 @@ namespace _to_string_impl {
 			v /= radix;
 		}
 
-		basic_string<char, char_traits<char>, Pool> result(pool);
+		string<Pool> result(pool);
 		auto len = max(precision, n);
 		result.resize(max(precision, n));
 
@@ -1724,14 +1725,14 @@ inline namespace literals
 		#pragma GCC diagnostic ignored "-Wno-literal-suffix"
 		#endif
 
-		inline string operator""s(const char *str, size_t len)
+		inline basic_string<char> operator""s(const char *str, size_t len)
 		{
-			return string(str, len);
+			return basic_string<char>(str, len);
 		}
 
-		inline string_view operator""sv(const char *str, size_t len)
+		inline basic_string_view<char> operator""sv(const char *str, size_t len)
 		{
-			return string_view(str, len);
+			return basic_string_view<char>(str, len);
 		}
 
 		#pragma GCC diagnostic pop
