@@ -1,6 +1,7 @@
 #ifndef FRG_RANDOM_HPP
 #define FRG_RANDOM_HPP
 
+#include <stdint.h>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
@@ -63,6 +64,43 @@ private:
 	int _ctr;
 };
 
+// Implementation based on https://github.com/imneme/pcg-c-basic
+// Copyright 2014 Melissa O'Neill <oneill@pcg-random.org>
+// Licensed under the Apache License, Version 2.0
+struct pcg_basic32 {
+	pcg_basic32(uint64_t seed, uint64_t seq = 1) {
+		this->seed(seed, seq);
+	}
+
+	void seed(uint64_t seed, uint64_t seq = 1) {
+		state_ = 0;
+		inc_ = (seq << 1) | 1;
+		operator()();
+		state_ += seed;
+		operator()();
+	}
+
+	uint32_t operator()() {
+		uint64_t oldstate = state_;
+		state_ = oldstate * 6364136223846793005ULL + inc_;
+		uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+		uint32_t rot = oldstate >> 59u;
+		return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+	}
+
+	uint32_t operator()(uint32_t bound) {
+		uint32_t threshold = -bound % bound;
+		for (;;) {
+			auto r = operator()();
+			if (r >= threshold) {
+				return r % bound;
+			}
+		}
+	}
+private:
+	uint64_t state_;
+	uint64_t inc_;
+};
 } // namespace frg
 
 #endif // FRG_RANDOM_HPP
