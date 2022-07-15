@@ -1,5 +1,6 @@
 #include <frg/string.hpp>
 #include <frg/std_compat.hpp>
+#include <frg/random.hpp>
 
 #include <gtest/gtest.h>
 
@@ -48,4 +49,30 @@ TEST(strings, compare_method_comparison) {
 	EXPECT_EQ(s1.compare(s3), 1);
 	EXPECT_EQ(s3.compare(s1), -1);
 	EXPECT_EQ(s1.compare(s4), 0);
+}
+
+TEST(pcg32, pcg32_brief_test) {
+	frg::pcg_basic32 x { 12345, 6 };
+
+	EXPECT_EQ(x(), 1985316396);
+	EXPECT_EQ(x(), 1977560913);
+	EXPECT_EQ(x(), 3056590845);
+	EXPECT_EQ(x(), 1569990246);
+	EXPECT_EQ(x(), 1699592177);
+	EXPECT_EQ(x(), 1974316228);
+	EXPECT_EQ(x(), 4283859071);
+	EXPECT_EQ(x(), 3435412947);
+	EXPECT_EQ(x(), 821999472);
+	EXPECT_EQ(x(), 3498119420);
+
+	EXPECT_EQ(x(10), 5);
+	EXPECT_EQ(x(20), 12);
+	EXPECT_EQ(x(30), 29);
+	EXPECT_EQ(x(40), 6);
+	EXPECT_EQ(x(50), 35);
+	EXPECT_EQ(x(60), 46);
+	EXPECT_EQ(x(70), 36);
+	EXPECT_EQ(x(80), 69);
+	EXPECT_EQ(x(90), 76);
+	EXPECT_EQ(x(100), 68);
 }
