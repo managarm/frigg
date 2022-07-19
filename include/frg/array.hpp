@@ -9,8 +9,7 @@
 namespace frg {
 
 template<class T, size_t N>
-class array {
-public:
+struct array {
 	using value_type = T;
 	using size_type = size_t;
 	using reference = value_type&;
@@ -23,8 +22,8 @@ public:
 	value_type _stor[N];
 
 	friend void swap(array &a, array &b) {
-	    for (size_t i = 0; i < N; i++)
-		std::swap(a._stor[i], b._stor[i]);
+		for (size_t i = 0; i < N; i++)
+			std::swap(a._stor[i], b._stor[i]);
 	}
 
 	constexpr reference operator[](size_type pos) {
@@ -87,6 +86,8 @@ public:
 		// for arrays it is equal to size()
 		return N;
 	}
+
+	bool operator==(const array &other) const = default;
 };
 
 namespace details {
@@ -153,8 +154,7 @@ constexpr const T &&get(const frg::array<T, N> &&a) noexcept {
 
 template<class T, size_t N>
 struct tuple_size<frg::array<T, N>> :
-    integral_constant<size_t, N>
-{ };
+	integral_constant<size_t, N> { };
 
 template<size_t I, class T, size_t N>
 struct tuple_element<I, frg::array<T, N>> {
