@@ -1,5 +1,5 @@
 # frigg is header-only, so we do not need a compiler.
-project('frigg', default_options: ['cpp_std=c++20'])
+project('frigg')
 
 # We already need C++ on the build system to build the analyzer.
 add_languages('cpp', native: true)
@@ -70,5 +70,6 @@ endif
 analyzer = executable(
 		'slab_trace_analyzer',
 		'slab_trace_analyzer.cpp',
+		override_options: ['cpp_std=c++20'],
 		build_by_default: false,
 		native: true)
