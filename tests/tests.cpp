@@ -76,3 +76,66 @@ TEST(pcg32, pcg32_brief_test) {
 	EXPECT_EQ(x(90), 76);
 	EXPECT_EQ(x(100), 68);
 }
+
+#include <frg/tuple.hpp>
+#include <tuple> /* std::tuple_size and std::tuple_element */
+
+TEST(tuples, basic_test) {
+	int x = 5;
+	int y = 7;
+
+	frg::tuple<int, int> t { x, y };
+	EXPECT_EQ(x, t.get<0>());
+	EXPECT_EQ(y, t.get<1>());
+
+	auto t2 = frg::make_tuple(x, y);
+	EXPECT_EQ(x, t2.get<0>());
+	EXPECT_EQ(y, t2.get<1>());
+	t2.get<0>() = 1;
+	t2.get<1>() = 2;
+	EXPECT_EQ(t2.get<0>(), 1);
+	EXPECT_EQ(t2.get<1>(), 2);
+	EXPECT_NE(x, t2.get<0>());
+	EXPECT_NE(y, t2.get<1>());
+
+	static_assert(
+		std::tuple_size_v<decltype(t)> == 2,
+		"tuple_size produces wrong result"
+	);
+	static_assert(
+		std::is_same_v<std::tuple_element_t<1, decltype(t)>, int>,
+		"tuple_element produces wrong result"
+	);
+}
+
+struct uncopyable {
+	uncopyable() {}
+	uncopyable(const uncopyable &) = delete;
+	uncopyable(uncopyable &&) {}
+	uncopyable &operator =(const uncopyable &) = delete;
+	uncopyable &operator =(uncopyable &&other) { return *this; }
+};
+
+struct immovable {
+	immovable() {}
+	immovable(const immovable &) {}
+	immovable(immovable &&) = delete;
+	immovable &operator=(const immovable &) { return *this; }
+	immovable &operator=(immovable &&) = delete;
+};
+
+TEST(tuples, reference_test) {
+	int x = 5;
+	uncopyable y {};
+	immovable z {};
+
+	frg::tuple<int&, uncopyable&, immovable&> t { x, y, z };
+	EXPECT_EQ(&x, &t.get<0>());
+	EXPECT_EQ(&y, &t.get<1>());
+	EXPECT_EQ(&z, &t.get<2>());
+
+	auto t2 = std::move(t);
+	EXPECT_EQ(&x, &t2.get<0>());
+	EXPECT_EQ(&y, &t2.get<1>());
+	EXPECT_EQ(&z, &t2.get<2>());
+}
