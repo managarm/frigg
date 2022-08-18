@@ -19,7 +19,7 @@ namespace _tuple {
 		storage() = default;
 
 		storage(T item, Types... tail)
-		: item(std::move(item)), tail(std::move(tail)...) { }
+		: item(std::forward<T>(item)), tail(std::forward<Types>(tail)...) { }
 
 		template<typename... UTypes>
 		storage(const storage<UTypes...> &other)
@@ -83,7 +83,7 @@ public:
 	tuple() = default;
 
 	tuple(Types... args)
-	: _stor(std::move(args)...) { }
+	: _stor(std::forward<Types>(args)...) { }
 
 	template<typename... UTypes>
 	friend class tuple;
@@ -132,6 +132,8 @@ class tuple<> { };
 
 template<typename... Types>
 tuple<typename std::remove_reference_t<Types>...> make_tuple(Types &&... args) {
+	 // TODO(arsen): transform reference_wrappers into lvalue references
+	 // when they get added to cxxshim
 	return tuple<typename std::remove_reference_t<Types>...>(std::forward<Types>(args)...);
 }
 
