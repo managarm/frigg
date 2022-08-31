@@ -14,6 +14,7 @@ template<typename Char>
 class basic_string_view {
 public:
 	typedef Char CharType;
+	using value_type = Char;
 
 	basic_string_view()
 	: _pointer{nullptr}, _length{0} { }
@@ -111,6 +112,7 @@ template<typename Char, typename Allocator>
 class basic_string {
 public:
 	typedef Char CharType;
+	using value_type = Char;
 
 	friend void swap(basic_string &a, basic_string &b) {
 		using std::swap;
@@ -218,6 +220,10 @@ public:
 		new_buffer[new_length] = 0;
 
 		return basic_string(_allocator, new_buffer, new_length);
+	}
+
+	void push_back(Char c) {
+		operator+=(c);
 	}
 
 	basic_string &operator+= (const basic_string_view<Char> &other) {
