@@ -100,6 +100,42 @@ private:
 	Sink _sink;
 };
 
+template <typename Container>
+struct container_logger {
+	constexpr container_logger(Container &cont)
+	: cont_{cont} { }
+
+	auto &operator<<(auto &&t) {
+		format(std::forward<decltype(t)>(t), *this);
+		return *this;
+	}
+
+	void append(typename Container::value_type s) {
+		cont_.push_back(s);
+	}
+
+	void append(const typename Container::value_type *str) {
+		// For std::basic_string
+		if constexpr ( requires { cont_.insert(cont_.size(), str); } )
+			cont_.insert(cont_.size(), str);
+		else {
+			while (*str)
+				append(*str++);
+		}
+	}
+
+private:
+	Container &cont_;
+};
+
+template <typename Container> requires (
+		requires (Container &cont, typename Container::value_type c) {
+			cont.push_back(c);
+		})
+constexpr auto output_to(Container &cont) {
+	return container_logger{cont};
+}
+
 } // namespace frg
 
 #endif // FRG_LOGGING_HPP

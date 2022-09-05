@@ -139,3 +139,60 @@ TEST(tuples, reference_test) {
 	EXPECT_EQ(&y, &t2.get<1>());
 	EXPECT_EQ(&z, &t2.get<2>());
 }
+
+#include <frg/formatting.hpp>
+#include <frg/logging.hpp>
+#include <string> // std::string
+#include <vector> // std::vector
+
+TEST(formatting, basic_output_to) {
+	std::string std_str;
+	frg::output_to(std_str) << 10;
+	EXPECT_EQ(std_str, "10");
+
+	string frg_str;
+	frg::output_to(frg_str) << 10;
+	std::cout << frg_str.size() << std::endl;
+	EXPECT_EQ(frg_str, "10");
+
+	std::vector<char> std_vec;
+	std::vector<char> expected_vec{'1', '0'};
+	frg::output_to(std_vec) << 10;
+	EXPECT_EQ(std_vec, expected_vec);
+}
+
+TEST(formatting, fmt) {
+	std::string str;
+	frg::output_to(str) << frg::fmt("Hello {}!", "world");
+	EXPECT_EQ(str, "Hello world!");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{} {:x}", 1234, 0x3456);
+	EXPECT_EQ(str, "1234 3456");
+	str.clear();
+
+	int x = 10;
+	frg::output_to(str) << frg::fmt("{} {}", x, x + 20);
+	EXPECT_EQ(str, "10 30");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:08X}", 0xAAABBB);
+	EXPECT_EQ(str, "00AAABBB");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{1} {0}", 3, 4);
+	EXPECT_EQ(str, "4 3");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{1}", 1);
+	EXPECT_EQ(str, "{1}");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{{}", 1);
+	EXPECT_EQ(str, "{}");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:h}", 1);
+	EXPECT_EQ(str, "{:h}");
+	str.clear();
+}
