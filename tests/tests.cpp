@@ -195,4 +195,15 @@ TEST(formatting, fmt) {
 	frg::output_to(str) << frg::fmt("{:h}", 1);
 	EXPECT_EQ(str, "{:h}");
 	str.clear();
+
+	std::string abc_def { "abc def" };
+	std::vector<char> abc_def_v { abc_def.cbegin(), abc_def.cend() };
+
+	frg::output_to(str) << frg::fmt("testing! {}", abc_def);
+	EXPECT_EQ(str, "testing! abc def");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("testing2! {}", abc_def_v);
+	EXPECT_EQ(str, "testing2! abc def");
+	str.clear();
 }

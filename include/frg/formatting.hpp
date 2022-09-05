@@ -11,6 +11,12 @@
 #include <frg/utility.hpp>
 #include <frg/tuple.hpp>
 
+#ifdef __STDC_HOSTED__
+/* the ranges library is not even partially freestanding for some reason */
+#include <ranges>
+#include <algorithm>
+#endif
+
 namespace frg FRG_VISIBILITY {
 
 // Concept: Formatter.
@@ -412,6 +418,20 @@ struct char_fmt {
 private:
 	const char c_;
 };
+
+#ifdef __STDC_HOSTED__
+template<std::ranges::input_range R, typename F>
+requires requires {
+    typename std::char_traits<std::ranges::range_value_t<R>>;
+}
+void format_object(const R &range, format_options fo, F &formatter) {
+	/* TODO(arsen): figure out what to do about wchar (and if we care...)
+	 */
+	std::ranges::for_each(range, [&] (const auto &x) {
+		format_object(char_fmt { x }, fo, formatter);
+	});
+}
+#endif
 
 template<typename T>
 struct hex_fmt {
