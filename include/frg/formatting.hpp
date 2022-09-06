@@ -11,10 +11,15 @@
 #include <frg/utility.hpp>
 #include <frg/tuple.hpp>
 
-#ifdef __STDC_HOSTED__
 /* the ranges library is not even partially freestanding for some reason */
-#include <ranges>
-#include <algorithm>
+#ifdef __STDC_HOSTED__
+#  if __has_include(<ranges>) && __has_include(<algorithm>)
+#    include <ranges>
+#    include <algorithm>
+#    define FRG_HAS_RANGES
+#  else
+#    warn "__STDC_HOSTED__ set but no <ranges> and <algorithm> header. Disabling range support."
+#  endif
 #endif
 
 namespace frg FRG_VISIBILITY {
@@ -419,7 +424,7 @@ private:
 	const char c_;
 };
 
-#ifdef __STDC_HOSTED__
+#ifdef FRG_HAS_RANGES
 template<std::ranges::input_range R, typename F>
 requires requires {
     typename std::char_traits<std::ranges::range_value_t<R>>;
