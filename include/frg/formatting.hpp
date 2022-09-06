@@ -18,7 +18,7 @@
 #    include <algorithm>
 #    define FRG_HAS_RANGES
 #  else
-#    warn "__STDC_HOSTED__ set but no <ranges> and <algorithm> header. Disabling range support."
+#    warning "__STDC_HOSTED__ set but no <ranges> and <algorithm> header. Disabling range support."
 #  endif
 #endif
 
