@@ -207,3 +207,94 @@ TEST(formatting, fmt) {
 	EXPECT_EQ(str, "testing2! abc def");
 	str.clear();
 }
+
+#include <frg/bitset.hpp>
+
+TEST(bitset, bitwise) {
+	constexpr auto A = 12346;
+	constexpr auto B = 56789;
+	constexpr auto C = 957929475;
+	constexpr auto D = 9393939;
+	frg::bitset<45> a = A;
+	frg::bitset<45> b = B;
+
+	a |= b;
+
+	EXPECT_TRUE(a == frg::bitset<45>(A | B));
+
+	frg::bitset<45> c = C;
+	a &= c;
+
+	EXPECT_TRUE(a == frg::bitset<45>(C & (A | B)));
+
+	b ^= D;
+	a |= b;
+
+	EXPECT_TRUE(a == frg::bitset<45>((C & (A | B)) | (B ^ D)));
+}
+
+TEST(bitset, shift_left) {
+	constexpr auto A = 1234;
+	frg::bitset<64> sample = A;
+	EXPECT_TRUE((sample >> 23) == frg::bitset<64>(A >> 23));
+	frg::bitset<253> bs1;
+	bs1.set(23).set(124).set(32).set(123).set(1).set(252);
+
+	frg::bitset<253> bs2;
+	bs2.set(23 + 12).set(124 + 12).set(32 + 12).set(123 + 12).set(1 + 12);
+
+	auto bs3 = bs1 << 12;
+
+	EXPECT_TRUE(bs3 == bs2);
+}
+
+TEST(bitset, setters_and_getters) {
+	frg::bitset<12> a;
+	a.set(13);
+	EXPECT_TRUE(a.test(13));
+	a.set(15);
+	EXPECT_TRUE(a.test(15));
+	a.reset(15);
+	EXPECT_FALSE(a.test(15));
+
+	a.set();
+	for (std::size_t i = 0; i < 12; i++)
+		EXPECT_TRUE(a.test(i));
+	a.reset();
+	for (std::size_t i = 0; i < 12; i++)
+		EXPECT_FALSE(a.test(i));
+
+	decltype(a)::reference r = a[4];
+	r = true;
+
+	EXPECT_TRUE(a.test(4));
+
+	a.flip();
+	for (std::size_t i = 0; i < 12; i++) {
+		if (i == 4)
+			EXPECT_FALSE(a.test(i));
+		else
+			EXPECT_TRUE(a[i]);
+	}
+
+	r.flip();
+	for (std::size_t i = 0; i < 12; i++)
+		EXPECT_TRUE(a.test(i));
+}
+
+TEST(bitset, count) {
+	frg::bitset<24> a;
+	EXPECT_TRUE(a.count() == 0);
+	EXPECT_TRUE(a.none());
+	EXPECT_FALSE(a.any());
+	EXPECT_FALSE(a.all());
+	a.flip();
+	EXPECT_TRUE(a.count() == 24);
+	EXPECT_TRUE(a.any());
+	EXPECT_TRUE(a.all());
+	a.reset();
+	EXPECT_TRUE(a.set(13).set(4).count() == 2);
+	EXPECT_TRUE(a.any());
+	EXPECT_FALSE(a.all());
+	EXPECT_FALSE(a.none());
+}
