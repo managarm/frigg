@@ -2,262 +2,250 @@
 #define FRG_BITSET_HPP
 #include <cstddef>
 #include <cstdint>
+#include <climits>
 
-namespace frg
-{
-    namespace detail
-    {
-        constexpr auto div_roundup(auto v1, auto v2) { return (v1 + v2 - 1) / v2; }
-    } // namespace detail
-    template <size_t N>
-    class bitset
-    {
-        inline static constexpr auto buffer_size = detail::div_roundup(N, 64);
-        uint64_t buffer[buffer_size];
+namespace frg {
+namespace detail {
+constexpr std::size_t div_roundup(std::size_t v1, std::size_t v2) { return (v1 + v2 - 1) / v2; }
+} // namespace detail
 
-    public:
-        // bit reference
-        class reference
-        {
-            friend class bitset;
-            reference() noexcept;
+static_assert(CHAR_BIT == 8, "bits per byte must be 8");
 
-            size_t index;
-            bitset& s;
+template <size_t N>
+class bitset {
+	inline static constexpr auto buffer_size = detail::div_roundup(N, 64);
+	inline static constexpr auto MASK_LAST_BIT = (1ull << (N % 64)) - 1;
+	uint64_t buffer[buffer_size];
 
-            constexpr reference(size_t index, bitset& r) : index(index), s(r) {}
+	constexpr void mask_last_bit() {
+		if constexpr (N % 64)
+			buffer[N / 64] &= MASK_LAST_BIT;
+	}
 
-        public:
-            reference(const reference&) = default;
-            ~reference() = default;
+public:
+	// bit reference
+	class reference {
+		friend class bitset;
+		reference() noexcept;
 
-            reference& operator=(bool x) noexcept
-            {
-                s.set(index, x);
-                return *this;
-            }
+		size_t index;
+		bitset &s;
 
-            reference& operator=(const reference& x) noexcept
-            {
-                s.set(index, x);
-                return *this;
-            }
+		constexpr reference(size_t index, bitset &r) : index(index), s(r) {}
 
-            bool operator~() const noexcept { return ~s[index]; }
+	public:
+		reference(const reference &) = default;
+		~reference() = default;
 
-            operator bool() const noexcept { return s[index]; }
+		reference &operator=(bool x) noexcept {
+			s.set(index, x);
+			return *this;
+		}
 
-            reference& flip() noexcept
-            {
-                s.flip(index);
-                return *this;
-            }
-        };
+		reference &operator=(const reference &x) noexcept {
+			s.set(index, x);
+			return *this;
+		}
 
-        constexpr bitset() noexcept = default;
-        constexpr bitset(unsigned long long val) noexcept { buffer[0] = val; }
+		bool operator~() const noexcept { return ~s[index]; }
 
-        bitset& operator&=(const bitset& rhs) noexcept
-        {
-            for (size_t i = 0; i < buffer_size; i++)
-                buffer[i] &= rhs.buffer[i];
-            return *this;
-        }
+		operator bool() const noexcept { return s.test(index); }
 
-        bitset& operator|=(const bitset& rhs) noexcept
-        {
-            for (size_t i = 0; i < buffer_size; i++)
-                buffer[i] |= rhs.buffer[i];
-            return *this;
-        }
+		reference &flip() noexcept {
+			s.flip(index);
+			return *this;
+		}
+	};
 
-        bitset& operator^=(const bitset& rhs) noexcept
-        {
-            for (size_t i = 0; i < buffer_size; i++)
-                buffer[i] ^= rhs.buffer[i];
-            return *this;
-        }
-        bitset& operator<<=(size_t pos) noexcept
-        {
-            if (pos != 0)
-            {
-                size_t wshift = pos / 64;
-                size_t offset = pos % 64;
-                if (offset == 0)
-                    for (size_t i = N - 1; i >= wshift; --i)
-                        buffer[i] = buffer[i - wshift];
-                else
-                {
-                    const size_t soffset = (64 - offset);
-                    for (size_t i = N - 1; i > wshift; --i)
-                        buffer[i] = ((buffer[i - wshift] << offset) | (buffer[i - wshift - 1] >> soffset));
-                    buffer[wshift] = buffer[0] << offset;
-                }
+	constexpr bitset() noexcept {
+		for (auto &i : buffer)
+			i = 0;
+	}
+	constexpr bitset(unsigned long long val) noexcept { buffer[0] = val; }
 
-                for (auto i = buffer + 0; i < buffer + wshift; i++)
-                    *i = 0;
-            }
+	bitset &operator&=(const bitset &rhs) noexcept {
+		for (size_t i = 0; i < buffer_size; i++)
+			buffer[i] &= rhs.buffer[i];
+		return *this;
+	}
 
-            return *this;
-        }
+	bitset &operator|=(const bitset &rhs) noexcept {
+		for (size_t i = 0; i < buffer_size; i++)
+			buffer[i] |= rhs.buffer[i];
+		return *this;
+	}
 
-        bitset& operator>>=(size_t pos) noexcept
-        {
-            if (pos != 0)
-            {
-                const size_t wshift = pos / 64;
-                const size_t offset = pos % 64;
-                const size_t s = N - wshift - 1;
+	bitset &operator^=(const bitset &rhs) noexcept {
+		for (size_t i = 0; i < buffer_size; i++)
+			buffer[i] ^= rhs.buffer[i];
+		return *this;
+	}
+	bitset &operator<<=(size_t pos) noexcept {
+		if (pos != 0) {
+			size_t wshift = pos / 64;
+			size_t offset = pos % 64;
+			if (offset == 0)
+				for (size_t i = buffer_size - 1; i >= wshift; --i)
+					buffer[i] = buffer[i - wshift];
+			else {
+				const size_t soffset = (64 - offset);
+				for (size_t i = buffer_size - 1; i > wshift; --i)
+					buffer[i] = ((buffer[i - wshift] << offset) | (buffer[i - wshift - 1] >> soffset));
+				buffer[wshift] = buffer[0] << offset;
+			}
 
-                if (offset == 0)
-                    for (size_t i = 0; i <= s; ++i)
-                        buffer[i] = buffer[i + wshift];
-                else
-                {
-                    const size_t off = (64 - offset);
-                    for (size_t i = 0; i < s; ++i)
-                        buffer[i] = ((buffer[i + wshift] >> offset) | (buffer[i + wshift + 1] << off));
-                    buffer[s] = buffer[N - 1] >> offset;
-                }
+			for (auto i = buffer + 0; i < buffer + wshift; i++)
+				*i = 0;
+		}
 
-                for (auto i = buffer + s + 1; i < buffer + N; i++)
-                    *i = 0;
-            }
+		mask_last_bit();
 
-            return *this;
-        }
+		return *this;
+	}
 
-        bitset& set() noexcept
-        {
-            for (auto& i : buffer)
-                i = ~0;
-            return *this;
-        }
+	bitset &operator>>=(size_t pos) noexcept {
+		if (pos != 0) {
+			const size_t wshift = pos / 64;
+			const size_t offset = pos % 64;
+			const size_t s = buffer_size - wshift - 1;
 
-        bitset& set(size_t pos, bool val = true)
-        {
-            set_bit(buffer[pos / 64], val, pos % 64);
-            return *this;
-        }
+			if (offset == 0)
+				for (size_t i = 0; i <= s; ++i)
+					buffer[i] = buffer[i + wshift];
+			else {
+				const size_t off = (64 - offset);
+				for (size_t i = 0; i < s; ++i)
+					buffer[i] = ((buffer[i + wshift] >> offset) | (buffer[i + wshift + 1] << off));
+				buffer[s] = buffer[buffer_size - 1] >> offset;
+			}
 
-        bitset& reset() noexcept
-        {
-            for (auto& i : buffer)
-                i = 0;
-            return *this;
-        }
+			for (auto i = buffer + s + 1; i < buffer + buffer_size; i++)
+				*i = 0;
+		}
 
-        bitset& reset(size_t pos) { return set(pos, false); }
+		mask_last_bit();
 
-        bitset operator~() const noexcept
-        {
-            auto copy = *this;
-            copy.flip();
-            return copy;
-        }
+		return *this;
+	}
 
-        bitset& flip() noexcept
-        {
-            for (auto& i : buffer)
-                i = ~i;
-            return *this;
-        }
+	bitset &set() noexcept {
+		for (auto &i : buffer)
+			i = ~0;
+		mask_last_bit();
+		return *this;
+	}
 
-        bitset& flip(size_t pos) { return set(pos, !this->operator[](pos)); }
+	bitset &set(size_t pos, bool val = true) {
+		buffer[pos / 64] = (buffer[pos / 64] & (~(1ull << (pos % 64)))) | ((uint64_t)val << (pos % 64));
+		return *this;
+	}
 
-        // element access
-        constexpr bool operator[](size_t pos) const { return get_bit(buffer[pos / 64], pos % 64); }
+	bitset &reset() noexcept {
+		for (auto &i : buffer)
+			i = 0;
+		return *this;
+	}
 
-        reference operator[](size_t pos) { return reference(pos, *this); }
+	bitset &reset(size_t pos) { return set(pos, false); }
 
-        size_t count() const noexcept
-        {
-            size_t n = 0;
-            for (size_t i = 0; i < buffer_size - 1; i++)
-                n += __builtin_popcountll(buffer[i]);
-            return n + __builtin_popcountll(get_bits(buffer[buffer_size - 1], 0, N % 64));
-        }
+	bitset operator~() const noexcept {
+		auto copy = *this;
+		copy.flip();
+		return copy;
+	}
 
-        constexpr size_t size() const noexcept { return N; }
-        bool operator==(const bitset& rhs) const noexcept
-        {
-            for (size_t i = 0; i < buffer_size - 1; i++)
-                if (buffer[i] != rhs.buffer[i])
-                    return false;
-            return get_bits(buffer[buffer_size - 1], 0, N % 64) == get_bits(rhs.buffer[buffer_size - 1], 0, N % 64);
-        }
+	bitset &flip() noexcept {
+		for (auto &i : buffer)
+			i = ~i;
+		mask_last_bit();
+		return *this;
+	}
 
-        bool test(size_t pos) const { return this->operator[](pos); }
+	bitset &flip(size_t pos) { return set(pos, !test(pos)); }
 
-        bool all() const noexcept
-        {
-            bool value = true;
-            for (size_t i = 0; i < N / 64; i++)
-                value &= (buffer[i] == 0xffffffffffffffff);
-            if (N % 64)
-                value &= (buffer[N / 64] & ((1 << (N % 64)) - 1)) == (1 << (N % 64)) - 1;
-            return value;
-        }
+	// element access
+	constexpr bool operator[](size_t pos) const { return buffer[pos / 64] & (1 << pos % 64); }
 
-        bool any() const noexcept
-        {
-            bool value = true;
-            for (size_t i = 0; i < N / 64; i++)
-                value |= (buffer[i] == 0xffffffffffffffff);
-            if (N % 64)
-                value |= (buffer[N / 64] & ((1 << (N % 64)) - 1));
-            return value;
-        }
+	reference operator[](size_t pos) { return reference(pos, *this); }
 
-        bool none() const noexcept
-        {
-            bool value = true;
-            for (size_t i = 0; i < N / 64; i++)
-                value &= !(buffer[i]);
-            if (N % 64)
-                value &= !(buffer[N / 64] & ((1 << (N % 64)) - 1));
+	size_t count() const noexcept {
+		size_t n = 0;
+		for (size_t i = 0; i < buffer_size - 1; i++)
+			n += __builtin_popcountll(buffer[i]);
+		return n + __builtin_popcountll(buffer[buffer_size - 1]);
+	}
 
-            return value;
-        }
+	constexpr size_t size() const noexcept { return N; }
+	bool operator==(const bitset &rhs) const noexcept {
+		for (size_t i = 0; i < buffer_size - 1; i++)
+			if (buffer[i] != rhs.buffer[i])
+				return false;
+		return buffer[buffer_size - 1] == rhs.buffer[buffer_size - 1];
+	}
 
-        bitset operator<<(size_t pos) const noexcept
-        {
-            bitset bs = *this;
-            bs <<= pos;
-            return bs;
-        }
+	bool test(size_t pos) const { return this->operator[](pos); }
 
-        bitset operator>>(size_t pos) const noexcept
-        {
-            bitset bs = *this;
-            bs >>= pos;
-            return bs;
-        }
-    };
+	bool all() const noexcept {
+		bool value = true;
+		for (size_t i = 0; i < N / 64; i++)
+			value &= (buffer[i] == 0xffffffffffffffff);
+		if (N % 64)
+			value &= (buffer[N / 64] == MASK_LAST_BIT);
+		return value;
+	}
 
-    template <size_t N>
-    bitset<N> operator&(const bitset<N>& lhs, const bitset<N>& rhs) noexcept
-    {
-        bitset<N> b = lhs;
-        b &= rhs;
-        return b;
-    }
+	bool any() const noexcept {
+		bool value = false;
+		for (size_t i = 0; i < N / 64; i++)
+			value |= buffer[i];
+		if (N % 64)
+			value |= buffer[N / 64];
+		return value;
+	}
 
-    template <size_t N>
-    bitset<N> operator|(const bitset<N>& lhs, const bitset<N>& rhs)
-    {
-        bitset<N> b = lhs;
-        b |= rhs;
-        return b;
-    }
+	bool none() const noexcept {
+		bool value = true;
+		for (size_t i = 0; i < N / 64; i++)
+			value &= !(buffer[i]);
+		if (N % 64)
+			value &= !(buffer[N / 64] & ((1 << (N % 64)) - 1));
 
-    template <size_t N>
-    bitset<N> operator^(const bitset<N>& lhs, const bitset<N>& rhs)
-    {
-        bitset<N> b = lhs;
-        b ^= rhs;
-        return b;
-    }
+		return value;
+	}
+
+	bitset operator<<(size_t pos) const noexcept {
+		bitset bs = *this;
+		bs <<= pos;
+		return bs;
+	}
+
+	bitset operator>>(size_t pos) const noexcept {
+		bitset bs = *this;
+		bs >>= pos;
+		return bs;
+	}
+};
+
+template <size_t N>
+bitset<N> operator&(const bitset<N> &lhs, const bitset<N> &rhs) noexcept {
+	bitset<N> b = lhs;
+	b &= rhs;
+	return b;
+}
+
+template <size_t N>
+bitset<N> operator|(const bitset<N> &lhs, const bitset<N> &rhs) {
+	bitset<N> b = lhs;
+	b |= rhs;
+	return b;
+}
+
+template <size_t N>
+bitset<N> operator^(const bitset<N> &lhs, const bitset<N> &rhs) {
+	bitset<N> b = lhs;
+	b ^= rhs;
+	return b;
+}
 } // namespace frg
 
 #endif
