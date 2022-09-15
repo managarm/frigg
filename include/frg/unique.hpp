@@ -27,7 +27,8 @@ struct unique_ptr {
 	unique_ptr(const unique_ptr &) = delete;
 	unique_ptr &operator=(const unique_ptr &) = delete;
 
-	unique_ptr(unique_ptr &&p) {
+	unique_ptr(unique_ptr &&p)
+	:_ptr{nullptr} {
 		swap(*this, p);
 	}
 
