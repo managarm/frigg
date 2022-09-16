@@ -12,7 +12,7 @@
 #include <frg/tuple.hpp>
 
 /* the ranges library is not even partially freestanding for some reason */
-#ifdef __STDC_HOSTED__
+#if __STDC_HOSTED__
 #  if __has_include(<ranges>) && __has_include(<algorithm>)
 #    include <ranges>
 #    include <algorithm>
