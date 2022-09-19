@@ -8,7 +8,11 @@ namespace frg FRG_VISIBILITY {
 
 union arg {
 	uintmax_t i;
+#ifdef FRG_DONT_USE_LONG_DOUBLE
+	double f;
+#else
 	long double f;
+#endif
 	void *p;
 };
 
@@ -24,7 +28,9 @@ enum class printf_size_mod {
 	short_size,
 	long_size,
 	longlong_size,
+#ifndef FRG_DONT_USE_LONG_DOUBLE
 	longdouble_size,
+#endif
 	native_size
 };
 
@@ -174,10 +180,12 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			szmod = printf_size_mod::native_size;
 			++s;
 			FRG_ASSERT(*s);
+#ifndef FRG_DONT_USE_LONG_DOUBLE
 		} else if(*s == 'L') {
 			szmod = printf_size_mod::longdouble_size;
 			++s;
 			FRG_ASSERT(*s);
+#endif
 		} else if(*s == 'h') {
 			++s;
 			FRG_ASSERT(*s);
@@ -443,18 +451,20 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 		use_capitals = false;
 		[[fallthrough]];
 	case 'F':
+#ifndef FRG_DONT_USE_LONG_DOUBLE
 		if (szmod == printf_size_mod::longdouble_size) {
 			_fmt_basics::print_float(formatter, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, precision_or_default,
 					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
 					opts.group_thousands, locale_opts);
-		} else {
-			FRG_ASSERT(szmod == printf_size_mod::default_size);
-			_fmt_basics::print_float(formatter, pop_arg<double>(vsp, &opts),
-					opts.minimum_width, precision_or_default,
-					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
-					opts.group_thousands, locale_opts);
+			break;
 		}
+#endif
+		FRG_ASSERT(szmod == printf_size_mod::default_size);
+		_fmt_basics::print_float(formatter, pop_arg<double>(vsp, &opts),
+				opts.minimum_width, precision_or_default,
+				opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
+				opts.group_thousands, locale_opts);
 		break;
 	case 'g':
 	case 'G':
