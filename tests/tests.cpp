@@ -176,8 +176,29 @@ TEST(formatting, fmt) {
 	EXPECT_EQ(str, "10 30");
 	str.clear();
 
+	x = 20;
+	frg::output_to(str) << frg::fmt("{:d} {:i}", x, x + 20);
+	EXPECT_EQ(str, "20 40");
+	str.clear();
+
 	frg::output_to(str) << frg::fmt("{:08X}", 0xAAABBB);
 	EXPECT_EQ(str, "00AAABBB");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:b}", 0b101010);
+	EXPECT_EQ(str, "101010");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:08b}", 0b101010);
+	EXPECT_EQ(str, "00101010");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:o}", 0777);
+	EXPECT_EQ(str, "777");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:03o}", 077);
+	EXPECT_EQ(str, "077");
 	str.clear();
 
 	frg::output_to(str) << frg::fmt("{1} {0}", 3, 4);

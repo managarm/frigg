@@ -54,6 +54,8 @@ private:
 
 enum class format_conversion {
 	null,
+	binary,
+	octal,
 	decimal,
 	hex
 };
@@ -219,6 +221,10 @@ namespace _fmt_basics {
 		int radix = 10;
 		if(fo.conversion == format_conversion::hex) {
 			radix = 16;
+		}else if(fo.conversion == format_conversion::octal) {
+			radix = 8;
+		}else if(fo.conversion == format_conversion::binary) {
+			radix = 2;
 		}else{
 			FRG_ASSERT(fo.conversion == format_conversion::null
 					|| fo.conversion == format_conversion::decimal);
@@ -524,7 +530,7 @@ namespace detail_ {
 		}
 
 		// Format specifier syntax:
-		// ([0-9]+)?(:0?[0-9]*[dXx]?)?
+		// ([0-9]+)?(:0?[0-9]*[bdioXx]?)?
 		bool parse_fmt_spec(frg::string_view spec, size_t &pos, format_options &fo) const {
 			enum class modes {
 				pos, fill, width, conv
@@ -565,6 +571,9 @@ namespace detail_ {
 							fo.minimum_width += spec[i] - '0';
 						} else {
 							switch (spec[i]) {
+								case 'b': fo.conversion = format_conversion::binary; break;
+								case 'o': fo.conversion = format_conversion::octal; break;
+								case 'i':
 								case 'd': fo.conversion = format_conversion::decimal; break;
 								case 'X': fo.use_capitals = true; [[fallthrough]];
 								case 'x': fo.conversion = format_conversion::hex; break;
