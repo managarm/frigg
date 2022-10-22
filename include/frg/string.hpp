@@ -1,14 +1,22 @@
 #ifndef FRG_STRING_HPP
 #define FRG_STRING_HPP
 
-#include <string.h>
-
+#include <cstddef>
 #include <frg/hash.hpp>
 #include <frg/macros.hpp>
 #include <frg/optional.hpp>
 #include <frg/utility.hpp>
+#include <frg/string_stub.hpp>
 
 namespace frg FRG_VISIBILITY {
+template<typename CharT>
+auto generic_strlen(const CharT *c) {
+	std::size_t len = 0;
+	while (*(c++)) {
+		len++;
+	}
+	return len;
+}
 
 template<typename Char>
 class basic_string_view {
@@ -20,11 +28,7 @@ public:
 	: _pointer{nullptr}, _length{0} { }
 
 	basic_string_view(const Char *cs)
-	: _pointer{cs}, _length{0} {
-		// We cannot call strlen() as Char might not be the usual char.
-		while(cs[_length])
-			_length++;
-	}
+	: _pointer{cs}, _length{generic_strlen(cs)} { }
 
 	basic_string_view(const Char *s, size_t length)
 	: _pointer{s}, _length{length} { }
@@ -126,7 +130,7 @@ public:
 
 	basic_string(const Char *c_string, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)} {
-		_length = strlen(c_string);
+		_length = generic_strlen(c_string);
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
 		memcpy(_buffer, c_string, sizeof(Char) * _length);
 		_buffer[_length] = 0;
@@ -308,8 +312,9 @@ public:
 	}
 
 	int compare(const char *other) const {
-		if(_length != strlen(other))
-			return _length < strlen(other) ? -1 : 1;
+		auto other_len = generic_strlen(other);
+		if(_length != other_len)
+			return _length < other_len ? -1 : 1;
 		for(size_t i = 0; i < _length; i++)
 			if(_buffer[i] != other[i])
 				return _buffer[i] < other[i] ? -1 : 1;

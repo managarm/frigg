@@ -4,12 +4,12 @@
 #include <stdarg.h>
 #include <cstddef>
 #include <stdint.h>
-#include <string.h>
 #include <frg/macros.hpp>
 #include <frg/optional.hpp>
 #include <frg/string.hpp>
 #include <frg/utility.hpp>
 #include <frg/tuple.hpp>
+#include <frg/string_stub.hpp>
 
 /* the ranges library is not even partially freestanding for some reason */
 #if __STDC_HOSTED__
@@ -89,7 +89,7 @@ struct locale_options {
 
 	locale_options(const char *d_p, const char *t_s, const char *grp)
 	: decimal_point(d_p), thousands_sep(t_s), grouping(grp) {
-		thousands_sep_size = strlen(thousands_sep);
+		thousands_sep_size = generic_strlen(thousands_sep);
 	}
 
 	const char *decimal_point;
