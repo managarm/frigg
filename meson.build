@@ -41,6 +41,7 @@ if not get_option('frigg_no_install')
 		'include/frg/stack.hpp',
 		'include/frg/std_compat.hpp',
 		'include/frg/string.hpp',
+		'include/frg/string_stub.hpp',
 		'include/frg/tuple.hpp',
 		'include/frg/unique.hpp',
 		'include/frg/utility.hpp',

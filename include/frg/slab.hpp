@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
+#include <frg/string_stub.hpp>
 #include <frg/macros.hpp>
 #include <frg/mutex.hpp>
 #include <frg/rbtree.hpp>

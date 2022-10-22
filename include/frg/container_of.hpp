@@ -2,8 +2,8 @@
 #define FRG_CONTAINER_OF_HPP
 
 #include <stdint.h>
-#include <string.h>
 #include <frg/macros.hpp>
+#include <frg/string_stub.hpp>
 
 namespace frg FRG_VISIBILITY {
 
