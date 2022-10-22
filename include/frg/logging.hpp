@@ -9,8 +9,7 @@
 namespace frg FRG_VISIBILITY {
 
 struct endlog_t { };
-//TODO: Make this inline.
-static constexpr endlog_t endlog;
+inline constexpr endlog_t endlog;
 
 template<typename Sink>
 using sink_begin_t = decltype(std::declval<Sink>().begin());
