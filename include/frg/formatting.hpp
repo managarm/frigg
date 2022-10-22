@@ -517,7 +517,7 @@ namespace detail_ {
 		frg::string_view fmt;
 		frg::tuple<Ts...> args;
 
-		template <typename F>
+		template <typename F> requires (sizeof...(Ts) > 0)
 		bool format_nth(size_t n, format_options fo, F &formatter) const {
 			if (n >= sizeof...(Ts))
 				return false;
@@ -527,6 +527,11 @@ namespace detail_ {
 					? (format(args.template get<I>(), fo, formatter), false)
 					: true) && ...);
 			}(std::make_index_sequence<sizeof...(Ts)>{});
+		}
+
+		template <typename F>
+		bool format_nth(size_t, format_options, F &) const {
+			return false;
 		}
 
 		// Format specifier syntax:
