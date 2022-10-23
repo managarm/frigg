@@ -22,9 +22,15 @@
 
 namespace frg FRG_VISIBILITY {
 
-// Concept: Formatter.
+// Concept: Sink.
 // Supports a single operation: append().
 // append() is overloaded for a variety of types.
+
+template<typename T>
+concept Sink = requires (T t, const char *str, char c) {
+	t.append(str);
+	t.append(c);
+};
 
 // TODO: Does it make sense for this library to implement Formatters at all?
 // TODO: Or should we only implement the formatting itself?
