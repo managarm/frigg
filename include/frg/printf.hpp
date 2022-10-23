@@ -212,8 +212,8 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 	return {};
 }
 
-template<typename F>
-void do_printf_chars(F &formatter, char t, format_options opts,
+template<Sink S>
+void do_printf_chars(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp) {
 	switch(t) {
 	case 'p':
@@ -221,8 +221,8 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(opts.minimum_width == 0);
-		formatter.append("0x");
-		_fmt_basics::print_int(formatter, (uintptr_t)pop_arg<void*>(vsp, &opts), 16);
+		sink.append("0x");
+		_fmt_basics::print_int(sink, (uintptr_t)pop_arg<void*>(vsp, &opts), 16);
 		break;
 	case 'c':
 		FRG_ASSERT(!opts.fill_zeros);
@@ -230,13 +230,13 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 		FRG_ASSERT(szmod == printf_size_mod::default_size);
 		FRG_ASSERT(!opts.precision);
 		if (opts.left_justify) {
-			formatter.append(pop_arg<char>(vsp, &opts));
+			sink.append(pop_arg<char>(vsp, &opts));
 			for (int i = 0; i < opts.minimum_width - 1; i++)
-				formatter.append(' ');
+				sink.append(' ');
 		} else {
 			for (int i = 0; i < opts.minimum_width - 1; i++)
-				formatter.append(' ');
-			formatter.append(pop_arg<char>(vsp, &opts));
+				sink.append(' ');
+			sink.append(pop_arg<char>(vsp, &opts));
 		}
 		break;
 	case 's': {
@@ -254,14 +254,14 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 
 			if(opts.left_justify) {
 				for(int i = 0; i < length && s[i]; i++)
-					formatter.append(s[i]);
+					sink.append(s[i]);
 				for(int i = length; i < opts.minimum_width; i++)
-					formatter.append(' ');
+					sink.append(' ');
 			}else{
 				for(int i = length; i < opts.minimum_width; i++)
-					formatter.append(' ');
+					sink.append(' ');
 				for(int i = 0; i < length && s[i]; i++)
-					formatter.append(s[i]);
+					sink.append(s[i]);
 			}
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::long_size);
@@ -275,14 +275,14 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 
 			if(opts.left_justify) {
 				for(int i = 0; i < length && s[i]; i++)
-					formatter.append(s[i]);
+					sink.append(s[i]);
 				for(int i = length; i < opts.minimum_width; i++)
-					formatter.append(' ');
+					sink.append(' ');
 			}else{
 				for(int i = length; i < opts.minimum_width; i++)
-					formatter.append(' ');
+					sink.append(' ');
 				for(int i = 0; i < length && s[i]; i++)
-					formatter.append(s[i]);
+					sink.append(s[i]);
 			}
 		}
 	} break;
@@ -291,8 +291,8 @@ void do_printf_chars(F &formatter, char t, format_options opts,
 	}
 }
 
-template<typename F>
-void do_printf_ints(F &formatter, char t, format_options opts,
+template<Sink S>
+void do_printf_ints(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
 	switch(t) {
 	case 'd':
@@ -316,7 +316,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 		if(opts.precision && *opts.precision == 0 && !number) {
 			// print nothing in this case
 		}else{
-			_fmt_basics::print_int(formatter, number, 10, opts.minimum_width,
+			_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
 					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 					opts.left_justify, opts.group_thousands, opts.always_sign,
 					opts.plus_becomes_space, false, locale_opts);
@@ -325,12 +325,12 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	case 'o': {
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion)
-				formatter.append('0');
+				sink.append('0');
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_int(formatter, number, 8, opts.minimum_width,
+				_fmt_basics::print_int(sink, number, 8, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
 						false, locale_opts);
@@ -355,12 +355,12 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	case 'x': {
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion)
-				formatter.append("0x");
+				sink.append("0x");
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
+				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
 						false, locale_opts);
@@ -385,12 +385,12 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	case 'X': {
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion)
-				formatter.append("0X");
+				sink.append("0X");
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_int(formatter, number, 16, opts.minimum_width,
+				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
 						true, locale_opts);
@@ -418,7 +418,7 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
 			}else{
-				_fmt_basics::print_int(formatter, number, 10, opts.minimum_width,
+				_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, opts.group_thousands, opts.always_sign,
 						opts.plus_becomes_space, false, locale_opts);
@@ -445,8 +445,8 @@ void do_printf_ints(F &formatter, char t, format_options opts,
 	}
 }
 
-template<typename F>
-void do_printf_floats(F &formatter, char t, format_options opts,
+template<Sink S>
+void do_printf_floats(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
 	int precision_or_default = opts.precision.has_value() ? *opts.precision : 6;
 	bool use_capitals = true;
@@ -457,7 +457,7 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 	case 'F':
 #ifndef FRG_DONT_USE_LONG_DOUBLE
 		if (szmod == printf_size_mod::longdouble_size) {
-			_fmt_basics::print_float(formatter, pop_arg<long double>(vsp, &opts),
+			_fmt_basics::print_float(sink, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, precision_or_default,
 					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
 					opts.group_thousands, locale_opts);
@@ -465,7 +465,7 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 		}
 #endif
 		FRG_ASSERT(szmod == printf_size_mod::default_size);
-		_fmt_basics::print_float(formatter, pop_arg<double>(vsp, &opts),
+		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, precision_or_default,
 				opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
 				opts.group_thousands, locale_opts);
@@ -474,7 +474,7 @@ void do_printf_floats(F &formatter, char t, format_options opts,
 	case 'G':
 	case 'e':
 	case 'E':
-		formatter.append("%f");
+		sink.append("%f");
 		break;
 	default:
 		FRG_ASSERT(!"Unexpected printf terminal");
