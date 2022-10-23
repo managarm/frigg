@@ -189,6 +189,10 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			}else{
 				szmod = printf_size_mod::short_size;
 			}
+		} else if(*s == 't') {
+			szmod = printf_size_mod::native_size;
+			++s;
+			FRG_ASSERT(*s);
 		}
 
 		auto res = agent(*s, opts, szmod);
