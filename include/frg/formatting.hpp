@@ -384,6 +384,11 @@ void format_object(double object, format_options fo, F &formatter) {
 }
 
 template<typename F>
+void format_object(char object, format_options, F &formatter) {
+	formatter.append(object);
+}
+
+template<typename F>
 void format_object(const char *object, format_options, F &formatter) {
 	formatter.append(object);
 }
