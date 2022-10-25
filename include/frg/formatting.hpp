@@ -32,28 +32,6 @@ concept Sink = requires (T t, const char *str, char c) {
 	t.append(c);
 };
 
-// TODO: Does it make sense for this library to implement Formatters at all?
-// TODO: Or should we only implement the formatting itself?
-
-template<typename C, size_t Limit>
-struct limited_formatter {
-	limited_formatter()
-	: _off{0} { }
-
-	void append(C s) {
-		_buffer[_off++] = s;
-	}
-
-	void append(C *str) {
-		while(*str)
-			_buffer[_off++] = *str++;
-	}
-
-private:
-	C _buffer[Limit];
-	size_t _off;
-};
-
 // ----------------------------------------------------------------------------
 // General formatting machinery.
 // ----------------------------------------------------------------------------
