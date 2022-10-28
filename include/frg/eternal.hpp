@@ -28,7 +28,12 @@ using aligned_union = aligned_storage<
 template<typename T>
 class eternal {
 public:
-	static_assert(__has_trivial_destructor(aligned_storage<sizeof(T), alignof(T)>),
+	static_assert(
+#if defined(__clang__) && __clang_major__ >= 15
+		__is_trivially_destructible(aligned_storage<sizeof(T), alignof(T)>),
+#else
+		__has_trivial_destructor(aligned_storage<sizeof(T), alignof(T)>),
+#endif
 			"eternal<T> should have a trivial destructor");
 
 	template<typename... Args>
