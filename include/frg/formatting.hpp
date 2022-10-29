@@ -54,6 +54,7 @@ private:
 
 enum class format_conversion {
 	null,
+	character,
 	binary,
 	octal,
 	decimal,
@@ -384,6 +385,15 @@ void format_object(double object, format_options fo, F &formatter) {
 }
 
 template<typename F>
+void format_object(char object, format_options fo, F &formatter) {
+	if(fo.conversion == format_conversion::character) {
+		formatter.append(object);
+		return;
+	}
+	_fmt_basics::format_integer(object, fo, formatter);
+}
+
+template<typename F>
 void format_object(const char *object, format_options, F &formatter) {
 	formatter.append(object);
 }
@@ -535,7 +545,7 @@ namespace detail_ {
 		}
 
 		// Format specifier syntax:
-		// ([0-9]+)?(:0?[0-9]*[bdioXx]?)?
+		// ([0-9]+)?(:0?[0-9]*[bcdioXx]?)?
 		bool parse_fmt_spec(frg::string_view spec, size_t &pos, format_options &fo) const {
 			enum class modes {
 				pos, fill, width, conv
@@ -577,6 +587,7 @@ namespace detail_ {
 						} else {
 							switch (spec[i]) {
 								case 'b': fo.conversion = format_conversion::binary; break;
+								case 'c': fo.conversion = format_conversion::character; break;
 								case 'o': fo.conversion = format_conversion::octal; break;
 								case 'i':
 								case 'd': fo.conversion = format_conversion::decimal; break;
