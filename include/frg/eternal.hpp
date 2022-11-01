@@ -2,6 +2,7 @@
 #define FRG_ETERNAL_HPP
 
 #include <new>
+#include <cstddef>
 #include <utility>
 #include <algorithm>
 
@@ -9,7 +10,7 @@
 
 namespace frg FRG_VISIBILITY {
 
-template<size_t Size, size_t Align>
+template<std::size_t Size, std::size_t Align>
 struct alignas(Align) aligned_storage {
 	constexpr aligned_storage()
 	: buffer{0} { }
