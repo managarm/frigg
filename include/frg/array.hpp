@@ -67,10 +67,10 @@ struct array {
 		return &_stor[N];
 	}
 
-	constexpr T* data() noexcept {
+	constexpr pointer data() noexcept {
 		return &_stor[0];
 	}
-	constexpr T* data() const noexcept {
+	constexpr const_pointer data() const noexcept {
 		return &_stor[0];
 	}
 
