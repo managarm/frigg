@@ -6,6 +6,13 @@
 #include <frg/macros.hpp>
 #include <frg/detection.hpp>
 
+#if __STDC_HOSTED__
+#	if __has_include(<iostream>)
+#		include <iostream>
+#		define FRIGG_HAS_IOSTREAM
+#	endif
+#endif
+
 namespace frg FRG_VISIBILITY {
 
 struct endlog_t { };
@@ -134,6 +141,44 @@ template <typename Container> requires (
 constexpr auto output_to(Container &cont) {
 	return container_logger{cont};
 }
+
+template<typename Out>
+concept is_ostream_like = requires(Out &out, const char *str, char c) { out << str; out << c; };
+
+template<typename Out> requires is_ostream_like<Out>
+struct ostream_out {
+	Out &output;
+
+	ostream_out(Out &out) : output(out) { }
+
+	void append(const char *str) {
+		output << str;
+	}
+
+	void append(char c) {
+		output << c;
+	}
+
+	auto &operator<<(auto &&t) {
+		format(std::forward<decltype(t)>(t), *this);
+		return *this;
+	}
+
+	auto &operator<<(endlog_t) {
+#ifdef FRIGG_HAS_IOSTREAM
+		output << std::endl;
+#else
+		output << '\n';
+#endif // FRIGG_HAS_IOSTREAM
+		return *this;
+	}
+};
+
+template<typename Out> requires is_ostream_like<Out>
+inline auto to(Out &x) {
+	return ostream_out { x };
+}
+
 
 } // namespace frg
 
