@@ -72,6 +72,8 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 
 template<typename A>
 frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp) {
+	FRG_ASSERT(s != nullptr);
+
 	while(*s) {
 		if(*s != '%') {
 			size_t n = 1;
