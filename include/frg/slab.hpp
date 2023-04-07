@@ -67,6 +67,7 @@ public:
 	void *realloc(void *pointer, size_t new_length);
 	void free(void *pointer);
 	void deallocate(void *pointer, size_t size);
+	size_t get_size(void *pointer);
 
 	size_t numUsedPages() {
 		return _usedPages;
@@ -608,6 +609,26 @@ void slab_pool<Policy, Mutex>::deallocate(void *p, size_t size) {
 		_verify_integrity();
 }
 
+template<typename Policy, typename Mutex>
+size_t slab_pool<Policy, Mutex>::get_size(void *p) {
+	if(enable_checking)
+		_verify_integrity();
+
+	if(!p)
+		return 0;
+
+	auto address = reinterpret_cast<uintptr_t>(p);
+	auto sup = reinterpret_cast<frame *>((address - 1) & ~(sb_size - 1));
+
+	if(sup->type == frame_type::slab) {
+		auto slb = static_cast<slab_frame *>(sup);
+		return bucket_to_size(slb->index);
+	}
+
+	FRG_ASSERT(sup->type == frame_type::large);
+	return sup->length;
+}
+
 
 template<typename Policy, typename Mutex>
 auto slab_pool<Policy, Mutex>::_construct_slab(int index)
@@ -801,6 +822,10 @@ public:
 
 	void *reallocate(void *pointer, size_t new_size) {
 		return pool_->realloc(pointer, new_size);
+	}
+
+	size_t get_size(void *pointer) {
+		return pool_->get_size(pointer);
 	}
 
 private:
