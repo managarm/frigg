@@ -3,6 +3,7 @@
 #include <frg/random.hpp>
 
 #include <gtest/gtest.h>
+#include <memory>
 
 using string = frg::string<frg::stl_allocator>;
 
@@ -318,4 +319,89 @@ TEST(bitset, count) {
 	EXPECT_TRUE(a.any());
 	EXPECT_FALSE(a.all());
 	EXPECT_FALSE(a.none());
+}
+
+#include <frg/unique.hpp>
+
+#include <unordered_set>
+
+struct TestAlloc;
+
+struct TestPool {
+	std::unordered_map<void*, std::size_t> _allocated;
+	std::size_t checknum = 0;
+
+	TestPool()
+	: _allocated {} {}
+
+	void do_check() {
+		ASSERT_TRUE (_allocated.empty())
+			<< "Memory leak?!  In " << (checknum++);
+	}
+
+	TestPool& operator=(const TestPool&) = delete;
+	TestPool(const TestPool&) = delete;
+	TestPool& operator=(TestPool&& o) {
+		std::swap(_allocated, o._allocated);
+		return *this;
+	}
+	TestPool(TestPool&& o) {
+		operator=(std::move (o));
+	}
+
+	void* allocate(std::size_t sz) {
+		auto x = operator new(sz);
+		_allocated.emplace(x, sz);
+		std::cerr << "Allocated " << sz << " bytes at " << x
+			  << std::endl;
+		return x;
+	}
+
+	void free(void* x) {
+		std::cerr << "Deallocating " << x << std::endl;
+		auto xi = _allocated.find(x);
+		ASSERT_FALSE(xi == _allocated.cend())
+			<< "Double or invalid free of " << x;
+		_allocated.erase(xi);
+		operator delete(x);
+	}
+
+	TestAlloc get();
+};
+
+struct TestAlloc {
+	TestPool* tp;
+
+	void* allocate(std::size_t sz) {
+		return tp->allocate(sz);
+	}
+
+	void free(void* x) {
+		tp->free(x);
+	}
+};
+
+TestAlloc TestPool::get() {
+	return { this };
+}
+
+struct Base {};
+struct Derived : Base {};
+
+TEST(unique_ptr, construction_destruction) {
+	using namespace frg;
+	TestPool tp;
+
+	{
+		auto a = frg::make_unique<Base>(tp.get());
+		auto b = std::move(a);
+		a = frg::make_unique<Derived>(tp.get());
+		b = frg::make_unique<Derived>(tp.get());
+
+		tp.get().free(b.release());
+		ASSERT_FALSE(b && b.get() == nullptr);
+		a.reset();
+		ASSERT_FALSE(a && a.get() == nullptr);
+	};
+	tp.do_check();
 }
