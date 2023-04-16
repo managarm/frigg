@@ -45,14 +45,19 @@ public:
 		return _length;
 	}
 
-	bool operator== (basic_string_view other) const {
-		if(_length != other._length)
-			return false;
+	int compare(basic_string_view other) const {
+		if(_length != other.size())
+			return _length < other.size() ? -1 : 1;
 		for(size_t i = 0; i < _length; i++)
-			if(_pointer[i] != other._pointer[i])
-				return false;
-		return true;
+			if(_pointer[i] != other[i])
+				return _pointer[i] < other[i] ? -1 : 1;
+		return 0;
 	}
+
+	bool operator== (basic_string_view other) const {
+		return compare(other) == 0;
+	}
+
 	bool operator!= (basic_string_view other) const {
 		return !(*this == other);
 	}
@@ -303,22 +308,11 @@ public:
 	}
 
 	int compare(const basic_string &other) const {
-		if(_length != other.size())
-			return _length < other.size() ? -1 : 1;
-		for(size_t i = 0; i < _length; i++)
-			if(_buffer[i] != other[i])
-				return _buffer[i] < other[i] ? -1 : 1;
-		return 0;
+		return view().compare(other);
 	}
 
 	int compare(const char *other) const {
-		auto other_len = generic_strlen(other);
-		if(_length != other_len)
-			return _length < other_len ? -1 : 1;
-		for(size_t i = 0; i < _length; i++)
-			if(_buffer[i] != other[i])
-				return _buffer[i] < other[i] ? -1 : 1;
-		return 0;
+		return view().compare(other);
 	}
 
 	bool operator== (const basic_string &other) const {
@@ -341,14 +335,16 @@ public:
 		return basic_string_view<Char>(_buffer, _length);
 	}
 
+	basic_string_view<Char> view() const {
+		return basic_string_view<Char>(_buffer, _length);
+	}
+
 	bool starts_with(basic_string_view<Char> other) {
-		auto self = basic_string_view<Char> { *this };
-		return self.starts_with(other);
+		return view().starts_with(other);
 	}
 
 	bool ends_with(basic_string_view<Char> other) {
-		auto self = basic_string_view<Char> { *this };
-		return self.ends_with(other);
+		return view().ends_with(other);
 	}
 
 private:
