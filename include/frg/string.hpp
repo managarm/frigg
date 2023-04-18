@@ -53,9 +53,6 @@ public:
 				return false;
 		return true;
 	}
-	bool operator!= (basic_string_view other) const {
-		return !(*this == other);
-	}
 
 	size_t find_first(Char c, size_t start_from = 0) const {
 		for(size_t i = start_from; i < _length; i++)
@@ -327,14 +324,6 @@ public:
 
 	bool operator== (const char *rhs) const {
 		return compare(rhs) == 0;
-	}
-
-	bool operator!= (const basic_string &other) const {
-		return compare(other) != 0;
-	}
-
-	bool operator!= (const char *rhs) const {
-		return compare(rhs) != 0;
 	}
 
 	operator basic_string_view<Char> () const {
