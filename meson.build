@@ -8,6 +8,7 @@ if not get_option('frigg_no_install')
 		'include/frg/algorithm.hpp',
 		'include/frg/allocation.hpp',
 		'include/frg/array.hpp',
+		'include/frg/cmdline.hpp',
 		'include/frg/container_of.hpp',
 		'include/frg/detection.hpp',
 		'include/frg/dyn_array.hpp',
