@@ -525,3 +525,52 @@ TEST(bitset, count) {
 	EXPECT_FALSE(a.all());
 	EXPECT_FALSE(a.none());
 }
+
+#include <frg/array.hpp>
+#include <frg/cmdline.hpp>
+
+TEST(cmdline, basic_cmdline) {
+	bool foo = false, bar = false;
+	frg::string_view v1{};
+	uint32_t v2 = 0;
+	frg::string_view v3{};
+	frg::string_view v4{};
+
+	frg::array args = {
+		frg::option{"foo", frg::store_true(foo)},
+		frg::option{"bar", frg::store_true(bar)},
+		frg::option{"baz", frg::as_string_view(v1)},
+		frg::option{"qux", frg::as_number(v2)},
+		frg::option{"path1", frg::as_string_view(v3)},
+		frg::option{"path2", frg::as_string_view(v4)},
+	};
+
+	frg::parse_arguments("\"path1=a space/nospace\" foo baz=yoo qux=1234 \"path2=/a/b c/d\"", args);
+
+	ASSERT_TRUE(foo);
+	ASSERT_FALSE(bar);
+	ASSERT_EQ(v1, "yoo");
+	ASSERT_EQ(v2, 1234);
+	ASSERT_EQ(v3, "a space/nospace");
+	ASSERT_EQ(v4, "/a/b c/d");
+}
+
+TEST(cmdline, multiple_option_spans) {
+	bool nosmp = false;
+	frg::string_view init_exec{};
+
+	frg::array cpu_args = {
+		frg::option{"x86.nosmp", frg::store_true(nosmp)}
+	};
+
+	frg::array init_args = {
+		frg::option{"init.exec", frg::as_string_view(init_exec)}
+	};
+
+	frg::array combined = { init_args, cpu_args };
+
+	frg::parse_arguments("x86.nosmp init.exec=/sbin/posix-subsystem", std::views::join(combined));
+
+	ASSERT_TRUE(nosmp);
+	ASSERT_EQ(init_exec, "/sbin/posix-subsystem");
+}
