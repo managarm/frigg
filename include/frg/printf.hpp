@@ -466,7 +466,7 @@ void do_printf_floats(S &sink, char t, format_options opts,
 			break;
 		}
 #endif
-		FRG_ASSERT(szmod == printf_size_mod::default_size);
+		FRG_ASSERT(szmod == printf_size_mod::default_size || szmod == printf_size_mod::long_size);
 		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, precision_or_default,
 				opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
