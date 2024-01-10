@@ -6,13 +6,6 @@
 #include <frg/macros.hpp>
 #include <frg/detection.hpp>
 
-#if __STDC_HOSTED__
-#	if __has_include(<iostream>)
-#		include <iostream>
-#		define FRIGG_HAS_IOSTREAM
-#	endif
-#endif
-
 namespace frg FRG_VISIBILITY {
 
 struct endlog_t { };
@@ -165,11 +158,7 @@ struct ostream_out {
 	}
 
 	auto &operator<<(endlog_t) {
-#ifdef FRIGG_HAS_IOSTREAM
-		output << std::endl;
-#else
 		output << '\n';
-#endif // FRIGG_HAS_IOSTREAM
 		return *this;
 	}
 };
