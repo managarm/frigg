@@ -319,3 +319,27 @@ TEST(bitset, count) {
 	EXPECT_FALSE(a.all());
 	EXPECT_FALSE(a.none());
 }
+
+#include <frg/array.hpp>
+
+TEST(array, compare) {
+	{
+		frg::array<int, 4> a = {1, 2, 3, 4},
+			b = {1, 2, 3, 4};
+		EXPECT_TRUE(a == b);
+	}
+
+	{
+		frg::array<int, 4> a = {1, 2, 3, 4},
+			b = {1, 2, 3, 5};
+		EXPECT_TRUE(a != b);
+		EXPECT_TRUE(a < b);
+	}
+
+	{
+		frg::array<int, 4> a = {1, 2, 3, 5},
+			b = {1, 2, 3, 4};
+		EXPECT_TRUE(a != b);
+		EXPECT_TRUE(a > b);
+	}
+}

@@ -88,6 +88,7 @@ struct array {
 	}
 
 	bool operator==(const array &other) const = default;
+	auto operator<=>(const array &other) const = default;
 };
 
 namespace details {
