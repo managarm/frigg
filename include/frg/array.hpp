@@ -6,6 +6,10 @@
 #include <type_traits>
 #include <tuple>
 
+#if __has_include(<compare>)
+#	include <compare>
+#endif
+
 namespace frg {
 
 template<class T, size_t N>
@@ -88,7 +92,10 @@ struct array {
 	}
 
 	bool operator==(const array &other) const = default;
+
+#if __has_include(<compare>)
 	auto operator<=>(const array &other) const = default;
+#endif
 };
 
 namespace details {
