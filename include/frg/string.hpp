@@ -62,6 +62,15 @@ public:
 		return size_t(-1);
 	}
 
+	size_t find_first_of(basic_string_view chars, size_t start_from = 0) const {
+		for(size_t i = start_from; i < _length; ++i) {
+			for(size_t j = 0; j < chars.size(); ++j)
+				if(_pointer[i] == chars[j])
+					return i;
+		}
+		return size_t(-1);
+	}
+
 	size_t find_last(Char c) const {
 		for(size_t i = _length; i > 0; i--)
 			if(_pointer[i - 1] == c)
