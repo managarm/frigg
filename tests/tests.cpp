@@ -51,6 +51,15 @@ TEST(strings, compare_method_comparison) {
 	EXPECT_EQ(s1.compare(s4), 0);
 }
 
+TEST(string_view, find) {
+	frg::string_view s1 { "ABC" };
+
+	EXPECT_EQ(s1.find_first('B'), 1);
+	EXPECT_EQ(s1.find_first('D'), -1);
+	EXPECT_EQ(s1.find_first_of("CB"), 1);
+	EXPECT_EQ(s1.find_first_of("DE"), -1);
+}
+
 TEST(pcg32, pcg32_brief_test) {
 	frg::pcg_basic32 x { 12345, 6 };
 
