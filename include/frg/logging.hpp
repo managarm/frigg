@@ -123,6 +123,16 @@ struct container_logger {
 		}
 	}
 
+	void append(const typename Container::value_type *str, std::size_t n) {
+		// For std::basic_string
+		if constexpr ( requires { cont_.insert(cont_.size(), str, n); } )
+			cont_.insert(cont_.size(), str, n);
+		else {
+			for (std::size_t i = 0; i < n; i++)
+				append(str[i]);
+		}
+	}
+
 private:
 	Container &cont_;
 };
