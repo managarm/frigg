@@ -238,6 +238,149 @@ TEST(formatting, fmt) {
 	str.clear();
 }
 
+#include <frg/printf.hpp>
+
+TEST(formatting, printf) {
+	std::string buf{};
+	frg::container_logger sink{buf};
+
+	struct test_agent {
+		frg::expected<frg::format_error> operator() (char c) {
+			sink_->append(c);
+			return frg::success;
+		}
+
+		frg::expected<frg::format_error> operator() (const char *c, size_t n) {
+			sink_->append(c, n);
+			return frg::success;
+		}
+
+		frg::expected<frg::format_error> operator() (char t, frg::format_options opts,
+				frg::printf_size_mod szmod) {
+			switch(t) {
+				case 'c':
+					frg::do_printf_chars(*sink_, t, opts, szmod, vsp_);
+					break;
+				case 'p': case 's':
+					frg::do_printf_chars(*sink_, t, opts, szmod, vsp_);
+					break;
+				case 'd': case 'i': case 'o': case 'x': case 'X': case 'u':
+					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_);
+					break;
+				default:
+					// Should not be reached
+					ADD_FAILURE();
+			}
+
+			return frg::success;
+		}
+
+		frg::container_logger<std::string> *sink_;
+		frg::va_struct *vsp_;
+	};
+
+	auto do_test = [] (const char *expected, const char *format, ...) {
+		va_list args;
+		va_start(args, format);
+
+		frg::va_struct vs;
+		frg::arg arg_list[NL_ARGMAX + 1];
+		vs.arg_list = arg_list;
+		va_copy(vs.args, args);
+
+		std::string buf;
+		frg::container_logger<std::string> sink{buf};
+
+		auto res = frg::printf_format(test_agent{&sink, &vs}, format, &vs);
+		ASSERT_TRUE(res);
+
+		ASSERT_STREQ(expected, buf.data());
+	};
+
+	do_test("12", "%d", 12);
+
+	// Test %c right padding.
+	do_test("a ", "%-2c", 'a');
+
+	// Test %c left padding.
+	do_test(" a", "%2c", 'a');
+
+	// Test %d right padding.
+	do_test("1 ", "%-2d", 1);
+	do_test("01", "%-2.2d", 1);
+	do_test("01 ", "%-3.2d", 1);
+	do_test("12 ", "%-3.2d", 12);
+	do_test("123", "%-3.2d", 123);
+	do_test("12 ", "%-3.2u", 12);
+
+	// Test %d left padding.
+	do_test(" 1", "%2d", 1);
+	do_test(" 01", "%3.2d", 1);
+	do_test(" 12", "%3.2d", 12);
+	do_test("123", "%3.2d", 123);
+	do_test(" 12", "%3.2u", 12);
+
+	// Test '+' and ' ' flags.
+	do_test("+12", "%+d", 12);
+	do_test(" 12", "% d", 12);
+	do_test("+12", "% +d", 12);
+	do_test("+12", "%+ d", 12);
+	do_test("-12", "%+d", -12);
+	do_test("-12", "% d", -12);
+	do_test("-12", "% +d", -12);
+	do_test("-12", "%+ d", -12);
+
+	// Test '#' flag.
+	do_test("0xc", "%#x", 12);
+	do_test("0XC", "%#X", 12);
+	do_test("014", "%#o", 12);
+	do_test("0", "%#x", 0);
+	do_test("0", "%#X", 0);
+	do_test("0", "%#o", 0);
+
+	// Test 'd' with different size mods to see
+	// if they work
+	do_test("12", "%d", 12);
+	do_test("12", "%ld", 12L);
+	do_test("12", "%lld", 12LL);
+	do_test("12", "%zd", (size_t)12);
+	do_test("12", "%hd", 12);
+	do_test("12", "%hhd", 12);
+
+	// Test 'x' with different size mods to see
+	// if they work
+	do_test("c", "%x", 12);
+	do_test("c", "%lx", 12L);
+	do_test("c", "%llx", 12LL);
+	do_test("c", "%zx", (size_t)12);
+	do_test("c", "%hx", 12);
+	do_test("c", "%hhx", 12);
+
+	// Test 'X' with different size mods to see
+	// if they work
+	do_test("C", "%X", 12);
+	do_test("C", "%lX", 12L);
+	do_test("C", "%llX", 12LL);
+	do_test("C", "%zX", (size_t)12);
+	do_test("C", "%hX", 12);
+	do_test("C", "%hhX", 12);
+
+	// Test 'o' with different size mods to see
+	// if they work
+	do_test("14", "%o", 12);
+	do_test("14", "%lo", 12L);
+	do_test("14", "%llo", 12LL);
+	do_test("14", "%zo", (size_t)12);
+	do_test("14", "%ho", 12);
+	do_test("14", "%hho", 12);
+
+	// Test 's' with precision.
+	do_test("hello world", "%s", "hello world");
+	do_test("hello", "%.5s", "hello world");
+	do_test("hello", "%.*s", 5, "hello world");
+	do_test("hello", "%.10s", "hello\0!!!!");
+}
+
 #include <frg/bitset.hpp>
 
 TEST(bitset, bitwise) {
