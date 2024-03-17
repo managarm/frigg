@@ -250,9 +250,11 @@ void do_printf_chars(S &sink, char t, format_options opts,
 			if(!s)
 				s = "(null)";
 
-			int length = string_view{s}.size();
-			if(opts.precision && *opts.precision < length)
-				length = *opts.precision;
+			int length;
+			if(opts.precision)
+				length = generic_strnlen(s, *opts.precision);
+			else
+				length = generic_strlen(s);
 
 			if(opts.left_justify) {
 				for(int i = 0; i < length && s[i]; i++)
@@ -271,9 +273,11 @@ void do_printf_chars(S &sink, char t, format_options opts,
 			if(!s)
 				s = L"(null)";
 
-			int length = basic_string_view<wchar_t>{s}.size();
-			if(opts.precision && *opts.precision < length)
-				length = *opts.precision;
+			int length;
+			if(opts.precision)
+				length = generic_strnlen(s, *opts.precision);
+			else
+				length = generic_strlen(s);
 
 			if(opts.left_justify) {
 				for(int i = 0; i < length && s[i]; i++)
