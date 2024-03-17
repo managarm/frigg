@@ -18,6 +18,15 @@ auto generic_strlen(const CharT *c) {
 	return len;
 }
 
+template<typename CharT>
+auto generic_strnlen(const CharT *c, std::size_t max) {
+	std::size_t len = 0;
+	while (len < max && *(c++)) {
+		len++;
+	}
+	return len;
+}
+
 template<typename Char>
 class basic_string_view {
 public:
