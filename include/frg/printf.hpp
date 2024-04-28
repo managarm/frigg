@@ -31,7 +31,8 @@ enum class printf_size_mod {
 #ifndef FRG_DONT_USE_LONG_DOUBLE
 	longdouble_size,
 #endif
-	native_size
+	native_size,
+	intmax_size
 };
 
 template<typename T>
@@ -202,6 +203,10 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			szmod = printf_size_mod::native_size;
 			++s;
 			FRG_ASSERT(*s);
+		} else if(*s == 'j') {
+			szmod = printf_size_mod::intmax_size;
+			++s;
+			FRG_ASSERT(*s);
 		}
 
 		auto res = agent(*s, opts, szmod);
@@ -315,6 +320,8 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			number = pop_arg<long long>(vsp, &opts);
 		}else if(szmod == printf_size_mod::native_size) {
 			number = pop_arg<intptr_t>(vsp, &opts);
+		}else if(szmod == printf_size_mod::intmax_size) {
+			number = pop_arg<intmax_t>(vsp, &opts);
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			number = pop_arg<int>(vsp, &opts);
@@ -353,6 +360,8 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			print(pop_arg<unsigned long long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::native_size) {
 			print(pop_arg<size_t>(vsp, &opts));
+		}else if(szmod == printf_size_mod::intmax_size) {
+			print(pop_arg<uintmax_t>(vsp, &opts));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(pop_arg<unsigned int>(vsp, &opts));
@@ -383,6 +392,8 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			print(pop_arg<unsigned long long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::native_size) {
 			print(pop_arg<size_t>(vsp, &opts));
+		}else if(szmod == printf_size_mod::intmax_size) {
+			print(pop_arg<uintmax_t>(vsp, &opts));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(pop_arg<unsigned int>(vsp, &opts));
@@ -413,6 +424,8 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			print(pop_arg<unsigned long long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::native_size) {
 			print(pop_arg<size_t>(vsp, &opts));
+		}else if(szmod == printf_size_mod::intmax_size) {
+			print(pop_arg<uintmax_t>(vsp, &opts));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(pop_arg<unsigned int>(vsp, &opts));
@@ -441,6 +454,8 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			print(pop_arg<unsigned long long>(vsp, &opts));
 		}else if(szmod == printf_size_mod::native_size) {
 			print(pop_arg<size_t>(vsp, &opts));
+		}else if(szmod == printf_size_mod::intmax_size) {
+			print(pop_arg<uintmax_t>(vsp, &opts));
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::default_size);
 			print(pop_arg<unsigned int>(vsp, &opts));

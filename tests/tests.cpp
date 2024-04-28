@@ -346,6 +346,7 @@ TEST(formatting, printf) {
 	do_test("12", "%zd", (size_t)12);
 	do_test("12", "%hd", 12);
 	do_test("12", "%hhd", 12);
+	do_test("12", "%jd", (uintmax_t)12);
 
 	// Test 'x' with different size mods to see
 	// if they work
@@ -355,6 +356,7 @@ TEST(formatting, printf) {
 	do_test("c", "%zx", (size_t)12);
 	do_test("c", "%hx", 12);
 	do_test("c", "%hhx", 12);
+	do_test("c", "%jx", (uintmax_t)12);
 
 	// Test 'X' with different size mods to see
 	// if they work
@@ -364,6 +366,7 @@ TEST(formatting, printf) {
 	do_test("C", "%zX", (size_t)12);
 	do_test("C", "%hX", 12);
 	do_test("C", "%hhX", 12);
+	do_test("C", "%jX", (uintmax_t)12);
 
 	// Test 'o' with different size mods to see
 	// if they work
@@ -373,6 +376,7 @@ TEST(formatting, printf) {
 	do_test("14", "%zo", (size_t)12);
 	do_test("14", "%ho", 12);
 	do_test("14", "%hho", 12);
+	do_test("14", "%jo", (uintmax_t)12);
 
 	// Test 's' with precision.
 	do_test("hello world", "%s", "hello world");
