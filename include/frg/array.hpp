@@ -90,6 +90,9 @@ struct array {
 	bool operator==(const array &other) const = default;
 };
 
+template <typename T, typename ...Us>
+array(T, Us...) -> array<T, 1 + sizeof...(Us)>;
+
 namespace details {
 	template<typename ...Ts>
 	struct concat_size;
