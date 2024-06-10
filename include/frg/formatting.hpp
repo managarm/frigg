@@ -224,7 +224,7 @@ namespace _fmt_basics {
 	template<Sink S, typename T>
 	void print_float(S &sink, T number, int width = 0, int precision = 6,
 			char padding = ' ', bool left_justify = false, bool use_capitals = false,
-			bool group_thousands = false, locale_options locale_opts = {}) {
+			bool group_thousands = false, bool drop_trailing_decimal_zeroes = false, locale_options locale_opts = {}) {
 		(void)group_thousands;
 
 		bool has_sign = false;
@@ -307,7 +307,7 @@ namespace _fmt_basics {
 			i++;
 		}
 
-		while (i < precision) {
+		while (i < precision && !drop_trailing_decimal_zeroes) {
 			sink.append('0');
 			i++;
 		}
