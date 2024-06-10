@@ -471,6 +471,7 @@ void do_printf_floats(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
 	int precision_or_default = opts.precision.has_value() ? *opts.precision : 6;
 	bool use_capitals = true;
+	bool drop_trailing_decimal_zeroes = false;
 	switch(t) {
 	case 'f':
 		use_capitals = false;
@@ -481,7 +482,7 @@ void do_printf_floats(S &sink, char t, format_options opts,
 			_fmt_basics::print_float(sink, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, precision_or_default,
 					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
-					opts.group_thousands, locale_opts);
+					opts.group_thousands, drop_trailing_decimal_zeroes, locale_opts);
 			break;
 		}
 #endif
@@ -489,13 +490,32 @@ void do_printf_floats(S &sink, char t, format_options opts,
 		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, precision_or_default,
 				opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
-				opts.group_thousands, locale_opts);
+				opts.group_thousands, drop_trailing_decimal_zeroes, locale_opts);
 		break;
 	case 'g':
+		use_capitals = false;
+		drop_trailing_decimal_zeroes = true;
+		[[fallthrough]];
 	case 'G':
+#ifndef FRG_DONT_USE_LONG_DOUBLE
+		if (szmod == printf_size_mod::longdouble_size) {
+			_fmt_basics::print_float(sink, pop_arg<long double>(vsp, &opts),
+					opts.minimum_width, precision_or_default,
+					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
+					opts.group_thousands, drop_trailing_decimal_zeroes, locale_opts);
+			break;
+		}
+#endif
+		FRG_ASSERT(szmod == printf_size_mod::default_size || szmod == printf_size_mod::long_size);
+		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
+				opts.minimum_width, precision_or_default,
+				opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
+				opts.group_thousands, drop_trailing_decimal_zeroes, locale_opts);
+		break;
 	case 'e':
 	case 'E':
-		sink.append("%f");
+		sink.append("%");
+		sink.append(t);
 		break;
 	default:
 		FRG_ASSERT(!"Unexpected printf terminal");
