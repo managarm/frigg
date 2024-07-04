@@ -164,7 +164,7 @@ public:
 	bitset &flip(size_t pos) { return set(pos, !test(pos)); }
 
 	// element access
-	constexpr bool operator[](size_t pos) const { return buffer[pos / 64] & (1 << pos % 64); }
+	constexpr bool operator[](size_t pos) const { return buffer[pos / 64] & (1ull << pos % 64); }
 
 	reference operator[](size_t pos) { return reference(pos, *this); }
 
@@ -208,7 +208,7 @@ public:
 		for (size_t i = 0; i < N / 64; i++)
 			value &= !(buffer[i]);
 		if (N % 64)
-			value &= !(buffer[N / 64] & ((1 << (N % 64)) - 1));
+			value &= !(buffer[N / 64] & ((1ull << (N % 64)) - 1));
 
 		return value;
 	}

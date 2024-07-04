@@ -457,6 +457,11 @@ TEST(bitset, setters_and_getters) {
 	r.flip();
 	for (std::size_t i = 0; i < 12; i++)
 		EXPECT_TRUE(a.test(i));
+
+	frg::bitset<50> b{1ull << 45};
+	EXPECT_TRUE(b[45]);
+	b.set(47);
+	EXPECT_TRUE(b[47]);
 }
 
 TEST(bitset, count) {
