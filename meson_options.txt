@@ -1,2 +1,3 @@
 option('frigg_no_install', type : 'boolean', value : false)
 option('build_tests', type : 'feature', value : 'auto')
+option('build_slab_analyzer', type : 'feature', value : 'disabled')

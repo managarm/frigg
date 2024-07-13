@@ -1,9 +1,6 @@
 # frigg is header-only, so we do not need a compiler.
 project('frigg')
 
-# We already need C++ on the build system to build the analyzer.
-add_languages('cpp', native: true)
-
 incl = include_directories('include')
 
 if not get_option('frigg_no_install')
@@ -58,19 +55,34 @@ endif
 
 frigg_dep = declare_dependency(include_directories: incl)
 
+
 build_tests = get_option('build_tests').enabled()
 
 if get_option('build_tests').auto()
 	build_tests = not meson.is_subproject()
 endif
 
+build_slab_analyzer = get_option('build_slab_analyzer').enabled()
+
+if get_option('build_slab_analyzer').auto()
+	build_slab_analyzer = not meson.is_subproject()
+endif
+
+
+if build_tests or build_slab_analyzer
+	# We need C++ only for the analyzer and test suite.
+	add_languages('cpp')
+endif
+
+
 if build_tests
 	subdir('tests')
 endif
 
-analyzer = executable(
-		'slab_trace_analyzer',
-		'slab_trace_analyzer.cpp',
-		override_options: ['cpp_std=c++20'],
-		build_by_default: false,
-		native: true)
+if build_slab_analyzer
+	analyzer = executable(
+			'slab_trace_analyzer',
+			'slab_trace_analyzer.cpp',
+			override_options: ['cpp_std=c++20'],
+			native: true)
+endif

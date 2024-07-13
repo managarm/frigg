@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <numeric>
 #include <algorithm>
+#include <cstdint>
 
 #include <string.h>
 #include <stdlib.h>
