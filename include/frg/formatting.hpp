@@ -94,14 +94,14 @@ enum class format_error {
 
 namespace _fmt_basics {
 	// width: Minimum width of the output (padded with spaces by default).
-	// precision: Minimum number of digits in the ouput (always padded with zeros).
+	// precision: Minimum number of digits in the output (always padded with zeros).
 	template<Sink S, typename T>
 	void print_digits(S &sink, T number, bool negative, int radix,
 			int width, int precision, char padding, bool left_justify,
 			bool group_thousands, bool always_sign, bool plus_becomes_space,
 			bool use_capitals, locale_options locale_opts) {
 		const char *digits = use_capitals ? "0123456789ABCDEF" : "0123456789abcdef";
-		char buffer[32];
+		char buffer[64];
 
 		int k = 0; // number of digits
 		int c = 0; // number of chars since last grouping
@@ -137,7 +137,7 @@ namespace _fmt_basics {
 
 		// print the number in reverse order and determine #digits.
 		do {
-			FRG_ASSERT(k < 32); // TODO: variable number of digits
+			FRG_ASSERT(k < 64); // TODO: variable number of digits
 			buffer[k++] = digits[number % radix];
 			number /= radix;
 			step_grouping();
