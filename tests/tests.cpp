@@ -264,7 +264,7 @@ TEST(formatting, printf) {
 				case 'p': case 's':
 					frg::do_printf_chars(*sink_, t, opts, szmod, vsp_);
 					break;
-				case 'd': case 'i': case 'o': case 'x': case 'X': case 'u':
+				case 'd': case 'i': case 'o': case 'x': case 'X': case 'b': case 'B': case 'u':
 					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_);
 					break;
 				default:
@@ -333,6 +333,8 @@ TEST(formatting, printf) {
 	// Test '#' flag.
 	do_test("0xc", "%#x", 12);
 	do_test("0XC", "%#X", 12);
+	do_test("0b1100", "%#b", 12);
+	do_test("0B1100", "%#B", 12);
 	do_test("014", "%#o", 12);
 	do_test("0", "%#x", 0);
 	do_test("0", "%#X", 0);
@@ -367,6 +369,16 @@ TEST(formatting, printf) {
 	do_test("C", "%hX", 12);
 	do_test("C", "%hhX", 12);
 	do_test("C", "%jX", (uintmax_t)12);
+
+	// Test 'b' with different size mods to see
+	// if they work
+	do_test("1100", "%b", 12);
+	do_test("1100", "%lb", 12L);
+	do_test("1100", "%llb", 12LL);
+	do_test("1100", "%zb", (size_t)12);
+	do_test("1100", "%hb", 12);
+	do_test("1100", "%hhb", 12);
+	do_test("1100", "%jb", (uintmax_t)12);
 
 	// Test 'o' with different size mods to see
 	// if they work

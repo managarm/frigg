@@ -335,6 +335,39 @@ void do_printf_ints(S &sink, char t, format_options opts,
 					opts.plus_becomes_space, false, locale_opts);
 		}
 	} break;
+	case 'b':
+	case 'B' : {
+		auto print = [&] (auto number) {
+			if (number && opts.alt_conversion)
+				sink.append(t == 'b' ? "0b" : "0B");
+
+			if(opts.precision && *opts.precision == 0 && !number) {
+				// print nothing in this case
+			}else{
+				_fmt_basics::print_int(sink, number, 2, opts.minimum_width,
+						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
+						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
+						false, locale_opts);
+			}
+		};
+
+		if(szmod == printf_size_mod::char_size) {
+			print(pop_arg<unsigned char>(vsp, &opts));
+		}else if(szmod == printf_size_mod::short_size) {
+			print(pop_arg<unsigned short>(vsp, &opts));
+		}else if(szmod == printf_size_mod::long_size) {
+			print(pop_arg<unsigned long>(vsp, &opts));
+		}else if(szmod == printf_size_mod::longlong_size) {
+			print(pop_arg<unsigned long long>(vsp, &opts));
+		}else if(szmod == printf_size_mod::native_size) {
+			print(pop_arg<size_t>(vsp, &opts));
+		}else if(szmod == printf_size_mod::intmax_size) {
+			print(pop_arg<uintmax_t>(vsp, &opts));
+		}else{
+			FRG_ASSERT(szmod == printf_size_mod::default_size);
+			print(pop_arg<unsigned int>(vsp, &opts));
+		}
+	} break;
 	case 'o': {
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion)
@@ -367,42 +400,11 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			print(pop_arg<unsigned int>(vsp, &opts));
 		}
 	} break;
-	case 'x': {
-		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
-				sink.append("0x");
-
-			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
-			}else{
-				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
-						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
-						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
-						false, locale_opts);
-			}
-		};
-
-		if(szmod == printf_size_mod::char_size) {
-			print(pop_arg<unsigned char>(vsp, &opts));
-		}else if(szmod == printf_size_mod::short_size) {
-			print(pop_arg<unsigned short>(vsp, &opts));
-		}else if(szmod == printf_size_mod::long_size) {
-			print(pop_arg<unsigned long>(vsp, &opts));
-		}else if(szmod == printf_size_mod::longlong_size) {
-			print(pop_arg<unsigned long long>(vsp, &opts));
-		}else if(szmod == printf_size_mod::native_size) {
-			print(pop_arg<size_t>(vsp, &opts));
-		}else if(szmod == printf_size_mod::intmax_size) {
-			print(pop_arg<uintmax_t>(vsp, &opts));
-		}else{
-			FRG_ASSERT(szmod == printf_size_mod::default_size);
-			print(pop_arg<unsigned int>(vsp, &opts));
-		}
-	} break;
+	case 'x':
 	case 'X': {
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion)
-				sink.append("0X");
+				sink.append(t == 'x' ? "0x" : "0X");
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
@@ -410,7 +412,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
-						true, locale_opts);
+						t == 'X', locale_opts);
 			}
 		};
 
