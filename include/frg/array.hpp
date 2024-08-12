@@ -128,6 +128,16 @@ constexpr auto array_concat(const Ts &...arrays) {
 
 namespace std {
 
+template <class T, size_t N>
+constexpr size_t size(const T (&array)[N]) noexcept {
+	return N;
+}
+
+template <class T, ptrdiff_t N>
+constexpr ptrdiff_t ssize(const T (&array)[N]) noexcept {
+	return N;
+}
+
 template<size_t I, class T, size_t N>
 constexpr T &get(frg::array<T, N> &a) noexcept {
 	static_assert(I < N, "array index is not within bounds");
