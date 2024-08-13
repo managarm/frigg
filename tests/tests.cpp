@@ -149,6 +149,32 @@ TEST(tuples, reference_test) {
 	EXPECT_EQ(&z, &t2.get<2>());
 }
 
+#include <frg/array.hpp>
+
+TEST(array, basic_test) {
+    constexpr int N = 4;
+    frg::array<int, N> arr{0, 1, 2, 3};
+    for (int i = 0; i < N; i++)
+        EXPECT_EQ(arr[i], i);
+
+    const auto [a, b, c, d] = arr;
+    EXPECT_EQ(a, 0);
+    EXPECT_EQ(b, 1);
+    EXPECT_EQ(c, 2);
+    EXPECT_EQ(d, 3);
+
+    arr[0] = 1;
+    EXPECT_NE(a, arr[0]); // Make sure a doesn't change when array changes
+
+    const auto& [e, f, g, h] = arr;
+    EXPECT_EQ(e, 1);
+    arr[0] = 2;
+    EXPECT_EQ(e, 2); // Make sure e does change when array changes
+    
+    static_assert(std::tuple_size_v<decltype(arr)> == N, "tuple_size produces wrong result");
+    static_assert(std::is_same_v<std::tuple_element_t<N, decltype(arr)>, int>, "tuple_element produces wrong result");
+}
+
 #include <frg/formatting.hpp>
 #include <frg/logging.hpp>
 #include <string> // std::string

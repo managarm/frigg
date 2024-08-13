@@ -124,10 +124,6 @@ constexpr auto array_concat(const Ts &...arrays) {
 	return res;
 }
 
-} // namespace frg
-
-namespace std {
-
 template<size_t I, class T, size_t N>
 constexpr T &get(frg::array<T, N> &a) noexcept {
 	static_assert(I < N, "array index is not within bounds");
@@ -151,6 +147,10 @@ constexpr const T &&get(const frg::array<T, N> &&a) noexcept {
 	static_assert(I < N, "array index is not within bounds");
 	return std::move(a[I]);
 };
+
+} // namespace frg
+
+namespace std {
 
 template<class T, size_t N>
 struct tuple_size<frg::array<T, N>> :
