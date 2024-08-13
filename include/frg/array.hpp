@@ -152,30 +152,6 @@ constexpr const T &&get(const frg::array<T, N> &&a) noexcept {
 
 namespace std {
 
-template<size_t I, class T, size_t N>
-constexpr T &get(frg::array<T, N> &a) noexcept {
-	static_assert(I < N, "array index is not within bounds");
-	return a[I];
-};
-
-template<size_t I, class T, size_t N>
-constexpr T &&get(frg::array<T, N> &&a) noexcept {
-	static_assert(I < N, "array index is not within bounds");
-	return std::move(a[I]);
-};
-
-template<size_t I, class T, size_t N>
-constexpr const T &get(const frg::array<T, N> &a) noexcept {
-	static_assert(I < N, "array index is not within bounds");
-	return a[I];
-};
-
-template<size_t I, class T, size_t N>
-constexpr const T &&get(const frg::array<T, N> &&a) noexcept {
-	static_assert(I < N, "array index is not within bounds");
-	return std::move(a[I]);
-};
-
 template<class T, size_t N>
 struct tuple_size<frg::array<T, N>> :
 	integral_constant<size_t, N> { };
