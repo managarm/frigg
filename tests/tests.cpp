@@ -293,6 +293,9 @@ TEST(formatting, printf) {
 				case 'd': case 'i': case 'o': case 'x': case 'X': case 'b': case 'B': case 'u':
 					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_);
 					break;
+				case 'f':
+					frg::do_printf_floats(*sink_, t, opts, szmod, vsp_);
+					break;
 				default:
 					// Should not be reached
 					ADD_FAILURE();
@@ -365,6 +368,10 @@ TEST(formatting, printf) {
 	do_test("0", "%#x", 0);
 	do_test("0", "%#X", 0);
 	do_test("0", "%#o", 0);
+
+	// Test 'f'.
+	do_test("1.100000", "%f", 1.1);
+	do_test("0.01", "%.2f", 0.01234);
 
 	// Test 'd' with different size mods to see
 	// if they work
