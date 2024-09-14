@@ -299,16 +299,11 @@ namespace _fmt_basics {
 		n = static_cast<uint64_t>(number);
 		number -= n;
 		int i = 0;
-		while (n > 0 && i < precision) {
+		while (i < precision) {
 			sink.append('0' + n);
 			number *= 10;
 			n = static_cast<uint64_t>(number);
 			number -= n;
-			i++;
-		}
-
-		while (i < precision) {
-			sink.append('0');
 			i++;
 		}
 
