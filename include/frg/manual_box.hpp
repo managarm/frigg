@@ -18,14 +18,14 @@ public:
 	template<typename... Args>
 	void initialize(Args &&... args) {
 		FRG_ASSERT(!_initialized);
-		new(&_storage) T(std::forward<Args>(args)...);
+		new(&_storage.buffer) T(std::forward<Args>(args)...);
 		_initialized = true;
 	}
 
 	template<typename F, typename... Args>
 	void construct_with(F f) {
 		FRG_ASSERT(!_initialized);
-		new(&_storage) T{f()};
+		new(&_storage.buffer) T{f()};
 		_initialized = true;
 	}
 
@@ -37,7 +37,7 @@ public:
 
 	T *get() {
 		FRG_ASSERT(_initialized);
-		return std::launder(reinterpret_cast<T *>(&_storage));
+		return std::launder(reinterpret_cast<T *>(&_storage.buffer));
 	}
 
 	bool valid() {
