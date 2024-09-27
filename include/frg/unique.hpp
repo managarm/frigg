@@ -1,7 +1,9 @@
 #ifndef FRG_UNIQUE_HPP
 #define FRG_UNIQUE_HPP
 
+#include <type_traits>
 #include <utility>
+#include <concepts>
 
 namespace frg {
 
@@ -19,9 +21,38 @@ struct unique_ptr {
 	unique_ptr(Allocator allocator, T *ptr)
 	:_ptr{ptr}, _allocator(std::move(allocator)) {}
 
+	/** Converts a unique_ptr of a different type to the type of this
+	    unique_ptr.
+
+	    The allocator is taken from the old unique_ptr.  It must be
+	    convertible to our allocator type.
+
+	    The pointer type also, naturally, has to be convertible to the
+	    current pointer type.
+	 */
+	template<typename U, typename UAlloc>
+	requires (
+		std::is_convertible_v<U*, T*>
+		&& std::is_constructible_v<Allocator, UAlloc&&>
+	)
+	unique_ptr(unique_ptr<U, UAlloc>&& o)
+	: _ptr { nullptr }, _allocator { std::move(o._allocator) } {
+		reset(o.release());
+	}
+
+	/** \sa unique_ptr(unique_ptr<U, UAlloc>&&)  */
+	template<typename U, typename UAlloc>
+	requires std::constructible_from<unique_ptr, unique_ptr<U, UAlloc>&&>
+	unique_ptr& operator=(unique_ptr<U, UAlloc>&& o) {
+		auto optr = o.release();
+		reset(optr);
+		_allocator = std::forward<UAlloc>(o._allocator);
+		return *this;
+	}
+
+
 	~unique_ptr() {
-		if (_ptr)
-			_allocator.free(_ptr);
+		reset();
 	}
 
 	unique_ptr(const unique_ptr &) = delete;
@@ -60,7 +91,7 @@ struct unique_ptr {
 		return _ptr;
 	}
 
-	void reset(T *ptr) {
+	void reset(T *ptr = nullptr) {
 		T *old = _ptr;
 		_ptr = ptr;
 
@@ -71,6 +102,9 @@ struct unique_ptr {
 private:
 	T *_ptr;
 	Allocator _allocator;
+
+	template<typename U, typename UA>
+	friend struct unique_ptr;
 };
 
 template <typename T, typename Allocator, typename ...Args>
