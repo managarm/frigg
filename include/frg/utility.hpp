@@ -15,6 +15,12 @@ const T &max(const T &a, const T &b) {
 	return (a < b) ? b : a;
 }
 
+template<typename T>
+requires (T(-1) < T(0))
+const T abs(const T v) {
+	return (v < 0) ? -v : v;
+}
+
 template<typename Tag, typename T>
 struct composition : private T {
 	static T &get(composition<Tag, T> *p) {
