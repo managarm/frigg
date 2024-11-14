@@ -42,8 +42,8 @@ struct ticket_spinlock {
 	}
 
 	bool is_locked() {
-		return (__atomic_load_n(&serving_ticket_, __ATOMIC_RELAXED) + 1)
-			== __atomic_load_n(&next_ticket_, __ATOMIC_RELAXED);
+		return __atomic_load_n(&serving_ticket_, __ATOMIC_RELAXED)
+			< __atomic_load_n(&next_ticket_, __ATOMIC_RELAXED);
 	}
 
 	void unlock() {
