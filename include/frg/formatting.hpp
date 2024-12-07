@@ -58,6 +58,7 @@ struct format_options {
 	format_conversion conversion;
 	int minimum_width = 0;
 	int arg_pos = -1;
+	bool dollar_arg_pos = false;
 	optional<int> precision;
 	bool left_justify = false;
 	bool always_sign = false;

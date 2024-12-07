@@ -428,6 +428,8 @@ TEST(formatting, printf) {
 	do_test("hello", "%.5s", "hello world");
 	do_test("hello", "%.*s", 5, "hello world");
 	do_test("hello", "%.10s", "hello\0!!!!");
+
+	do_test("55 33", "%2$d %1$d", 33, 55);
 }
 
 #include <frg/bitset.hpp>

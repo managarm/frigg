@@ -62,9 +62,16 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 	if (opts->arg_pos == -1)
 		return pop_va_arg();
 
-	FRG_ASSERT(opts->arg_pos <= vsp->num_args);
-	if (opts->arg_pos < vsp->num_args)
+	if(opts->dollar_arg_pos) {
+		// we copy out all previous and the requested argument into our vsp->arg_list
+		for(int i = vsp->num_args; i <= opts->arg_pos; i++) {
+			auto arg = pop_va_arg();
+			*get_union_member(i) = arg;
+		}
+
+		vsp->num_args = opts->arg_pos + 1;
 		return *get_union_member(opts->arg_pos);
+	}
 
 	auto arg = pop_va_arg();
 	*get_union_member(vsp->num_args++) = arg;
@@ -74,6 +81,7 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 template<typename A>
 frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp) {
 	FRG_ASSERT(s != nullptr);
+	bool dollar_arg_pos = false;
 
 	while(*s) {
 		if(*s != '%') {
@@ -100,9 +108,12 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 
 
 		format_options opts;
+		opts.dollar_arg_pos = dollar_arg_pos;
 		while(true) {
 			if (*s >= '0' && *s <= '9' && s[1] && s[1] == '$') {
 				opts.arg_pos = *s - '0' - 1; // args are 1-indexed
+				opts.dollar_arg_pos = true;
+				dollar_arg_pos = true;
 				s += 2;
 				FRG_ASSERT(*s);
 			} else if(*s == '-') {
