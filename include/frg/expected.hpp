@@ -15,9 +15,12 @@
 #endif
 #include <new>
 #include <utility>
+#include <source_location>
 #include <type_traits>
 
 #include <frg/macros.hpp>
+#include <frg/logging.hpp>
+#include <frg/utility.hpp>
 
 #define FRG_TRY(expr) ({ \
     auto ex = (expr); \
@@ -145,24 +148,36 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		return e_;
 	}
 
-	E error() const {
-		FRG_ASSERT(indicates_error(e_));
+	E error(std::source_location loc = std::source_location::current()) const {
+		if(!indicates_error(e_)) {
+			FriggLogger{}() << frg::fmt("{} line {}: {}: error() on non-error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
+			FRG_INTF(panic)("failed to get error() from frg::expected");
+		}
 		return e_;
 	}
 
-	T &value() {
-		FRG_ASSERT(!indicates_error(e_));
+	T &value(std::source_location loc = std::source_location::current()) {
+		if(indicates_error(e_)) {
+			FriggLogger{}() << frg::fmt("{} line {}: {}: value() on error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
+			FRG_INTF(panic)("failed to get value() from frg::expected");
+		}
 		return *std::launder(reinterpret_cast<T *>(stor_));
 	}
 
-	const T &value() const {
-		FRG_ASSERT(!indicates_error(e_));
+	const T &value(std::source_location loc = std::source_location::current()) const {
+		if(indicates_error(e_)) {
+			FriggLogger{}() << frg::fmt("{} line {}: {}: value() on error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
+			FRG_INTF(panic)("failed to get value() from frg::expected");
+		}
 		return *std::launder(reinterpret_cast<const T *>(stor_));
 	}
 
-	T unwrap() {
-		// TODO: Take std::source_location here; print an error message.
-		FRG_ASSERT(!indicates_error(e_));
+	T unwrap(std::source_location loc = std::source_location::current()) {
+		if(indicates_error(e_)) {
+			FriggLogger{}() << frg::fmt("{} line {}: {}: unwrap() on error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
+			FRG_INTF(panic)("failed to unwrap() a frg::expected");
+		}
+
 		return std::move(*std::launder(reinterpret_cast<T *>(stor_)));
 	}
 
@@ -229,14 +244,19 @@ struct [[nodiscard]] expected<E, void> {
 		return e_;
 	}
 
-	E error() const {
-		FRG_ASSERT(indicates_error(e_));
+	E error(std::source_location loc = std::source_location::current()) const {
+		if(indicates_error(e_)) {
+			FriggLogger{}() << frg::fmt("{} line {}: {}: error() on non-error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
+			FRG_INTF(panic)("failed to get error() from frg::expected");
+		}
 		return e_;
 	}
 
-	void unwrap() {
-		// TODO: Take std::source_location here; print an error message.
-		FRG_ASSERT(!indicates_error(e_));
+	void unwrap(std::source_location loc = std::source_location::current()) {
+		if(indicates_error(e_)) {
+			FriggLogger{}() << frg::fmt("{} line {}: {}: unwrap() on error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
+			FRG_INTF(panic)("failed to unwrap() a frg::expected");
+		}
 	}
 
 	template<typename F>
