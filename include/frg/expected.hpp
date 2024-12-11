@@ -2,9 +2,11 @@
 
 #include <new>
 #include <utility>
+#include <source_location>
 #include <type_traits>
 
 #include <frg/macros.hpp>
+#include <frg/utility.hpp>
 
 #define FRG_TRY(expr) ({ \
     auto ex = (expr); \
@@ -138,9 +140,35 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		return *std::launder(reinterpret_cast<const T *>(stor_));
 	}
 
-	T unwrap() {
-		// TODO: Take std::source_location here; print an error message.
-		FRG_ASSERT(!indicates_error(e_));
+	T unwrap(std::source_location loc = std::source_location::current()) {
+		if(indicates_error(e_)) {
+			FRG_INTF(log)(loc.file_name());
+			FRG_INTF(log)("Line: ");
+
+			auto line = loc.line();
+
+			char buffer[21] = {};
+			buffer[20] = '\0';
+
+			size_t digits = 0;
+			while(line) {
+				digits++;
+				line /= 10;
+			}
+
+			line = loc.line();
+
+			for(size_t digit = 0; digit < 20 && line; digit++) {
+				buffer[19 - digit] = (line % 10) + '0';
+				line /= 10;
+			}
+			FRG_INTF(log)(&buffer[frg::max(19 - digits + 1, size_t(0))]);
+
+			FRG_INTF(log)("Function:");
+			FRG_INTF(log)(loc.function_name());
+			FRG_INTF(panic)("unwrap on error type!");
+		}
+
 		return std::move(*std::launder(reinterpret_cast<T *>(stor_)));
 	}
 
@@ -212,9 +240,34 @@ struct [[nodiscard]] expected<E, void> {
 		return e_;
 	}
 
-	void unwrap() {
-		// TODO: Take std::source_location here; print an error message.
-		FRG_ASSERT(!indicates_error(e_));
+	void unwrap(std::source_location loc = std::source_location::current()) {
+		if(indicates_error(e_)) {
+			FRG_INTF(log)(loc.file_name());
+			FRG_INTF(log)("Line: ");
+
+			auto line = loc.line();
+
+			char buffer[21] = {};
+			buffer[20] = '\0';
+
+			size_t digits = 0;
+			while(line) {
+				digits++;
+				line /= 10;
+			}
+
+			line = loc.line();
+
+			for(size_t digit = 0; digit < 20 && line; digit++) {
+				buffer[19 - digit] = (line % 10) + '0';
+				line /= 10;
+			}
+			FRG_INTF(log)(&buffer[frg::max(19 - digits + 1, size_t(0))]);
+
+			FRG_INTF(log)("Function:");
+			FRG_INTF(log)(loc.function_name());
+			FRG_INTF(panic)("unwrap on error type!");
+		}
 	}
 
 	template<typename F>
