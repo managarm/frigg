@@ -97,6 +97,7 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 				std::launder(reinterpret_cast<T *>(stor_))->~T();
 			e_ = other.e_;
 		}
+		return *this;
 	}
 
 	expected &operator= (expected &&other) {
