@@ -221,6 +221,65 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			szmod = printf_size_mod::intmax_size;
 			++s;
 			FRG_ASSERT(*s);
+		} else if(*s == 'w') {
+			int bits = 0;
+			bool fastType = false;
+			++s;
+			if(*s == 'f') {
+				++s;
+				fastType = true;
+			}
+			while(*s >= '0' && *s <= '9') {
+				bits = bits * 10 + (*s - '0');
+				++s;
+				FRG_ASSERT(*s);
+			}
+			switch(bits) {
+				case 8:
+					if(!fastType)
+						szmod = printf_size_mod::char_size;
+					else if constexpr (std::is_same<uint8_t, uint_fast8_t>())
+						szmod = printf_size_mod::char_size;
+					else if constexpr (std::is_same<uint16_t, uint_fast8_t>())
+						szmod = printf_size_mod::short_size;
+					else if constexpr (std::is_same<uint32_t, uint_fast8_t>())
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast8_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+				case 16:
+					if(!fastType)
+						szmod = printf_size_mod::short_size;
+					else if constexpr (std::is_same<uint16_t, uint_fast16_t>())
+						szmod = printf_size_mod::short_size;
+					else if constexpr (std::is_same<uint32_t, uint_fast16_t>())
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast16_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+				case 32:
+					if(!fastType)
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint32_t, uint_fast32_t>())
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast32_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+				case 64:
+					if(!fastType)
+						szmod = printf_size_mod::longlong_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast64_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+			}
 		}
 
 		auto res = agent(*s, opts, szmod);

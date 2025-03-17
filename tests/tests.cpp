@@ -430,6 +430,15 @@ TEST(formatting, printf) {
 	do_test("hello", "%.10s", "hello\0!!!!");
 
 	do_test("55 33", "%2$d %1$d", 33, 55);
+
+	do_test("ef", "%w8x", 0x1234567890abcdef);
+	do_test("cdef", "%w16x", 0x1234567890abcdef);
+	do_test("90abcdef", "%w32x", 0x1234567890abcdef);
+	do_test("1234567890abcdef", "%w64x", 0x1234567890abcdef);
+
+	do_test("ef cdef 90abcdef 1234567890abcdef", "%wf8x %wf16x %wf32x %wf64x",
+		(uint_fast8_t) 0xef, (uint_fast16_t) 0xcdef, (uint_fast32_t) 0x90abcdef,
+		(uint_fast64_t) 0x1234567890abcdef);
 }
 
 #include <frg/bitset.hpp>
