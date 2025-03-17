@@ -63,13 +63,16 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 		return pop_va_arg();
 
 	if(opts->dollar_arg_pos) {
-		// we copy out all previous and the requested argument into our vsp->arg_list
-		for(int i = vsp->num_args; i <= opts->arg_pos; i++) {
-			auto arg = pop_va_arg();
-			*get_union_member(i) = arg;
+		if(opts->arg_pos >= vsp->num_args) {
+			// we copy out all previous and the requested argument into our vsp->arg_list
+			for(int i = vsp->num_args; i <= opts->arg_pos; i++) {
+				auto arg = pop_va_arg();
+				*get_union_member(i) = arg;
+			}
+
+			vsp->num_args = opts->arg_pos + 1;
 		}
 
-		vsp->num_args = opts->arg_pos + 1;
 		return *get_union_member(opts->arg_pos);
 	}
 
