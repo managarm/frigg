@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include <frg/macros.hpp>
+#include <frg/array.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -13,6 +14,14 @@ struct span {
 
 	span(T *p, size_t n)
 	: p_{p}, n_{n} { }
+
+	template<typename U, size_t N>
+	span(const array<U, N> &arr)
+	: p_{arr.data()}, n_{N} { }
+
+	template<typename U, size_t N>
+	span(array<U, N> &arr)
+	: p_{arr.data()}, n_{N} { }
 
 	T *data() const {
 		return p_;
