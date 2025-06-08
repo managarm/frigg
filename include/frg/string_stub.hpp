@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 #if __has_include(<string.h>)
 #  include <string.h>
 #else
