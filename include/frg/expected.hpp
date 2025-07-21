@@ -120,6 +120,14 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		return !indicates_error(e_);
 	}
 
+	friend bool operator==(const frg::expected<E, T> &a, const T &b) {
+		return bool(a) && a.value() == b;
+	}
+
+	friend bool operator==(const frg::expected<E, T> &a, const E &b) {
+		return !bool(a) && a.error() == b;
+	}
+
 	E maybe_error() const {
 		return e_;
 	}
