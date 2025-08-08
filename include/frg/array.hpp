@@ -9,6 +9,21 @@
 namespace frg {
 
 template<class T, size_t N>
+struct array_traits {
+	using type = T[N];
+};
+
+template<class T>
+struct array_traits<T, 0> {
+	struct type {
+		constexpr T &operator[](size_t) { __builtin_trap(); }
+		constexpr const T &operator[](size_t) const { __builtin_trap(); }
+		constexpr operator T *() { return nullptr; }
+		constexpr operator const T *() const { return nullptr; }
+	};
+};
+
+template<class T, size_t N>
 struct array {
 	using value_type = T;
 	using size_type = size_t;
@@ -19,7 +34,7 @@ struct array {
 	using iterator = pointer;
 	using const_iterator = const_pointer;
 	// the actual array
-	value_type _stor[N];
+	typename array_traits<value_type, N>::type _stor;
 
 	friend void swap(array &a, array &b) {
 		for (size_t i = 0; i < N; i++)
