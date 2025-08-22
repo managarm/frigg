@@ -5,7 +5,7 @@ test_executable = executable('frigg_tests',
 	dependencies: [
 		gtest, frigg_dep
 	],
-	override_options: ['cpp_std=c++20'],
+	override_options: ['cpp_std=c++23'],
 	native: true,
 	install: false
 )

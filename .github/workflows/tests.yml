@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   run-test-suite:
     name: Run test suite
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Install prerequisites
         run: |
