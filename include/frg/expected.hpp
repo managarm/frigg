@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <new>
 #include <utility>
 #include <type_traits>
@@ -9,15 +10,15 @@
 #define FRG_TRY(expr) ({ \
     auto ex = (expr); \
     if(!ex) \
-        return ex.error(); \
-    value_or_void(ex); \
+        return ::frg::propagate_error(ex); \
+    ::frg::value_or_void(ex); \
 })
 
 #define FRG_CO_TRY(expr) ({ \
     auto ex = (expr); \
     if(!ex) \
-        co_return ex.error(); \
-    value_or_void(ex); \
+        co_return ::frg::propagate_error(ex); \
+    ::frg::value_or_void(ex); \
 })
 
 namespace frg {
@@ -237,9 +238,25 @@ private:
     E e_;
 };
 
-// Helper function for the FRG_TRY macros.
+// Helper functions for the FRG_TRY macros.
+template<typename E, typename T>
+E propagate_error(expected<E, T> &ex) {
+	return ex.error();
+}
+
+template<typename E, typename T>
+std::unexpected<E> propagate_error(std::expected<T, E> &ex) {
+	return std::unexpected{ex.error()};
+}
+
 template<typename E, typename T>
 T value_or_void(expected<E, T> &ex) {
+	if constexpr (!std::is_same_v<T, void>)
+		return std::move(ex.value());
+}
+
+template<typename E, typename T>
+T value_or_void(std::expected<T, E> &ex) {
 	if constexpr (!std::is_same_v<T, void>)
 		return std::move(ex.value());
 }
