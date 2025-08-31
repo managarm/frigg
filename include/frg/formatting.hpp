@@ -356,12 +356,12 @@ void format_object(long long object, format_options fo, S &sink) {
 
 template<Sink S>
 void format_object(float object, format_options fo, S &sink) {
-	_fmt_basics::format_integer(object, fo, sink);
+	_fmt_basics::format_float(object, fo, sink);
 }
 
 template<Sink S>
 void format_object(double object, format_options fo, S &sink) {
-	_fmt_basics::format_integer(object, fo, sink);
+	_fmt_basics::format_float(object, fo, sink);
 }
 
 
