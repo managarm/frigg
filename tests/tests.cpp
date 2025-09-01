@@ -256,6 +256,10 @@ TEST(formatting, fmt) {
 	EXPECT_EQ(str, "1.500000");
 	str.clear();
 
+	frg::output_to(str) << frg::fmt("{}", 1.44f);
+	EXPECT_EQ(str, "1.440000");
+	str.clear();
+
 #ifdef FRG_HAS_RANGES
 	std::string abc_def { "abc def" };
 	std::vector<char> abc_def_v { abc_def.cbegin(), abc_def.cend() };
