@@ -1,6 +1,9 @@
 #pragma once
 
+#if !defined(__clang__) || (defined(__clang_major__) && __clang_major__ >= 19)
+#define FRG_HAS_STD_EXPECTED
 #include <expected>
+#endif
 #include <new>
 #include <utility>
 #include <type_traits>
@@ -244,10 +247,12 @@ E propagate_error(expected<E, T> &ex) {
 	return ex.error();
 }
 
+#ifdef FRG_HAS_STD_EXPECTED
 template<typename E, typename T>
 std::unexpected<E> propagate_error(std::expected<T, E> &ex) {
 	return std::unexpected{ex.error()};
 }
+#endif // FRG_HAS_STD_EXPECTED
 
 template<typename E, typename T>
 T value_or_void(expected<E, T> &ex) {
@@ -255,10 +260,12 @@ T value_or_void(expected<E, T> &ex) {
 		return std::move(ex.value());
 }
 
+#ifdef FRG_HAS_STD_EXPECTED
 template<typename E, typename T>
 T value_or_void(std::expected<T, E> &ex) {
 	if constexpr (!std::is_same_v<T, void>)
 		return std::move(ex.value());
 }
+#endif
 
 } // namespace frg

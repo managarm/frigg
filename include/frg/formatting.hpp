@@ -12,7 +12,7 @@
 #include <frg/string_stub.hpp>
 
 /* the ranges library is not even partially freestanding for some reason */
-#if __STDC_HOSTED__ && !defined(__clang__)
+#if __STDC_HOSTED__ && (!defined(__clang__) || (defined(__clang_major__) && __clang_major__ > 17))
 #  if __has_include(<ranges>) && __has_include(<algorithm>)
 #    include <ranges>
 #    include <algorithm>
