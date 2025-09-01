@@ -1,0 +1,6 @@
+[binaries]
+c = 'clang-19'
+cpp = 'clang++-19'
+
+[built-in options]
+cpp_args = [ '-fsized-deallocation' ]
