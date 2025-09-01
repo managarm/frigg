@@ -256,6 +256,7 @@ TEST(formatting, fmt) {
 	EXPECT_EQ(str, "1.500000");
 	str.clear();
 
+#ifdef FRG_HAS_RANGES
 	std::string abc_def { "abc def" };
 	std::vector<char> abc_def_v { abc_def.cbegin(), abc_def.cend() };
 
@@ -266,6 +267,7 @@ TEST(formatting, fmt) {
 	frg::output_to(str) << frg::fmt("testing2! {}", abc_def_v);
 	EXPECT_EQ(str, "testing2! abc def");
 	str.clear();
+#endif // FRG_HAS_RANGES
 }
 
 #include <frg/printf.hpp>
@@ -570,6 +572,7 @@ TEST(cmdline, basic_cmdline) {
 	ASSERT_EQ(v4, "/a/b c/d");
 }
 
+#ifdef FRG_HAS_RANGES
 TEST(cmdline, multiple_option_spans) {
 	bool nosmp = false;
 	frg::string_view init_exec{};
@@ -589,3 +592,4 @@ TEST(cmdline, multiple_option_spans) {
 	ASSERT_TRUE(nosmp);
 	ASSERT_EQ(init_exec, "/sbin/posix-subsystem");
 }
+#endif // FRG_HAS_RANGES
