@@ -7,8 +7,15 @@
 #define FRG_INTF(x) frg_ ## x
 
 extern "C" {
-	[[gnu::weak]] void FRG_INTF(log)(const char *cstring);
-	[[gnu::weak]] void FRG_INTF(panic)(const char *cstring);
+#ifdef __ELF__
+	[[gnu::weak]]
+#endif
+	void FRG_INTF(log)(const char *cstring);
+
+#ifdef __ELF__
+	[[gnu::weak]]
+#endif
+	void FRG_INTF(panic)(const char *cstring);
 }
 
 // TODO: Switch visibility depending on compilation flags.
