@@ -256,8 +256,8 @@ TEST(formatting, fmt) {
 	EXPECT_EQ(str, "1.500000");
 	str.clear();
 
-	frg::output_to(str) << frg::fmt("{}", 1.44f);
-	EXPECT_EQ(str, "1.440000");
+	frg::output_to(str) << frg::fmt("{}", 1.43f);
+	EXPECT_EQ(str, "1.429999");
 	str.clear();
 
 #ifdef FRG_HAS_RANGES
