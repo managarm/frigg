@@ -21,6 +21,13 @@ template<typename T>
 struct bitop_impl;
 
 template<>
+struct bitop_impl<unsigned long long> {
+	static constexpr int clz(unsigned long long x) {
+		return __builtin_clzll(x);
+	}
+};
+
+template<>
 struct bitop_impl<unsigned long> {
 	static constexpr int clz(unsigned long x) {
 		return __builtin_clzl(x);
