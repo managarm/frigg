@@ -33,6 +33,14 @@ T &get(composition<Tag, T> *p) {
 	return composition<Tag, T>::get(p);
 }
 
+template <typename... Ts>
+struct overloaded : Ts... {
+	using Ts::operator()...;
+
+	overloaded(Ts &&...ts)
+	: Ts{std::forward<Ts>(ts)}... { };
+};
+
 } // namespace frg
 
 #endif // FRG_UTILITY_HPP
