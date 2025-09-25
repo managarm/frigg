@@ -20,6 +20,10 @@
 #  endif
 #endif
 
+#if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
+#include <math.h>
+#endif
+
 namespace frg FRG_VISIBILITY {
 
 // Concept: Sink.
@@ -225,14 +229,16 @@ namespace _fmt_basics {
 				fo.always_sign, fo.plus_becomes_space, fo.use_capitals);
 	}
 
+#if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 	template<Sink S, typename T>
 	void print_float(S &sink, T number, int width = 0, int precision = 6,
-			char padding = ' ', bool left_justify = false, bool use_capitals = false,
-			bool group_thousands = false, locale_options locale_opts = {}) {
+			char padding = ' ', bool left_justify = false, bool alt_conversion = false,
+			bool use_capitals = false, bool group_thousands = false, bool use_compact = false,
+			bool exponential_form = false, locale_options locale_opts = {}) {
 		(void)group_thousands;
 
 		bool has_sign = false;
-		if (number < 0) {
+		if (__builtin_signbit(number)) {
 			sink.append('-');
 			has_sign = true;
 		}
@@ -264,24 +270,114 @@ namespace _fmt_basics {
 		}
 
 		// At this point, we've already printed the sign, so pretend it's positive.
-		if (number < 0)
+		if (__builtin_signbit(number))
 			number = -number;
 
-		// TODO: The cast below is UB if number is out of range.
-		FRG_ASSERT(number < 0x1p40);
-		uint64_t n = static_cast<uint64_t>(number);
+		// declare the variables here, but defer initialization to when (if) we need it.
+		bool exp_mantissa_init = false;
+		int exponent;
+		double mantissa;
+
+		// defer floating-point calculations for as long as possible
+		auto deferredMantissaExpInit = [&] () {
+			if (number == 0.0) {
+				mantissa = 0.0;
+				exponent = 0;
+				exp_mantissa_init = true;
+				return;
+			}
+
+			exponent = (int) floor(log10(number));
+			mantissa = number / pow(10, exponent);
+
+			if (__builtin_isinf(mantissa)) {
+				mantissa = 0.0;
+				exponent = 0;
+				exp_mantissa_init = true;
+				return;
+			}
+
+			while (mantissa >= 10.0) {
+				mantissa /= 10.0;
+				exponent++;
+
+				if (mantissa < 1.0) {
+					mantissa = 1.0;
+					break;
+				}
+			}
+
+			exp_mantissa_init = true;
+		};
+
+		if (use_compact) {
+			deferredMantissaExpInit();
+
+			if (precision > exponent && exponent >= -4) {
+				exponential_form = false;
+				precision = precision - 1 - exponent;
+			} else {
+				exponential_form = true;
+				precision = precision - 1;
+			}
+		}
+
+		if (exponential_form) {
+			if (!exp_mantissa_init)
+				deferredMantissaExpInit();
+
+			number = mantissa;
+		}
+
+		// do rounding
+		double intpart, fracpart;
+		fracpart = modf(number, &intpart);
+		uint64_t integralDigits = static_cast<uint64_t>(intpart);
+		// TODO: improve perf with a lookup table? precision would need clamping then
+		double shift = pow(10, precision);
+		// safe because we ensure above that `number` (and therefore `fracpart`) are non-negative
+		uint64_t fracDigits = static_cast<uint64_t>(rint(fracpart * shift));
+
+		if (fracDigits == shift) {
+			integralDigits++;
+			fracDigits = 0;
+		}
+
+		if (use_compact && !alt_conversion) {
+			if (fracDigits == 0) {
+				precision = 0;
+			} else {
+				int trailingZeroes = 0;
+
+				while (fracDigits % 10 == 0) {
+					fracDigits /= 10;
+					trailingZeroes++;
+				}
+
+				precision = precision - trailingZeroes;
+			}
+		}
+
+		auto textLength = [](int i, unsigned base = 10) {
+			int length = i < 0 ? 1 : 0;
+			do {
+				i /= base;
+				length++;
+			} while (i != 0);
+			return length;
+		};
 
 		// Compute the number of decimal digits in the integer part of n
 		// TODO: Don't assume base 10
-		auto int_length = 0;
-		auto x = n;
-		do {
-			x /= 10;
-			int_length++;
-		} while (x != 0);
+		auto int_length = textLength(integralDigits);
 
 		// Plus one for the decimal point
 		auto total_length = has_sign + int_length + (precision > 0 ? 1 + precision : 0);
+
+		// Handle the exponent in the style of `e+09`
+		if (exponential_form)
+			total_length += 2 + frg::max(2, textLength(exponent));
+
 		auto pad_length = width > total_length ? width - total_length : 0;
 
 		if (!left_justify) {
@@ -291,24 +387,11 @@ namespace _fmt_basics {
 			}
 		}
 
-		print_int(sink, n, 10);
-		number -= n;
+		print_int(sink, integralDigits, 10);
 
-		if (precision > 0)
+		if (precision > 0) {
 			sink.append(locale_opts.decimal_point);
-
-		// TODO: This doesn't account for rounding properly.
-		// e.g 1.2 formatted with %.2f gives 1.19, but it should be 1.20
-		number *= 10;
-		n = static_cast<uint64_t>(number);
-		number -= n;
-		int i = 0;
-		while (i < precision) {
-			sink.append('0' + n);
-			number *= 10;
-			n = static_cast<uint64_t>(number);
-			number -= n;
-			i++;
+			print_int(sink, fracDigits, 10, precision, precision, '0');
 		}
 
 		if (left_justify) {
@@ -316,6 +399,12 @@ namespace _fmt_basics {
 				sink.append(padding);
 				pad_length--;
 			}
+		}
+
+		if (exponential_form) {
+			sink.append(use_capitals ? 'E' : 'e');
+
+			print_int(sink, exponent, 10, 2, 2, '0', false, false, true);
 		}
 	}
 
@@ -325,6 +414,7 @@ namespace _fmt_basics {
 		print_float(sink, object, fo.minimum_width, precision_or_default,
 				fo.fill_zeros ? '0' : ' ');
 	}
+#endif /* __STDC_HOSTED__ */
 };
 
 template<Sink S>
@@ -357,6 +447,7 @@ void format_object(long long object, format_options fo, S &sink) {
 	_fmt_basics::format_integer(object, fo, sink);
 }
 
+#if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 template<Sink S>
 void format_object(float object, format_options fo, S &sink) {
 	_fmt_basics::format_float(object, fo, sink);
@@ -366,6 +457,7 @@ template<Sink S>
 void format_object(double object, format_options fo, S &sink) {
 	_fmt_basics::format_float(object, fo, sink);
 }
+#endif
 
 
 template<Sink F>

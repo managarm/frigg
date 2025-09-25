@@ -570,40 +570,51 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	}
 }
 
+#if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 template<Sink S>
 void do_printf_floats(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
 	int precision_or_default = opts.precision.has_value() ? *opts.precision : 6;
 	bool use_capitals = true;
+	bool use_compact = false;
+	bool exponent_form = false;
+
 	switch(t) {
+	case 'e':
 	case 'f':
+	case 'g':
 		use_capitals = false;
 		[[fallthrough]];
+	case 'E':
 	case 'F':
+	case 'G':
+		if (t == 'g' || t == 'G') {
+			if (precision_or_default == 0)
+				precision_or_default = 1;
+			use_compact = true;
+		} else if (t == 'e' || t == 'E') {
+			exponent_form = true;
+		}
+
 #ifndef FRG_DONT_USE_LONG_DOUBLE
 		if (szmod == printf_size_mod::longdouble_size) {
 			_fmt_basics::print_float(sink, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, precision_or_default,
-					opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
-					opts.group_thousands, locale_opts);
+					opts.fill_zeros ? '0' : ' ', opts.left_justify, opts.alt_conversion,
+					use_capitals, opts.group_thousands, use_compact, exponent_form, locale_opts);
 			break;
 		}
 #endif
 		FRG_ASSERT(szmod == printf_size_mod::default_size || szmod == printf_size_mod::long_size);
 		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, precision_or_default,
-				opts.fill_zeros ? '0' : ' ', opts.left_justify, use_capitals,
-				opts.group_thousands, locale_opts);
-		break;
-	case 'g':
-	case 'G':
-	case 'e':
-	case 'E':
-		sink.append("%f");
+				opts.fill_zeros ? '0' : ' ', opts.left_justify, opts.alt_conversion, use_capitals,
+				opts.group_thousands, use_compact, exponent_form, locale_opts);
 		break;
 	default:
 		FRG_ASSERT(!"Unexpected printf terminal");
 	}
 }
+#endif
 
 } // namespace frg
