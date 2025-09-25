@@ -148,10 +148,20 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			}
 		}
 
+		if(opts.always_sign)
+			opts.plus_becomes_space = false;
+		if(opts.left_justify)
+			opts.fill_zeros = false;
+
 		if(*s == '*') {
 			++s;
 			FRG_ASSERT(*s);
 			opts.minimum_width = pop_arg<int>(vsp, &opts);
+
+			if(opts.minimum_width < 0) {
+				opts.minimum_width *= -1;
+				opts.left_justify = true;
+			}
 		}else{
 			int w = 0;
 			while(*s >= '0' && *s <= '9') {
@@ -165,6 +175,8 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 		if(*s == '.') {
 			++s;
 			FRG_ASSERT(*s);
+
+			opts.fill_zeros = false;
 
 			if(*s == '*') {
 				++s;
@@ -378,6 +390,17 @@ void do_printf_chars(S &sink, char t, format_options opts,
 template<Sink S>
 void do_printf_ints(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
+	auto pad_to_min = [&] {
+		bool put_sign = opts.always_sign;
+
+		if(opts.minimum_width)
+			for (int i = 0; i < opts.minimum_width - put_sign; i++)
+				sink.append(' ');
+
+		if(put_sign)
+			sink.append('+');
+	};
+
 	switch(t) {
 	case 'd':
 	case 'i': {
@@ -400,7 +423,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			number = pop_arg<int>(vsp, &opts);
 		}
 		if(opts.precision && *opts.precision == 0 && !number) {
-			// print nothing in this case
+			pad_to_min();
 		}else{
 			_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
 					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -411,11 +434,13 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	case 'b':
 	case 'B' : {
 		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
+			if (number && opts.alt_conversion) {
+				opts.minimum_width -= 2;
 				sink.append(t == 'b' ? "0b" : "0B");
+			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 2, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -443,11 +468,13 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	} break;
 	case 'o': {
 		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
+			if (number && opts.alt_conversion) {
+				opts.minimum_width -= 1;
 				sink.append('0');
+			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 8, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -476,11 +503,13 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	case 'x':
 	case 'X': {
 		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
+			if (number && opts.alt_conversion) {
+				opts.minimum_width -= 2;
 				sink.append(t == 'x' ? "0x" : "0X");
+			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -510,7 +539,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 		auto print = [&] (auto number) {
 			FRG_ASSERT(!opts.alt_conversion);
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
