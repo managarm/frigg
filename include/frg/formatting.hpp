@@ -151,6 +151,9 @@ namespace _fmt_basics {
 		if (!c)
 			c = locale_opts.grouping[g];
 
+		if(negative || always_sign || plus_becomes_space)
+			extra++;
+
 		int final_width = max(k, precision) + extra;
 
 		if(!left_justify && final_width < width)
