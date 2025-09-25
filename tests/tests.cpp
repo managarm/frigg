@@ -1,3 +1,5 @@
+#include <fenv.h>
+
 #include <frg/string.hpp>
 #include <frg/std_compat.hpp>
 #include <frg/random.hpp>
@@ -303,7 +305,7 @@ TEST(formatting, printf) {
 				case 'd': case 'i': case 'o': case 'x': case 'X': case 'b': case 'B': case 'u':
 					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_);
 					break;
-				case 'f':
+				case 'f': case 'F': case 'g': case 'G': case 'e': case 'E':
 					frg::do_printf_floats(*sink_, t, opts, szmod, vsp_);
 					break;
 				default:
@@ -381,7 +383,86 @@ TEST(formatting, printf) {
 
 	// Test 'f'.
 	do_test("1.100000", "%f", 1.1);
-	do_test("0.01", "%.2f", 0.01234);
+	do_test("3.140000", "%f", 3.14);
+	do_test("0.0", "%.1f", 0.0);
+
+	// Test %g
+	do_test("0", "%g", 0.0);
+	do_test("0.012", "%.2g", 0.01234);
+	do_test("1.1", "%.3g", 1.1);
+	do_test("1.1000", "%#.5g", 1.1);
+	do_test("1.23e-05", "%g", 0.0000123);
+
+	// Test %e
+	do_test("0.000e+00", "%4.3e", 0.0);
+	do_test("6.900e+27", "%.3e", 6.9e27);
+
+	// Test %f rounding
+	do_test(" 1.20", "%5.2f", 1.2);
+	do_test(" 1.23", "%5.2f", 1.23);
+	do_test(" 1.23", "%5.2f", 1.234);
+	do_test("12.35", "%5.2f", 12.345);
+	do_test("1.20 ", "%-5.2f", 1.2);
+
+	// More extensive floating point tests.
+	// Test zero and negative zero
+	do_test("0.000000", "%f", 0.0);
+	do_test("-0.000000", "%f", -0.0);
+	do_test("0.000000e+00", "%e", 0.0);
+	do_test("-0.000000e+00", "%e", -0.0);
+	do_test("0", "%g", 0.0);
+	do_test("-0", "%g", -0.0);
+
+	// Test rounding
+	do_test("1.24", "%.2f", 1.235);
+	do_test("-1.24", "%.2f", -1.235);
+	// 1.2349999999999998 is a double literal that is slightly less than 1.235
+	do_test("1.23", "%.2f", 1.2349999999999998);
+	do_test("0", "%.0f", 0.49);
+	do_test("-0", "%.0f", -0.49);
+
+	// Test round-to-even behavior
+	fesetround(FE_TONEAREST);
+
+	do_test("0", "%.0f", 0.5);
+	do_test("-0", "%.0f", -0.5);
+	do_test("1", "%.0f", 0.51);
+	do_test("-1", "%.0f", -0.51);
+	do_test("2", "%.0f", 2.5);
+	do_test("-2", "%.0f", -2.5);
+	do_test("3", "%.0f", 2.51);
+	do_test("-3", "%.0f", -2.51);
+
+	// Test %e/%E
+	do_test("1.234e+04", "%.3e", 12345.0);
+	do_test("1.234E+04", "%.3E", 12345.0);
+	do_test("1.234e-04", "%.3e", 0.00012345);
+	do_test("-1.234E-04", "%.3E", -0.00012345);
+
+	// Test %g/%G behavior
+	do_test("123456", "%g", 123456.0); // Should not use e-notation
+	do_test("1.23457e+06", "%g", 1234567.0); // Should use e-notation
+	do_test("12345", "%g", 12345.0);
+	do_test("1.2345", "%g", 1.2345);
+	do_test("0.00012345", "%g", 0.00012345); // Should not use e-notation
+	do_test("1.2345e-05", "%g", 0.000012345); // Should use e-notation
+
+	// %g precision
+	do_test("1.23e+04", "%.3g", 12345.0);
+	do_test("1.23E+04", "%.3G", 12345.0);
+	do_test("1.23", "%.3g", 1.234);
+	do_test("0.00123", "%.3g", 0.001234);
+	do_test("0.000123", "%.3g", 0.0001234); // Should not use e-notation
+	do_test("1.23e-05", "%.3g", 0.00001234); // Should use e-notation
+	do_test("0007e+01","%08.1g", 69.2);
+	do_test("000069.2","%08.3g", 69.2);
+	do_test("00069.30","%#08.4g", 69.29854);
+
+	// %g trailing zeros
+	do_test("1.2", "%g", 1.200);
+	do_test("1.20000", "%#g", 1.200);
+	do_test("1200", "%g", 1200.0);
+	do_test("1200.00", "%#g", 1200.0);
 
 	// Test 'd' with different size mods to see
 	// if they work
