@@ -148,10 +148,20 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			}
 		}
 
+		if(opts.always_sign)
+			opts.plus_becomes_space = false;
+		if(opts.left_justify)
+			opts.fill_zeros = false;
+
 		if(*s == '*') {
 			++s;
 			FRG_ASSERT(*s);
 			opts.minimum_width = pop_arg<int>(vsp, &opts);
+
+			if(opts.minimum_width < 0) {
+				opts.minimum_width *= -1;
+				opts.left_justify = true;
+			}
 		}else{
 			int w = 0;
 			while(*s >= '0' && *s <= '9') {
@@ -165,6 +175,8 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 		if(*s == '.') {
 			++s;
 			FRG_ASSERT(*s);
+
+			opts.fill_zeros = false;
 
 			if(*s == '*') {
 				++s;
