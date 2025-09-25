@@ -390,6 +390,17 @@ void do_printf_chars(S &sink, char t, format_options opts,
 template<Sink S>
 void do_printf_ints(S &sink, char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
+	auto pad_to_min = [&] {
+		bool put_sign = opts.always_sign;
+
+		if(opts.minimum_width)
+			for (int i = 0; i < opts.minimum_width - put_sign; i++)
+				sink.append(' ');
+
+		if(put_sign)
+			sink.append('+');
+	};
+
 	switch(t) {
 	case 'd':
 	case 'i': {
@@ -412,7 +423,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			number = pop_arg<int>(vsp, &opts);
 		}
 		if(opts.precision && *opts.precision == 0 && !number) {
-			// print nothing in this case
+			pad_to_min();
 		}else{
 			_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
 					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -429,7 +440,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 2, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -463,7 +474,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 8, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -498,7 +509,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
@@ -528,7 +539,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 		auto print = [&] (auto number) {
 			FRG_ASSERT(!opts.alt_conversion);
 			if(opts.precision && *opts.precision == 0 && !number) {
-				// print nothing in this case
+				pad_to_min();
 			}else{
 				_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
