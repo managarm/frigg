@@ -423,8 +423,10 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	case 'b':
 	case 'B' : {
 		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
+			if (number && opts.alt_conversion) {
+				opts.minimum_width -= 2;
 				sink.append(t == 'b' ? "0b" : "0B");
+			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
@@ -455,8 +457,10 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	} break;
 	case 'o': {
 		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
+			if (number && opts.alt_conversion) {
+				opts.minimum_width -= 1;
 				sink.append('0');
+			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
@@ -488,8 +492,10 @@ void do_printf_ints(S &sink, char t, format_options opts,
 	case 'x':
 	case 'X': {
 		auto print = [&] (auto number) {
-			if (number && opts.alt_conversion)
+			if (number && opts.alt_conversion) {
+				opts.minimum_width -= 2;
 				sink.append(t == 'x' ? "0x" : "0X");
+			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				// print nothing in this case
