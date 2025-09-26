@@ -150,6 +150,7 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 
 		if(opts.always_sign)
 			opts.plus_becomes_space = false;
+		// If the '0' and '-' flags both appear, the '0' flag is ignored
 		if(opts.left_justify)
 			opts.fill_zeros = false;
 

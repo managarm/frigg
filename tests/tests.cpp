@@ -468,6 +468,8 @@ TEST(formatting, printf) {
 	// test negative precision and width
 	do_test("15.1235","%.*g", -2, 15.1234567);
 	do_test("15.1 ","%*g", -5, 15.1);
+	// test supplying both '0' and '-', where the '0' flag should be ignored
+	do_test("69.2  ","%0-6g", 69.2);
 
 	// Test 'd' with different size mods to see
 	// if they work
