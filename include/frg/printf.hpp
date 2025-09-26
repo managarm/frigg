@@ -176,12 +176,13 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			++s;
 			FRG_ASSERT(*s);
 
-			opts.fill_zeros = false;
-
 			if(*s == '*') {
 				++s;
 				FRG_ASSERT(*s);
 				opts.precision = pop_arg<int>(vsp, &opts);
+				// negative precision values are treated as if no precision was specified
+				if (opts.precision < 0)
+					opts.precision = frg::null_opt;
 			}else{
 				int value = 0;
 				// If no integer follows the '.', then precision is taken to be zero
@@ -400,6 +401,9 @@ void do_printf_ints(S &sink, char t, format_options opts,
 		if(put_sign)
 			sink.append('+');
 	};
+
+	if (opts.precision)
+		opts.fill_zeros = false;
 
 	switch(t) {
 	case 'd':

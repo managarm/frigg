@@ -360,6 +360,7 @@ TEST(formatting, printf) {
 	do_test(" 12", "%3.2d", 12);
 	do_test("123", "%3.2d", 123);
 	do_test(" 12", "%3.2u", 12);
+	do_test(" 012", "%04.3u", 12);
 
 	// Test '+' and ' ' flags.
 	do_test("+12", "%+d", 12);
@@ -463,6 +464,10 @@ TEST(formatting, printf) {
 	do_test("1.20000", "%#g", 1.200);
 	do_test("1200", "%g", 1200.0);
 	do_test("1200.00", "%#g", 1200.0);
+
+	// test negative precision and width
+	do_test("15.1235","%.*g", -2, 15.1234567);
+	do_test("15.1 ","%*g", -5, 15.1);
 
 	// Test 'd' with different size mods to see
 	// if they work
