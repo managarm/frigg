@@ -71,6 +71,8 @@ struct format_options {
 	bool fill_zeros = false;
 	bool group_thousands = false;
 	bool use_capitals = false;
+	bool use_compact = false;
+	bool use_exponential = false;
 };
 
 struct locale_options {
@@ -412,7 +414,8 @@ namespace _fmt_basics {
 	void format_float(T object, format_options fo, S &sink) {
 		int precision_or_default = fo.precision.has_value() ? *fo.precision : 6;
 		print_float(sink, object, fo.minimum_width, precision_or_default,
-				fo.fill_zeros ? '0' : ' ');
+				fo.fill_zeros ? '0' : ' ', fo.left_justify, fo.alt_conversion,
+				fo.use_capitals, fo.group_thousands, fo.use_compact, fo.use_exponential);
 	}
 #endif /* __STDC_HOSTED__ */
 };
@@ -669,6 +672,9 @@ namespace detail_ {
 								case 'd': fo.conversion = format_conversion::decimal; break;
 								case 'X': fo.use_capitals = true; [[fallthrough]];
 								case 'x': fo.conversion = format_conversion::hex; break;
+								case 'f': break;
+								case 'g': fo.use_compact = true; break;
+								case 'e': fo.use_exponential = true; break;
 								default: return false;
 							}
 
