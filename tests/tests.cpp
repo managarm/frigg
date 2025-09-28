@@ -172,7 +172,7 @@ TEST(array, basic_test) {
     EXPECT_EQ(e, 1);
     arr[0] = 2;
     EXPECT_EQ(e, 2); // Make sure e does change when array changes
-    
+
     static_assert(std::tuple_size_v<decltype(arr)> == N, "tuple_size produces wrong result");
     static_assert(std::is_same_v<std::tuple_element_t<N, decltype(arr)>, int>, "tuple_element produces wrong result");
 }
@@ -260,6 +260,22 @@ TEST(formatting, fmt) {
 
 	frg::output_to(str) << frg::fmt("{}", 1.44f);
 	EXPECT_EQ(str, "1.440000");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:f}", 1.43f);
+	EXPECT_EQ(str, "1.430000");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:g}", 1.43f);
+	EXPECT_EQ(str, "1.43");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:g}", 20.0 / 3.0);
+	EXPECT_EQ(str, "6.66667");
+	str.clear();
+
+	frg::output_to(str) << frg::fmt("{:e}", 20.0 / 3.0);
+	EXPECT_EQ(str, "6.666667e+00");
 	str.clear();
 
 #ifdef FRG_HAS_RANGES
