@@ -120,7 +120,7 @@ public:
 	iterator insert(iterator before, owner_pointer element) {
 		if(!before._current) {
 			return push_back(element);
-		}else if(before._current == _front) {
+		} else if(before._current == _front) {
 			return push_front(element);
 		}
 
@@ -179,7 +179,7 @@ public:
 			FRG_ASSERT(traits::decay(_front) == it._current);
 			erased = std::move(_front);
 			_front = std::move(next);
-		}else{
+		} else {
 			FRG_ASSERT(traits::decay(h(previous).next) == it._current);
 			erased = std::move(h(previous).next);
 			h(previous).next = std::move(next);
@@ -209,7 +209,7 @@ public:
 		FRG_ASSERT(!h(borrow).previous);
 		if(!_back) {
 			_front = std::move(other._front);
-		}else{
+		} else {
 			h(borrow).previous = _back;
 			h(_back).next = std::move(other._front);
 		}
@@ -272,11 +272,57 @@ public:
 		return items_.front()->object;
 	}
 
+	T &back() {
+		return items_.back()->object;
+	}
+
+	auto push_back(T elem) {
+		auto e = frg::construct<item>(allocator_, elem);
+		return items_.push_back(e);
+	}
+
+	auto push_front(T elem) {
+		auto e = frg::construct<item>(allocator_, elem);
+		return items_.push_front(e);
+	}
+
 	void pop_front() {
 		auto e = items_.pop_front();
 		frg::destruct(allocator_, e);
 	}
 
+	void pop_back() {
+		auto e = items_.pop_back();
+		frg::destruct(allocator_, e);
+	}
+
+	void clear() {
+		while(!empty())
+			pop_front();
+	}
+
+	auto erase(auto it) {
+		return items_.erase(it);
+	}
+
+	void insert(auto before, T elem)
+	{
+		auto e = frg::construct<item>(allocator_, elem);
+		items_.insert(before, e);
+	}
+
+	void splice(auto it, list &other) {
+		items_.splice(it, other.items_);
+	}
+
+	auto begin() {
+		return items_.begin(); 
+	}
+
+	auto end() {
+		return items_.end(); 
+	}
+	
 private:
 	Allocator allocator_;
 
