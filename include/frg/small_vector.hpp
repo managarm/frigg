@@ -9,6 +9,167 @@
 
 namespace frg FRG_VISIBILITY {
 
+template<typename T, size_t N>
+class static_vector {
+public:
+	using value_type = T;
+	using reference = value_type&;
+	using iterator = value_type*;
+	using const_iterator = const value_type*;
+
+	static_vector()
+	: _size(0) { }
+
+	static_vector(const static_vector &other)
+	: static_vector() {
+		auto other_size = other.size();
+		auto container = _get_container();
+		for (size_t i = 0; i < other_size; i++)
+			new (&container[i]) T(other[i]);
+		_size = other_size;
+	}
+
+	static_vector(static_vector &&other)
+	: static_vector() {
+		auto other_size = other.size();
+		auto container = _get_container();
+		for (size_t i = 0; i < other_size; i++)
+			new (&container[i]) T(std::move(other[i]));
+		_size = other_size;
+	}
+
+	~static_vector() {
+		auto container = _get_container();
+		for (size_t i = 0; i < _size; i++)
+			container[i].~T();
+	}
+
+	static_vector operator= (static_vector other) {
+		auto other_size = other.size();
+		auto container = _get_container();
+		for (size_t i = 0; i < _size; i++)
+			container[i].~T();
+		for (size_t i = 0; i < other_size; i++)
+			new (&container[i]) T(std::move(other[i]));
+		_size = other_size;
+		return *this;
+	}
+
+	size_t size() const {
+		return _size;
+	}
+
+	bool empty() const {
+		return _size == 0;
+	}
+
+	value_type &push_back(const T &element) {
+		FRG_ASSERT(_size < N);
+		auto container = _get_container();
+		T *pointer = new (&container[_size]) T(element);
+		_size++;
+		return *pointer;
+	}
+	value_type &push_back(T &&element) {
+		FRG_ASSERT(_size < N);
+		auto container = _get_container();
+		T *pointer = new (&container[_size]) T(std::move(element));
+		_size++;
+		return *pointer;
+	}
+
+	template<typename... Args>
+	value_type &emplace_back(Args&&... args) {
+		FRG_ASSERT(_size < N);
+		auto container = _get_container();
+		T *pointer = new (&container[_size]) T(std::forward<Args>(args)...);
+		_size++;
+		return *pointer;
+	}
+
+	void pop_back() {
+		FRG_ASSERT(_size);
+		auto container = _get_container();
+		container[_size - 1].~T();
+		--_size;
+	}
+
+	template<typename... Args>
+	void resize(size_t new_size, Args&&... args) {
+		FRG_ASSERT(new_size <= N);
+		auto container = _get_container();
+		if (new_size < _size) {
+			for (size_t i = new_size; i < _size; i++)
+				container[i].~T();
+		} else {
+			for (size_t i = _size; i < new_size; i++)
+				new (&container[i]) T(std::forward<Args>(args)...);
+		}
+		_size = new_size;
+	}
+
+	T *data() {
+		return _get_container();
+	}
+	const T *data() const {
+		return _get_container();
+	}
+
+	iterator begin() {
+		return _get_container();
+	}
+	const_iterator begin() const {
+		return _get_container();
+	}
+
+	iterator end() {
+		return _get_container() + _size;
+	}
+	const_iterator end() const {
+		return _get_container() + _size;
+	}
+
+	value_type &operator[] (size_t index) {
+		FRG_ASSERT(index < _size);
+		auto container = _get_container();
+		return container[index];
+	}
+	const value_type &operator[] (size_t index) const {
+		FRG_ASSERT(index < _size);
+		auto container = _get_container();
+		return container[index];
+	}
+
+	value_type &front() {
+		FRG_ASSERT(_size);
+		return _get_container()[0];
+	}
+	const value_type &front() const {
+		FRG_ASSERT(_size);
+		return _get_container()[0];
+	}
+
+	value_type &back() {
+		FRG_ASSERT(_size);
+		return _get_container()[_size - 1];
+	}
+	const value_type &back() const {
+		FRG_ASSERT(_size);
+		return _get_container()[_size - 1];
+	}
+
+private:
+	value_type *_get_container() {
+		return reinterpret_cast<value_type*>(&_array[0].buffer);
+	}
+	const value_type *_get_container() const {
+		return reinterpret_cast<const value_type*>(&_array[0].buffer);
+	}
+
+	array<aligned_storage<sizeof(T), alignof(T)>, N> _array;
+	size_t _size;
+};
+
 template<typename T, size_t N, typename Allocator>
 class small_vector {
 public:
