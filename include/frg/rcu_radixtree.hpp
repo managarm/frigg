@@ -223,6 +223,8 @@ public:
 				FRG_ASSERT(mask & (uint16_t(1) << idx));
 
 				cn->mask.store(mask & ~(uint16_t(1) << idx), std::memory_order_release);
+				auto p = std::launder(reinterpret_cast<T *>(cn->entries[idx].buffer));
+				p->~T();
 				return;
 			}else{
 				auto cn = static_cast<link_node *>(n);
