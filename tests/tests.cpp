@@ -377,6 +377,7 @@ TEST(formatting, printf) {
 	do_test("123", "%3.2d", 123);
 	do_test(" 12", "%3.2u", 12);
 	do_test(" 012", "%04.3u", 12);
+	do_test("+000", "%+04d", 0);
 
 	// Test '+' and ' ' flags.
 	do_test("+12", "%+d", 12);

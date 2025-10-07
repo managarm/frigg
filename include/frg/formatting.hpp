@@ -162,7 +162,7 @@ namespace _fmt_basics {
 
 		int final_width = max(k, precision) + extra;
 
-		if(!left_justify && final_width < width)
+		if(!left_justify && final_width < width && padding != '0')
 			for(int i = 0; i < width - final_width; i++)
 				sink.append(padding);
 
@@ -172,6 +172,10 @@ namespace _fmt_basics {
 			sink.append('+');
 		else if(plus_becomes_space)
 			sink.append(' ');
+
+		if(!left_justify && final_width < width && padding == '0')
+			for(int i = 0; i < width - final_width; i++)
+				sink.append(padding);
 
 		if(k < precision) {
 			for(int i = 0; i < precision - k; i++) {
