@@ -6,18 +6,18 @@
 namespace frg FRG_VISIBILITY {
 
 template<typename T>
-const T &min(const T &a, const T &b) {
+constexpr const T &min(const T &a, const T &b) {
 	return (b < a) ? b : a;
 }
 
 template<typename T>
-const T &max(const T &a, const T &b) {
+constexpr const T &max(const T &a, const T &b) {
 	return (a < b) ? b : a;
 }
 
 template<typename T>
 requires (T(-1) < T(0))
-const T abs(const T v) {
+constexpr const T abs(const T v) {
 	return (v < 0) ? -v : v;
 }
 
