@@ -237,6 +237,7 @@ namespace _fmt_basics {
 
 #if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 	template<Sink S, typename T>
+		requires (std::is_floating_point_v<T>)
 	void print_float(S &sink, T number, int width = 0, int precision = 6,
 			char padding = ' ', bool left_justify = false, bool alt_conversion = false,
 			bool use_capitals = false, bool group_thousands = false, bool use_compact = false,
