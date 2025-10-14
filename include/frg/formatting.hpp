@@ -245,7 +245,6 @@ namespace _fmt_basics {
 
 		bool has_sign = false;
 		if (__builtin_signbit(number)) {
-			sink.append('-');
 			has_sign = true;
 		}
 
@@ -259,6 +258,9 @@ namespace _fmt_basics {
 					pad_length--;
 				}
 			}
+
+			if (has_sign)
+				sink.append('-');
 
 			if (inf)
 				sink.append(use_capitals ? "INF" : "inf");
@@ -392,6 +394,9 @@ namespace _fmt_basics {
 				pad_length--;
 			}
 		}
+
+		if (has_sign)
+			sink.append('-');
 
 		print_int(sink, integralDigits, 10);
 

@@ -464,6 +464,7 @@ TEST(formatting, printf) {
 	do_test("1.2345", "%g", 1.2345);
 	do_test("0.00012345", "%g", 0.00012345); // Should not use e-notation
 	do_test("1.2345e-05", "%g", 0.000012345); // Should use e-notation
+	do_test("     -1.2345", "%12g", -1.2345);
 
 	// %g precision
 	do_test("1.23e+04", "%.3g", 12345.0);
