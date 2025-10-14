@@ -321,7 +321,7 @@ TEST(formatting, printf) {
 				case 'd': case 'i': case 'o': case 'x': case 'X': case 'b': case 'B': case 'u':
 					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_);
 					break;
-				case 'f': case 'F': case 'g': case 'G': case 'e': case 'E':
+				case 'f': case 'F': case 'g': case 'G': case 'e': case 'E': case 'a': case 'A':
 					frg::do_printf_floats(*sink_, t, opts, szmod, vsp_);
 					break;
 				default:
@@ -538,6 +538,30 @@ TEST(formatting, printf) {
 	do_test("14", "%ho", 12);
 	do_test("14", "%hho", 12);
 	do_test("14", "%jo", (uintmax_t)12);
+
+	do_test("0x1.91eb851eb851fp+1", "%a", 3.14);
+	do_test("0X1.91EB851EB851FP+1", "%A", 3.14);
+	do_test("0x1.92p+1", "%.2a", 3.14);
+	do_test("0X1.92P+1", "%.2A", 3.14);
+	do_test("0x1.81c8p+13", "%a", 12345.0);
+	do_test("0X1.81C8P+13", "%A", 12345.0);
+	do_test("0x1.81cp+13", "%.3a", 12345.0);
+	do_test("0X1.81CP+13", "%.3A", 12345.0);
+	do_test("0x1.02e4b6ce5dc68p-13", "%a", 0.00012345);
+	do_test("-0X1.02E4B6CE5DC68P-13", "%A", -0.00012345);
+	do_test("0x0p+0", "%a", 0.0);
+	do_test("-0X0P+0", "%A", -0.0);
+	do_test("inf", "%a", INFINITY);
+	do_test("INF", "%A", INFINITY);
+	do_test("-nan", "%a", -NAN);
+	do_test("NAN", "%A", NAN);
+
+	do_test("                0x1.48p+3", "%25a", 10.25);
+	do_test("0x1.48p+3                ", "%-25a", 10.25);
+	do_test("                0X1.48P+3", "%25A", 10.25);
+	do_test("0X1.48P+3                ", "%-25A", 10.25);
+	do_test("               -0x1.48p+3", "%25a", -10.25);
+	do_test("-0x1.48p+3               ", "%-25a", -10.25);
 
 	// Test 's' with precision.
 	do_test("hello world", "%s", "hello world");

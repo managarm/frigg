@@ -22,6 +22,7 @@
 
 #if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 #include <math.h>
+#include <limits>
 #endif
 
 namespace frg FRG_VISIBILITY {
@@ -241,8 +242,17 @@ namespace _fmt_basics {
 	void print_float(S &sink, T number, int width = 0, int precision = 6,
 			char padding = ' ', bool left_justify = false, bool alt_conversion = false,
 			bool use_capitals = false, bool group_thousands = false, bool use_compact = false,
-			bool exponential_form = false, locale_options locale_opts = {}) {
+			bool exponential_form = false, bool print_hexfloat = false, locale_options locale_opts = {}) {
 		(void)group_thousands;
+
+		auto textLength = [](int i, unsigned base = 10, bool ignoreSign = false) {
+			int length = (i < 0 && !ignoreSign) ? 1 : 0;
+			do {
+				i /= base;
+				length++;
+			} while (i != 0);
+			return length;
+		};
 
 		bool has_sign = false;
 		if (__builtin_signbit(number)) {
@@ -281,6 +291,82 @@ namespace _fmt_basics {
 		// At this point, we've already printed the sign, so pretend it's positive.
 		if (__builtin_signbit(number))
 			number = -number;
+
+		if (print_hexfloat) {
+			int exp = 0;
+			double frac = frexp(number, &exp);
+
+			if (frac != 0.0 || exp != 0) {
+				frac = (frac * 2.0) - 1.0;
+				exp--;
+			}
+
+			FRG_ASSERT(frac >= 0.0 && frac < 1.0);
+
+			constexpr auto mantissa_bits = std::numeric_limits<T>::digits - 1;
+			uint64_t shift_by = frg::min(mantissa_bits, precision << 2);
+			auto scaled = frac * (uint64_t{1} << shift_by);
+			uint64_t fracIntegral = static_cast<uint64_t>(scaled);
+
+			if((precision << 2) < mantissa_bits) {
+				auto prev_byte = fracIntegral & 0x1;
+				auto last_digit = static_cast<uint64_t>(scaled * 16) & 0xF;
+
+				if (last_digit > 8)
+					fracIntegral++;
+				else if (last_digit == 8 && prev_byte) // round ties to even
+					fracIntegral++;
+			}
+
+			int trailingZeroes = 0;
+
+			if (fracIntegral) {
+				while (fracIntegral % 16 == 0) {
+					fracIntegral /= 16;
+					trailingZeroes++;
+				}
+			}
+
+			auto int_length = has_sign + 3;
+			auto frac_length = (shift_by >> 2) - trailingZeroes;
+			auto exp_length = 2 + textLength(exp, 10, true);
+			int total_length = int_length + strlen(locale_opts.decimal_point) + frac_length + exp_length;
+
+			auto pad_length = width > total_length ? width - total_length : 0;
+
+			if (!left_justify) {
+				while (pad_length > 0) {
+					sink.append(padding);
+					pad_length--;
+				}
+			}
+
+			if (has_sign)
+				sink.append('-');
+
+			if (use_capitals)
+				sink.append(number == 0.0 ? "0X0" : "0X1");
+			else
+				sink.append(number == 0.0 ? "0x0" : "0x1");
+
+			if (fracIntegral) {
+				sink.append(locale_opts.decimal_point);
+				print_int(sink, fracIntegral, 16, {}, frac_length, '0', {}, {}, {}, {}, use_capitals);
+			}
+
+			sink.append(use_capitals ? 'P' : 'p');
+
+			print_int(sink, exp, 10, {}, {}, {}, {}, {}, true);
+
+			if (left_justify) {
+				while (pad_length > 0) {
+					sink.append(padding);
+					pad_length--;
+				}
+			}
+
+			return;
+		}
 
 		// declare the variables here, but defer initialization to when (if) we need it.
 		bool exp_mantissa_init = false;
@@ -366,15 +452,6 @@ namespace _fmt_basics {
 				precision = precision - trailingZeroes;
 			}
 		}
-
-		auto textLength = [](int i, unsigned base = 10) {
-			int length = i < 0 ? 1 : 0;
-			do {
-				i /= base;
-				length++;
-			} while (i != 0);
-			return length;
-		};
 
 		// Compute the number of decimal digits in the integer part of n
 		// TODO: Don't assume base 10

@@ -583,22 +583,29 @@ void do_printf_floats(S &sink, char t, format_options opts,
 	bool use_capitals = true;
 	bool use_compact = false;
 	bool exponent_form = false;
+	bool print_hexfloat = false;
 
 	switch(t) {
 	case 'e':
 	case 'f':
 	case 'g':
+	case 'a':
 		use_capitals = false;
 		[[fallthrough]];
 	case 'E':
 	case 'F':
 	case 'G':
+	case 'A':
 		if (t == 'g' || t == 'G') {
 			if (precision_or_default == 0)
 				precision_or_default = 1;
 			use_compact = true;
 		} else if (t == 'e' || t == 'E') {
 			exponent_form = true;
+		} else if (t == 'a' || t == 'A') {
+			if (!opts.precision.has_value())
+				precision_or_default = 32;
+			print_hexfloat = true;
 		}
 
 #ifndef FRG_DONT_USE_LONG_DOUBLE
@@ -606,7 +613,7 @@ void do_printf_floats(S &sink, char t, format_options opts,
 			_fmt_basics::print_float(sink, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, precision_or_default,
 					opts.fill_zeros ? '0' : ' ', opts.left_justify, opts.alt_conversion,
-					use_capitals, opts.group_thousands, use_compact, exponent_form, locale_opts);
+					use_capitals, opts.group_thousands, use_compact, exponent_form, print_hexfloat, locale_opts);
 			break;
 		}
 #endif
@@ -614,7 +621,7 @@ void do_printf_floats(S &sink, char t, format_options opts,
 		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, precision_or_default,
 				opts.fill_zeros ? '0' : ' ', opts.left_justify, opts.alt_conversion, use_capitals,
-				opts.group_thousands, use_compact, exponent_form, locale_opts);
+				opts.group_thousands, use_compact, exponent_form, print_hexfloat, locale_opts);
 		break;
 	default:
 		FRG_ASSERT(!"Unexpected printf terminal");
