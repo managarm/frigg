@@ -129,6 +129,9 @@ typedef basic_string_view<char> string_view;
 
 template<typename Char, typename Allocator>
 class basic_string {
+private:
+	static constexpr const Char empty_string[] = {0};
+
 public:
 	typedef Char CharType;
 	using value_type = Char;
@@ -141,7 +144,7 @@ public:
 	}
 
 	basic_string(Allocator allocator = Allocator())
-	: _allocator{std::move(allocator)}, _buffer{nullptr}, _length{0} { }
+	: _allocator{std::move(allocator)}, _buffer{const_cast<Char *>(empty_string)}, _length{0} { }
 
 	basic_string(const Char *c_string, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)} {
@@ -193,8 +196,11 @@ public:
 	}
 
 	~basic_string() {
-		if(_buffer)
+		// TODO: Add a capacity and check for capacity != 0.
+		if(_buffer != empty_string) {
+			FRG_ASSERT(_buffer);
 			_allocator.free(_buffer);
+		}
 	}
 
 	basic_string &operator= (basic_string other) {
@@ -211,8 +217,11 @@ public:
 		memcpy(new_buffer, _buffer, sizeof(Char) * copy_length);
 		new_buffer[new_length] = 0;
 
-		if(_buffer)
+		// TODO: Add a capacity and check for capacity != 0.
+		if(_buffer != empty_string) {
+			FRG_ASSERT(_buffer);
 			_allocator.free(_buffer);
+		}
 		_length = new_length;
 		_buffer = new_buffer;
 	}
@@ -252,8 +261,11 @@ public:
 		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
 		new_buffer[new_length] = 0;
 
-		if(_buffer)
+		// TODO: Add a capacity and check for capacity != 0.
+		if(_buffer != empty_string) {
+			FRG_ASSERT(_buffer);
 			_allocator.free(_buffer);
+		}
 		_length = new_length;
 		_buffer = new_buffer;
 
@@ -267,8 +279,11 @@ public:
 		new_buffer[_length] = c;
 		new_buffer[_length + 1] = 0;
 
-		if (_buffer)
+		// TODO: Add a capacity and check for capacity != 0.
+		if (_buffer != empty_string) {
+			FRG_ASSERT(_buffer);
 			_allocator.free(_buffer);
+		}
 		_length++;
 		_buffer = new_buffer;
 
