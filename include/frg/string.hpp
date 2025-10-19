@@ -292,7 +292,7 @@ public:
 
 	// used to disable deallocation upon object destruction
 	void detach() {
-		_buffer = nullptr;
+		_buffer = const_cast<Char *>(empty_string);
 		_length = 0;
 	}
 
