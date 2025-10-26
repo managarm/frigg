@@ -1,6 +1,15 @@
 #pragma once
 
-#if !defined(__clang__) || (defined(__clang_major__) && __clang_major__ >= 19)
+/* If the toolchain provides std::expected, we provide some extra tools for it.
+   If one uses a mixed toolchain of clang++ combined with libstdc++, however,
+   std::expected is not available even if <expected> is with some versions of
+   clang, because of clang defining a lower __cpp_concepts FTM value.
+
+   The test here verifies the preconditions on std::expected.  See
+   <https://gcc.gnu.org/cgit/gcc/tree/libstdc++-v3/include/bits/version.def?id=23657d3972605542b02a33e67edcc74a7eede02c#n1504>.  */
+#if __has_include(<expected>) \
+  && __cpp_concepts >= 202002L \
+  && __cplusplus >= 202100L
 #define FRG_HAS_STD_EXPECTED
 #include <expected>
 #endif
