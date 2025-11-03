@@ -319,10 +319,10 @@ TEST(formatting, printf) {
 					frg::do_printf_chars(*sink_, t, opts, szmod, vsp_);
 					break;
 				case 'd': case 'i': case 'o': case 'x': case 'X': case 'b': case 'B': case 'u':
-					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_);
+					frg::do_printf_ints(*sink_, t, opts, szmod, vsp_, loc_);
 					break;
 				case 'f': case 'F': case 'g': case 'G': case 'e': case 'E': case 'a': case 'A':
-					frg::do_printf_floats(*sink_, t, opts, szmod, vsp_);
+					frg::do_printf_floats(*sink_, t, opts, szmod, vsp_, loc_);
 					break;
 				default:
 					// Should not be reached
@@ -334,6 +334,7 @@ TEST(formatting, printf) {
 
 		frg::container_logger<std::string> *sink_;
 		frg::va_struct *vsp_;
+		frg::locale_options loc_;
 	};
 
 	auto do_test = [] (const char *expected, const char *format, ...) {
@@ -354,7 +355,32 @@ TEST(formatting, printf) {
 		ASSERT_STREQ(expected, buf.data());
 	};
 
+	auto do_test_locale = [] (frg::locale_options loc, const char *expected, const char *format, ...) {
+		va_list args;
+		va_start(args, format);
+
+		frg::va_struct vs;
+		frg::arg arg_list[NL_ARGMAX + 1];
+		vs.arg_list = arg_list;
+		va_copy(vs.args, args);
+
+		std::string buf;
+		frg::container_logger<std::string> sink{buf};
+
+		auto res = frg::printf_format(test_agent{&sink, &vs, loc}, format, &vs);
+		ASSERT_TRUE(res);
+
+		ASSERT_STREQ(expected, buf.data());
+	};
+
+	frg::locale_options en_US{".", ",", "\x3"};
+	frg::locale_options en_IN{".", ",", "\x3\x2"};
+
 	do_test("12", "%d", 12);
+	do_test_locale(en_US, "123,456,789", "%'d", 123456789);
+	do_test_locale(en_US, "0000123,456,789", "%'015d", 123456789);
+	do_test_locale(en_IN, "12,34,56,789", "%'d", 123456789);
+	do_test_locale(en_IN, "00012,34,56,789", "%'015d", 123456789);
 
 	// Test %c right padding.
 	do_test("a ", "%-2c", 'a');

@@ -3,6 +3,7 @@
 
 #include <stdarg.h>
 #include <cstddef>
+#include <limits.h>
 #include <stdint.h>
 #include <frg/macros.hpp>
 #include <frg/optional.hpp>
@@ -122,7 +123,7 @@ namespace _fmt_basics {
 				return;
 
 			if (++c == locale_opts.grouping[g]) {
-				if (locale_opts.grouping[g + 1] > 0)
+				if (locale_opts.grouping[g + 1] != 0 && locale_opts.grouping[g + 1] != CHAR_MAX)
 					g++;
 				else
 					r++;
@@ -155,8 +156,11 @@ namespace _fmt_basics {
 			for (int i = 0; i < precision - k; i++)
 				step_grouping();
 
-		if (!c)
+		if (!c) {
 			c = locale_opts.grouping[g];
+			if (group_thousands)
+				extra--;
+		}
 
 		if(negative || always_sign || plus_becomes_space)
 			extra++;
@@ -187,7 +191,8 @@ namespace _fmt_basics {
 
 		for(int i = k - 1; i >= 0; i--) {
 			sink.append(buffer[i]);
-			emit_grouping();
+			if (i)
+				emit_grouping();
 		}
 
 		if(left_justify && final_width < width)
