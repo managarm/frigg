@@ -81,7 +81,16 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 	return arg;
 }
 
-template<typename A>
+template <typename A>
+concept PrintfFormatAgent =
+    requires(A agent, char c, const char *str, size_t n,
+             frg::format_options opts, frg::printf_size_mod szmod) {
+      agent(c);
+      agent(str, n);
+      agent(c, opts, szmod);
+    };
+
+template<PrintfFormatAgent A>
 frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp) {
 	FRG_ASSERT(s != nullptr);
 	bool dollar_arg_pos = false;
