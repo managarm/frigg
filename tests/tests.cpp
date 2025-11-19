@@ -332,6 +332,22 @@ TEST(formatting, printf) {
 			return frg::success;
 		}
 
+		std::optional<frg::printf_arg_type> format_type(char t, frg::printf_size_mod szmod) {
+			switch(t) {
+				case 's':
+					return frg::printf_arg_type::POINTER;
+				case 'f': case 'F': case 'g': case 'G': case 'e': case 'E': case 'a': case 'A':
+					return frg::printf_arg_type::DOUBLE;
+				case 'c': case 'd': case 'i': case 'b': case 'B': case 'o': case 'x': case 'X': case 'u':
+					return frg::printf_arg_type::INT;
+				default:
+					sink_->append("unknown format '");
+					sink_->append(t);
+					sink_->append('\'');
+					return std::nullopt;
+			}
+		}
+
 		frg::container_logger<std::string> *sink_;
 		frg::va_struct *vsp_;
 		frg::locale_options loc_;
@@ -349,7 +365,7 @@ TEST(formatting, printf) {
 		std::string buf;
 		frg::container_logger<std::string> sink{buf};
 
-		auto res = frg::printf_format(test_agent{&sink, &vs}, format, &vs);
+		auto res = frg::printf_format<9>(test_agent{&sink, &vs}, format, &vs);
 		ASSERT_TRUE(res);
 
 		ASSERT_STREQ(expected, buf.data());
@@ -367,7 +383,7 @@ TEST(formatting, printf) {
 		std::string buf;
 		frg::container_logger<std::string> sink{buf};
 
-		auto res = frg::printf_format(test_agent{&sink, &vs, loc}, format, &vs);
+		auto res = frg::printf_format<9>(test_agent{&sink, &vs, loc}, format, &vs);
 		ASSERT_TRUE(res);
 
 		ASSERT_STREQ(expected, buf.data());
@@ -605,6 +621,9 @@ TEST(formatting, printf) {
 	do_test("ef cdef 90abcdef 1234567890abcdef", "%wf8x %wf16x %wf32x %wf64x",
 		(uint_fast8_t) 0xef, (uint_fast16_t) 0xcdef, (uint_fast32_t) 0x90abcdef,
 		(uint_fast64_t) 0x1234567890abcdef);
+
+	do_test("001.00d", "%1$0*4$.*2$f%3$s", 1.0, 2, "d", 6);
+	do_test("01234.568", "%2$0*1$.*3$Lf", 9, 1234.56789L, 3);
 }
 
 #include <frg/bitset.hpp>
