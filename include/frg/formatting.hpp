@@ -79,7 +79,7 @@ struct format_options {
 
 struct locale_options {
 	locale_options()
-	: decimal_point("."), thousands_sep(""), grouping("\255") { }
+	: decimal_point("."), thousands_sep(""), grouping("") { }
 
 	locale_options(const char *d_p, const char *t_s, const char *grp)
 	: decimal_point(d_p), thousands_sep(t_s), grouping(grp) {
@@ -111,6 +111,9 @@ namespace _fmt_basics {
 			bool use_capitals, locale_options locale_opts) {
 		const char *digits = use_capitals ? "0123456789ABCDEF" : "0123456789abcdef";
 		char buffer[64];
+
+		if (!locale_opts.grouping)
+			locale_opts.grouping = "";
 
 		int k = 0; // number of digits
 		int c = 0; // number of chars since last grouping
