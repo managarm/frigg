@@ -95,6 +95,9 @@ struct locale_options {
 enum class format_error {
 	success,
 	agent_error,
+	invalid_format,
+	too_many_args,
+	positional_args_gap,
 };
 
 // ----------------------------------------------------------------------------

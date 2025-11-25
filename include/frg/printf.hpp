@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <frg/macros.hpp>
 #include <frg/expected.hpp>
 #include <frg/formatting.hpp>
@@ -20,6 +21,14 @@ struct va_struct {
 	va_list args;
 	arg *arg_list;
 	int num_args = 0;
+};
+
+enum class printf_arg_type {
+	INT,
+	CHAR,
+	WCHAR,
+	POINTER,
+	DOUBLE,
 };
 
 enum class printf_size_mod {
@@ -81,10 +90,324 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 	return arg;
 }
 
-template<typename A>
+template <typename A>
+concept PrintfFormatAgent =
+    requires(A agent, char c, const char *str, size_t n,
+             frg::format_options opts, frg::printf_size_mod szmod) {
+      agent(c);
+      agent(str, n);
+      agent(c, opts, szmod);
+      { agent.format_type(c, szmod) } -> std::convertible_to<std::optional<frg::printf_arg_type>>;
+    };
+
+template<size_t MaxArgs, PrintfFormatAgent A>
+	requires (MaxArgs >= 9)
 frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp) {
 	FRG_ASSERT(s != nullptr);
 	bool dollar_arg_pos = false;
+
+	struct pos_arg {
+		bool used = false;
+		printf_arg_type type;
+		printf_size_mod sz = printf_size_mod::default_size;
+	};
+
+	// keep track of positional argument types
+	std::array<pos_arg, MaxArgs> pos_args;
+	size_t max_pos_arg = 0;
+
+	const char *p1 = s;
+	while (*p1) {
+		if (*p1++ != '%')
+			continue;
+
+		if (*p1 == '%') {
+			p1++;
+			continue;
+		}
+
+		if (max_pos_arg >= pos_args.size())
+			return frg::format_error::too_many_args;
+
+		std::optional<size_t> format_arg_pos;
+
+		// Attempt to parse a positional argument of the form `n$`; on success, return a pair of
+		// (one-based value, length including dollar sign).
+		auto parse_positional_arg = [] (const char *p) -> std::optional<std::pair<size_t, size_t>> {
+			size_t val = 0;
+			const char *orig = p;
+			while(*p >= '0' && *p <= '9') {
+				val = val * 10 + (*p - '0');
+				++p;
+				FRG_ASSERT(*p);
+			}
+
+			if (*p++ == '$' && val && val <= MaxArgs)
+				return std::make_pair(val, p - orig);
+			return std::nullopt;
+		};
+
+		// Save a positional argument at position (one-based!) idx
+		auto save_positional_argument = [&] (size_t pos, printf_arg_type type) -> size_t {
+			FRG_ASSERT(pos);
+			pos_args[pos-1].type = type;
+			pos_args[pos-1].used = true;
+			dollar_arg_pos = true;
+			max_pos_arg = frg::max(pos-1, max_pos_arg);
+			return pos-1;
+		};
+
+		while(true) {
+			if (*p1 >= '1' && *p1 <= '9') {
+				// Delay figuring out the type of the conversion argument;
+				auto pos_arg = parse_positional_arg(p1);
+				if (!pos_arg)
+					break;
+				format_arg_pos = save_positional_argument(pos_arg->first, printf_arg_type::INT);
+				p1 += pos_arg->second;
+				FRG_ASSERT(*p1);
+			} else if(*p1 == '-') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}else if(*p1 == '+') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}else if(*p1 == ' ') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}else if(*p1 == '#') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}else if(*p1 == '0') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}else if(*p1 == '\'') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}else{
+				break;
+			}
+		}
+
+		if(*p1 == '*') {
+			++p1;
+			FRG_ASSERT(*p1);
+
+			if (*p1 >= '1' && *p1 <= '9') {
+				auto pos_arg = parse_positional_arg(p1);
+				if (!pos_arg)
+					return frg::format_error::invalid_format;
+				save_positional_argument(pos_arg->first, printf_arg_type::INT);
+				p1 += pos_arg->second;
+				FRG_ASSERT(*p1);
+			} else {
+				FRG_ASSERT(!dollar_arg_pos);
+			}
+		}else{
+			while(*p1 >= '0' && *p1 <= '9') {
+				++p1;
+				FRG_ASSERT(*p1);
+			}
+		}
+
+		if(*p1 == '.') {
+			++p1;
+			FRG_ASSERT(*p1);
+
+			if(*p1 == '*') {
+				++p1;
+				FRG_ASSERT(*p1);
+
+				if (*p1 >= '1' && *p1 <= '9') {
+					auto pos_arg = parse_positional_arg(p1);
+					if (!pos_arg)
+						return frg::format_error::invalid_format;
+					save_positional_argument(pos_arg->first, printf_arg_type::INT);
+					p1 += pos_arg->second;
+					FRG_ASSERT(*p1);
+				} else {
+					FRG_ASSERT(!dollar_arg_pos);
+				}
+			}else{
+				while(*p1 >= '0' && *p1 <= '9') {
+					++p1;
+					FRG_ASSERT(*p1);
+				}
+			}
+		}
+
+		auto szmod = printf_size_mod::default_size;
+		if(*p1 == 'l') {
+			++p1;
+			FRG_ASSERT(*p1);
+			if(*p1 == 'l') {
+				szmod = printf_size_mod::longlong_size;
+				++p1;
+				FRG_ASSERT(*p1);
+			}else{
+				szmod = printf_size_mod::long_size;
+			}
+		}else if(*p1 == 'z') {
+			szmod = printf_size_mod::native_size;
+			++p1;
+			FRG_ASSERT(*p1);
+#ifndef FRG_DONT_USE_LONG_DOUBLE
+		} else if(*p1 == 'L') {
+			szmod = printf_size_mod::longdouble_size;
+			++p1;
+			FRG_ASSERT(*p1);
+#endif
+		} else if(*p1 == 'h') {
+			++p1;
+			FRG_ASSERT(*p1);
+			if(*p1 == 'h') {
+				szmod = printf_size_mod::char_size;
+				++p1;
+				FRG_ASSERT(*p1);
+			}else{
+				szmod = printf_size_mod::short_size;
+			}
+		} else if(*p1 == 't') {
+			szmod = printf_size_mod::native_size;
+			++p1;
+			FRG_ASSERT(*p1);
+		} else if(*p1 == 'j') {
+			szmod = printf_size_mod::intmax_size;
+			++p1;
+			FRG_ASSERT(*p1);
+		} else if(*p1 == 'w') {
+			int bits = 0;
+			bool fastType = false;
+			++p1;
+			if(*p1 == 'f') {
+				++p1;
+				fastType = true;
+			}
+			while(*p1 >= '0' && *p1 <= '9') {
+				bits = bits * 10 + (*p1 - '0');
+				++p1;
+				FRG_ASSERT(*p1);
+			}
+			switch(bits) {
+				case 8:
+					if(!fastType)
+						szmod = printf_size_mod::char_size;
+					else if constexpr (std::is_same<uint8_t, uint_fast8_t>())
+						szmod = printf_size_mod::char_size;
+					else if constexpr (std::is_same<uint16_t, uint_fast8_t>())
+						szmod = printf_size_mod::short_size;
+					else if constexpr (std::is_same<uint32_t, uint_fast8_t>())
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast8_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+				case 16:
+					if(!fastType)
+						szmod = printf_size_mod::short_size;
+					else if constexpr (std::is_same<uint16_t, uint_fast16_t>())
+						szmod = printf_size_mod::short_size;
+					else if constexpr (std::is_same<uint32_t, uint_fast16_t>())
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast16_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+				case 32:
+					if(!fastType)
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint32_t, uint_fast32_t>())
+						szmod = printf_size_mod::default_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast32_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+				case 64:
+					if(!fastType)
+						szmod = printf_size_mod::longlong_size;
+					else if constexpr (std::is_same<uint64_t, uint_fast64_t>())
+						szmod = printf_size_mod::longlong_size;
+					else
+						FRG_ASSERT(!"unsupported fast type size");
+					break;
+			}
+		}
+
+		// Determine the type of the conversion argument
+		if (dollar_arg_pos) {
+			FRG_ASSERT(format_arg_pos);
+			auto type_info = agent.format_type(*p1, szmod);
+			if (!type_info)
+				return frg::format_error::agent_error;
+			pos_args[*format_arg_pos].type = *type_info;
+			pos_args[*format_arg_pos].sz = szmod;
+		}
+	}
+
+	// Correctly build up the frg::va_struct arg list with the correct argument types
+	if (dollar_arg_pos) {
+		for (size_t i = 0; i <= max_pos_arg; i++) {
+			// Unused positional arguments are UB, so return an error
+			if (!pos_args[i].used)
+				return frg::format_error::positional_args_gap;
+
+			format_options opts;
+			opts.dollar_arg_pos = true;
+			opts.arg_pos = i;
+
+			switch(pos_args[i].type) {
+				case printf_arg_type::CHAR:
+					pop_arg<char>(vsp, &opts);
+					break;
+				case printf_arg_type::WCHAR:
+					pop_arg<wint_t>(vsp, &opts);
+					break;
+				case printf_arg_type::INT:
+					switch (pos_args[i].sz) {
+						case printf_size_mod::char_size:
+							pop_arg<signed char>(vsp, &opts);
+							break;
+						case printf_size_mod::short_size:
+							pop_arg<short>(vsp, &opts);
+							break;
+						case printf_size_mod::long_size:
+							pop_arg<long>(vsp, &opts);
+							break;
+						case printf_size_mod::longlong_size:
+							pop_arg<long long>(vsp, &opts);
+							break;
+						case printf_size_mod::native_size:
+							pop_arg<intptr_t>(vsp, &opts);
+							break;
+						case printf_size_mod::intmax_size:
+							pop_arg<intmax_t>(vsp, &opts);
+							break;
+						default:
+							FRG_ASSERT(pos_args[i].sz == printf_size_mod::default_size);
+							pop_arg<int>(vsp, &opts);
+							break;
+					}
+					break;
+				case printf_arg_type::DOUBLE:
+					if (pos_args[i].sz == frg::printf_size_mod::longdouble_size)
+						pop_arg<long double>(vsp, &opts);
+					else
+						pop_arg<double>(vsp, &opts);
+					break;
+				case printf_arg_type::POINTER:
+					pop_arg<void *>(vsp, &opts);
+					break;
+				default:
+					std::ignore = agent("frigg: unhandled printf_arg_type ", 33);
+					std::ignore = agent('0' + std::to_underlying(pos_args[i].type));
+					std::ignore = agent('\0');
+					return frg::format_error::agent_error;
+			}
+		}
+	}
 
 	while(*s) {
 		if(*s != '%') {
@@ -108,7 +431,6 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			++s;
 			continue;
 		}
-
 
 		format_options opts;
 		opts.dollar_arg_pos = dollar_arg_pos;
@@ -157,7 +479,20 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 		if(*s == '*') {
 			++s;
 			FRG_ASSERT(*s);
-			opts.minimum_width = pop_arg<int>(vsp, &opts);
+
+			if (*s >= '0' && *s <= '9' && s[1] && s[1] == '$') {
+				auto prev_arg_pos = opts.arg_pos;
+				opts.arg_pos = *s - '0' - 1; // args are 1-indexed
+				opts.dollar_arg_pos = true;
+				dollar_arg_pos = true;
+				s += 2;
+				FRG_ASSERT(*s);
+				opts.minimum_width = pop_arg<int>(vsp, &opts);
+				opts.arg_pos = prev_arg_pos;
+			} else {
+				FRG_ASSERT(opts.arg_pos == -1);
+				opts.minimum_width = pop_arg<int>(vsp, &opts);
+			}
 
 			if(opts.minimum_width < 0) {
 				opts.minimum_width *= -1;
@@ -180,7 +515,20 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 			if(*s == '*') {
 				++s;
 				FRG_ASSERT(*s);
-				opts.precision = pop_arg<int>(vsp, &opts);
+
+				if (*s >= '0' && *s <= '9' && s[1] && s[1] == '$') {
+					auto prev_arg_pos = opts.arg_pos;
+					opts.arg_pos = *s - '0' - 1; // args are 1-indexed
+					opts.dollar_arg_pos = true;
+					dollar_arg_pos = true;
+					s += 2;
+					FRG_ASSERT(*s);
+					opts.precision = pop_arg<int>(vsp, &opts);
+					opts.arg_pos = prev_arg_pos;
+				} else {
+					FRG_ASSERT(opts.arg_pos == -1);
+					opts.precision = pop_arg<int>(vsp, &opts);
+				}
 				// negative precision values are treated as if no precision was specified
 				if (opts.precision < 0)
 					opts.precision = frg::null_opt;
