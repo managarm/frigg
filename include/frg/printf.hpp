@@ -363,7 +363,7 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 					pop_arg<char>(vsp, &opts);
 					break;
 				case printf_arg_type::WCHAR:
-					pop_arg<wint_t>(vsp, &opts);
+					pop_arg<__WINT_TYPE__>(vsp, &opts);
 					break;
 				case printf_arg_type::INT:
 					switch (pos_args[i].sz) {
@@ -392,9 +392,11 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 					}
 					break;
 				case printf_arg_type::DOUBLE:
+#ifndef FRG_DONT_USE_LONG_DOUBLE
 					if (pos_args[i].sz == frg::printf_size_mod::longdouble_size)
 						pop_arg<long double>(vsp, &opts);
 					else
+#endif
 						pop_arg<double>(vsp, &opts);
 					break;
 				case printf_arg_type::POINTER:
