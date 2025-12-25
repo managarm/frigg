@@ -247,6 +247,45 @@ namespace _fmt_basics {
 				fo.always_sign, fo.plus_becomes_space, fo.use_capitals);
 	}
 
+	template<typename T>
+	int grouping_extra_characters(T num, int precision, locale_options opts) {
+		if (!opts.grouping)
+			opts.grouping = "";
+
+		int digits = 0; // number of digits
+		int chars_since_last_grouping = 0; // number of chars since last grouping
+		int group_index = 0; // grouping index into the grouping rule (opts.grouping)
+		int extra = 0; // extra chars printed due to seperator
+
+		auto step_grouping = [&] () {
+			if (++chars_since_last_grouping == opts.grouping[group_index]) {
+				if (opts.grouping[group_index + 1] != 0 && opts.grouping[group_index + 1] != CHAR_MAX)
+					group_index++;
+				chars_since_last_grouping = 0;
+				extra += opts.thousands_sep_size;
+			}
+		};
+
+		// print the number in reverse order and determine #digits.
+		do {
+			FRG_ASSERT(digits < 64); // TODO: variable number of digits
+			digits++;
+			num /= 10;
+			step_grouping();
+		} while(num);
+
+		if (digits < precision)
+			for (int i = 0; i < precision - digits; i++)
+				step_grouping();
+
+		if (!chars_since_last_grouping) {
+			chars_since_last_grouping = opts.grouping[group_index];
+			extra--;
+		}
+
+		return extra;
+	}
+
 #if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 	template<Sink S, typename T>
 		requires (std::is_floating_point_v<T>)
@@ -468,8 +507,11 @@ namespace _fmt_basics {
 		// TODO: Don't assume base 10
 		auto int_length = textLength(integralDigits);
 
+		// if we do grouping, calculate how many additional characters that consumes
+		auto group_sep_length = group_thousands ? grouping_extra_characters(integralDigits, precision, locale_opts) : 0;
+
 		// Plus one for the decimal point
-		auto total_length = has_sign + int_length + (precision > 0 ? 1 + precision : 0);
+		auto total_length = has_sign + int_length + group_sep_length + (precision > 0 ? 1 + precision : 0);
 
 		// Handle the exponent in the style of `e+09`
 		if (exponential_form)
@@ -487,7 +529,7 @@ namespace _fmt_basics {
 		if (has_sign)
 			sink.append('-');
 
-		print_int(sink, integralDigits, 10);
+		print_int(sink, integralDigits, 10, 0, 1, {}, false, group_thousands, false, false, false, locale_opts);
 
 		if (precision > 0) {
 			sink.append(locale_opts.decimal_point);
