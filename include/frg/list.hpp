@@ -140,14 +140,14 @@ public:
 		return iterator{borrow};
 	}
 
-	bool empty() {
+	constexpr bool empty() const {
 		return !_front;
 	}
 
-	borrow_pointer front() {
+	constexpr borrow_pointer front() {
 		return _front;
 	}
-	borrow_pointer back() {
+	constexpr borrow_pointer back() {
 		return _back;
 	}
 
@@ -255,7 +255,7 @@ private:
 	};
 
 public:
-	list(Allocator allocator = {})
+	constexpr list(Allocator allocator = {})
 	: allocator_{std::move(allocator)} { }
 
 	template<typename... Args>
@@ -264,7 +264,7 @@ public:
 		items_.push_back(e);
 	}
 
-	bool empty() {
+	constexpr bool empty() const {
 		return items_.empty();
 	}
 
