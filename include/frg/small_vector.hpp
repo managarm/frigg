@@ -17,7 +17,7 @@ public:
 	using iterator = value_type*;
 	using const_iterator = const value_type*;
 
-	static_vector()
+	constexpr static_vector()
 	: _size(0) { }
 
 	static_vector(const static_vector &other)
@@ -55,11 +55,11 @@ public:
 		return *this;
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _size;
 	}
 
-	bool empty() const {
+	constexpr bool empty() const {
 		return _size == 0;
 	}
 
@@ -178,7 +178,7 @@ public:
 	using iterator = value_type*;
 	using const_iterator = const value_type*;
 
-	friend void swap(small_vector &a, small_vector &b) {
+	friend constexpr void swap(small_vector &a, small_vector &b) {
 		using std::swap;
 		swap(a._allocator, b._allocator);
 		swap(a._array, b._array);
@@ -187,7 +187,7 @@ public:
 		swap(a._capacity, b._capacity);
 	}
 
-	small_vector(Allocator allocator = Allocator())
+	constexpr small_vector(Allocator allocator = Allocator())
 	: _allocator(allocator), _elements(nullptr),
 		_size(0), _capacity(N)
 	{ }
@@ -202,7 +202,7 @@ public:
 		_size = other_size;
 	}
 
-	small_vector(small_vector &&other)
+	constexpr small_vector(small_vector &&other)
 	: small_vector(other._allocator) {
 		swap(*this, other);
 	}
@@ -215,11 +215,11 @@ public:
 			_allocator.deallocate(container, sizeof(T) * _capacity);
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _size;
 	}
 
-	bool empty() const {
+	constexpr bool empty() const {
 		return _size == 0;
 	}
 
@@ -317,7 +317,7 @@ public:
 	}
 
 private:
-	bool _is_small() const {
+	constexpr bool _is_small() const {
 		return _capacity <= N;
 	}
 
