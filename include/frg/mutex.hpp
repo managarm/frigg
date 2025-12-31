@@ -15,13 +15,13 @@ inline constexpr auto adopt_lock = adopt_lock_t{};
 template<typename Mutex>
 class unique_lock {
 public:
-	friend void swap(unique_lock &u, unique_lock &v) {
+	friend constexpr void swap(unique_lock &u, unique_lock &v) {
 		using std::swap;
 		swap(u._mutex, v._mutex);
 		swap(u._is_locked, v._is_locked);
 	}
 
-	unique_lock()
+	constexpr unique_lock()
 	: _mutex{nullptr}, _is_locked{false} { }
 
 	[[nodiscard]] unique_lock(dont_lock_t, Mutex &mutex)
@@ -64,11 +64,11 @@ public:
 		_is_locked = false;
 	}
 
-	bool is_locked() {
+	constexpr bool is_locked() const {
 		return _is_locked;
 	}
 
-	bool protects(Mutex *mutex) {
+	constexpr bool protects(Mutex *mutex) const {
 		return _is_locked && mutex == _mutex;
 	}
 
