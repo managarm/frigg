@@ -40,11 +40,11 @@ public:
 		return std::launder(reinterpret_cast<T *>(&_storage.buffer));
 	}
 
-	bool valid() {
+	constexpr bool valid() const {
 		return _initialized;
 	}
 
-	explicit operator bool () {
+	constexpr explicit operator bool () const {
 		return _initialized;
 	}
 
