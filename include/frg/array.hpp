@@ -36,7 +36,7 @@ struct array {
 	// the actual array
 	typename array_traits<value_type, N>::type _stor;
 
-	friend void swap(array &a, array &b) {
+	friend constexpr void swap(array &a, array &b) {
 		for (size_t i = 0; i < N; i++)
 			std::swap(a._stor[i], b._stor[i]);
 	}
@@ -102,7 +102,7 @@ struct array {
 		return N;
 	}
 
-	bool operator==(const array &other) const = default;
+	constexpr bool operator==(const array &other) const = default;
 };
 
 template <typename T, typename ...Us>
