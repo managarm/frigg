@@ -5,7 +5,7 @@
 namespace frg {
 
 template <typename Iter, typename Comp>
-void insertion_sort(Iter begin, Iter end, Comp comp) {
+constexpr void insertion_sort(Iter begin, Iter end, Comp comp) {
 	for (auto i = begin; i < end; ++i) {
 		auto j = i;
 		++j;
