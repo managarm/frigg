@@ -43,7 +43,7 @@ private:
 	};
 
 public:
-	rcu_radixtree(Allocator allocator = Allocator())
+	constexpr rcu_radixtree(Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _root{nullptr} {}
 
 	rcu_radixtree(const rcu_radixtree &) = delete;
