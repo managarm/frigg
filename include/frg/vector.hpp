@@ -14,7 +14,7 @@ public:
 	using value_type = T;
 	using reference = value_type&;
 
-	friend void swap(vector &a, vector &b) {
+	friend constexpr void swap(vector &a, vector &b) {
 		using std::swap;
 		swap(a._allocator, b._allocator);
 		swap(a._elements, b._elements);
@@ -22,7 +22,7 @@ public:
 		swap(a._capacity, b._capacity);
 	}
 
-	vector(Allocator allocator = Allocator());
+	constexpr vector(Allocator allocator = Allocator());
 
 	vector(const vector &other)
 	: vector(other._allocator) {
@@ -33,14 +33,14 @@ public:
 		_size = other_size;
 	}
 
-	vector(vector &&other)
+	constexpr vector(vector &&other)
 	: vector(other._allocator) {
 		swap(*this, other);
 	}
 
 	~vector();
 
-	vector &operator= (vector other) {
+	constexpr vector &operator= (vector other) {
 		swap(*this, other);
 		return *this;
 	}
@@ -71,66 +71,66 @@ public:
 		_size = 0;
 	}
 
-	void detach() {
+	constexpr void detach() {
 		_size = 0;
 		_capacity = 0;
 		_elements = nullptr;
 	}
 
-	T *data() {
+	constexpr T *data() {
 		return _elements;
 	}
 
-	const T *data() const {
+	constexpr const T *data() const {
 		return _elements;
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _size;
 	}
 
-	bool empty() const {
+	constexpr bool empty() const {
 		return size() == 0;
 	}
 
-	T *begin() {
+	constexpr T *begin() {
 		return _elements;
 	}
 
-	const T *begin() const {
+	constexpr const T *begin() const {
 		return _elements;
 	}
 
-	T *end() {
+	constexpr T *end() {
 		return _elements + _size;
 	}
 
-	const T *end() const {
+	constexpr const T *end() const {
 		return _elements + _size;
 	}
 
-	T &front() {
+	constexpr T &front() {
 		return _elements[0];
 	}
-	const T &front() const {
+	constexpr const T &front() const {
 		return _elements[0];
 	}
 
-	T &back() {
+	constexpr T &back() {
 		return _elements[_size - 1];
 	}
-	const T &back() const {
+	constexpr const T &back() const {
 		return _elements[_size - 1];
 	}
 
-	const T &operator[] (size_t index) const {
+	constexpr const T &operator[] (size_t index) const {
 		return _elements[index];
 	}
-	T &operator[] (size_t index) {
+	constexpr T &operator[] (size_t index) {
 		return _elements[index];
 	}
 
-	bool operator==(const vector &other) const {
+	constexpr bool operator==(const vector &other) const {
 		if (other.size() != size())
 			return false;
 
@@ -141,7 +141,7 @@ public:
 		return true;
 	}
 
-	bool operator!=(const vector &other) const {
+	constexpr bool operator!=(const vector &other) const {
 		return !(other == *this);
 	}
 
@@ -155,7 +155,7 @@ private:
 };
 
 template<typename T, typename Allocator>
-vector<T, Allocator>::vector(Allocator allocator)
+constexpr vector<T, Allocator>::vector(Allocator allocator)
 : _allocator{std::move(allocator)}, _elements{nullptr}, _size{0}, _capacity{0} { }
 
 template<typename T, typename Allocator>
