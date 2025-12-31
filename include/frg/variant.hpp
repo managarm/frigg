@@ -59,7 +59,7 @@ struct variant {
 		return Index;
 	}
 
-	variant() : tag_{invalid_tag} { }
+	constexpr variant() : tag_{invalid_tag} { }
 
 	template<typename X, size_t Index = _variant::index_of<X, T...>::value>
 	variant(X object) : variant() {
@@ -81,7 +81,7 @@ struct variant {
 			destruct_<0>();
 	}
 
-	explicit operator bool() const {
+	constexpr explicit operator bool() const {
 		return tag_ != invalid_tag;
 	}
 
@@ -100,7 +100,7 @@ struct variant {
 		return *this;
 	}
 
-	size_t tag() {
+	constexpr size_t tag() const {
 		return tag_;
 	}
 
