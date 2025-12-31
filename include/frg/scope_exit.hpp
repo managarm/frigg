@@ -8,18 +8,18 @@ namespace frg FRG_VISIBILITY {
 
 template<typename Fn>
 struct scope_exit {
-	explicit scope_exit(Fn fn)
+	constexpr explicit scope_exit(Fn fn)
 	: fn_{std::move(fn)}, active_{true} {}
 
 	scope_exit(const scope_exit &) = delete;
 	scope_exit operator=(const scope_exit &) = delete;
 
-	~scope_exit() {
+	constexpr ~scope_exit() {
 		if (active_)
 			fn_();
 	}
 
-	void release() {
+	constexpr void release() {
 		active_ = false;
 	}
 
