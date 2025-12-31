@@ -19,17 +19,17 @@ private:
 	static constexpr uint32_t lsbs = 0x7fffffff;
 
 public:
-	mt19937() {
+	constexpr mt19937() {
 		seed(5489);
 	}
 
-	void seed(uint32_t s) {
+	constexpr void seed(uint32_t s) {
 		_st[0] = s;
 		for(_ctr = 1; _ctr < n; _ctr++)
 			_st[_ctr] = (1812433253 * (_st[_ctr - 1] ^ (_st[_ctr - 1] >> 30)) + _ctr);
 	}
 
-	uint32_t operator() () {
+	constexpr uint32_t operator() () {
 		constexpr uint32_t mag01[2] = {0, matrix_a};
 
 		if(_ctr >= n) {
@@ -68,11 +68,11 @@ private:
 // Copyright 2014 Melissa O'Neill <oneill@pcg-random.org>
 // Licensed under the Apache License, Version 2.0
 struct pcg_basic32 {
-	pcg_basic32(uint64_t seed, uint64_t seq = 1) {
+	constexpr pcg_basic32(uint64_t seed, uint64_t seq = 1) {
 		this->seed(seed, seq);
 	}
 
-	void seed(uint64_t seed, uint64_t seq = 1) {
+	constexpr void seed(uint64_t seed, uint64_t seq = 1) {
 		state_ = 0;
 		inc_ = (seq << 1) | 1;
 		operator()();
@@ -80,7 +80,7 @@ struct pcg_basic32 {
 		operator()();
 	}
 
-	uint32_t operator()() {
+	constexpr uint32_t operator()() {
 		uint64_t oldstate = state_;
 		state_ = oldstate * 6364136223846793005ULL + inc_;
 		uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
@@ -88,7 +88,7 @@ struct pcg_basic32 {
 		return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 	}
 
-	uint32_t operator()(uint32_t bound) {
+	constexpr uint32_t operator()(uint32_t bound) {
 		uint32_t threshold = -bound % bound;
 		for (;;) {
 			auto r = operator()();
