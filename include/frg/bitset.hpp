@@ -26,7 +26,7 @@ public:
 	// bit reference
 	class reference {
 		friend class bitset;
-		reference() noexcept;
+		constexpr reference() noexcept;
 
 		size_t index;
 		bitset &s;
@@ -34,24 +34,24 @@ public:
 		constexpr reference(size_t index, bitset &r) : index(index), s(r) {}
 
 	public:
-		reference(const reference &) = default;
-		~reference() = default;
+		constexpr reference(const reference &) = default;
+		constexpr ~reference() = default;
 
-		reference &operator=(bool x) noexcept {
+		constexpr reference &operator=(bool x) noexcept {
 			s.set(index, x);
 			return *this;
 		}
 
-		reference &operator=(const reference &x) noexcept {
+		constexpr reference &operator=(const reference &x) noexcept {
 			s.set(index, x);
 			return *this;
 		}
 
-		bool operator~() const noexcept { return ~s[index]; }
+		constexpr bool operator~() const noexcept { return ~s[index]; }
 
-		operator bool() const noexcept { return s.test(index); }
+		constexpr operator bool() const noexcept { return s.test(index); }
 
-		reference &flip() noexcept {
+		constexpr reference &flip() noexcept {
 			s.flip(index);
 			return *this;
 		}
@@ -63,24 +63,24 @@ public:
 	}
 	constexpr bitset(unsigned long long val) noexcept { buffer[0] = val; }
 
-	bitset &operator&=(const bitset &rhs) noexcept {
+	constexpr bitset &operator&=(const bitset &rhs) noexcept {
 		for (size_t i = 0; i < buffer_size; i++)
 			buffer[i] &= rhs.buffer[i];
 		return *this;
 	}
 
-	bitset &operator|=(const bitset &rhs) noexcept {
+	constexpr bitset &operator|=(const bitset &rhs) noexcept {
 		for (size_t i = 0; i < buffer_size; i++)
 			buffer[i] |= rhs.buffer[i];
 		return *this;
 	}
 
-	bitset &operator^=(const bitset &rhs) noexcept {
+	constexpr bitset &operator^=(const bitset &rhs) noexcept {
 		for (size_t i = 0; i < buffer_size; i++)
 			buffer[i] ^= rhs.buffer[i];
 		return *this;
 	}
-	bitset &operator<<=(size_t pos) noexcept {
+	constexpr bitset &operator<<=(size_t pos) noexcept {
 		if (pos != 0) {
 			size_t wshift = pos / 64;
 			size_t offset = pos % 64;
@@ -103,7 +103,7 @@ public:
 		return *this;
 	}
 
-	bitset &operator>>=(size_t pos) noexcept {
+	constexpr bitset &operator>>=(size_t pos) noexcept {
 		if (pos != 0) {
 			const size_t wshift = pos / 64;
 			const size_t offset = pos % 64;
@@ -128,47 +128,47 @@ public:
 		return *this;
 	}
 
-	bitset &set() noexcept {
+	constexpr bitset &set() noexcept {
 		for (auto &i : buffer)
 			i = ~0;
 		mask_last_bit();
 		return *this;
 	}
 
-	bitset &set(size_t pos, bool val = true) {
+	constexpr bitset &set(size_t pos, bool val = true) {
 		buffer[pos / 64] = (buffer[pos / 64] & (~(1ull << (pos % 64)))) | ((uint64_t)val << (pos % 64));
 		return *this;
 	}
 
-	bitset &reset() noexcept {
+	constexpr bitset &reset() noexcept {
 		for (auto &i : buffer)
 			i = 0;
 		return *this;
 	}
 
-	bitset &reset(size_t pos) { return set(pos, false); }
+	constexpr bitset &reset(size_t pos) { return set(pos, false); }
 
-	bitset operator~() const noexcept {
+	constexpr bitset operator~() const noexcept {
 		auto copy = *this;
 		copy.flip();
 		return copy;
 	}
 
-	bitset &flip() noexcept {
+	constexpr bitset &flip() noexcept {
 		for (auto &i : buffer)
 			i = ~i;
 		mask_last_bit();
 		return *this;
 	}
 
-	bitset &flip(size_t pos) { return set(pos, !test(pos)); }
+	constexpr bitset &flip(size_t pos) { return set(pos, !test(pos)); }
 
 	// element access
 	constexpr bool operator[](size_t pos) const { return buffer[pos / 64] & (1ull << pos % 64); }
 
-	reference operator[](size_t pos) { return reference(pos, *this); }
+	constexpr reference operator[](size_t pos) { return reference(pos, *this); }
 
-	size_t count() const noexcept {
+	constexpr size_t count() const noexcept {
 		size_t n = 0;
 		for (size_t i = 0; i < buffer_size - 1; i++)
 			n += __builtin_popcountll(buffer[i]);
@@ -176,16 +176,16 @@ public:
 	}
 
 	constexpr size_t size() const noexcept { return N; }
-	bool operator==(const bitset &rhs) const noexcept {
+	constexpr bool operator==(const bitset &rhs) const noexcept {
 		for (size_t i = 0; i < buffer_size - 1; i++)
 			if (buffer[i] != rhs.buffer[i])
 				return false;
 		return buffer[buffer_size - 1] == rhs.buffer[buffer_size - 1];
 	}
 
-	bool test(size_t pos) const { return this->operator[](pos); }
+	constexpr bool test(size_t pos) const { return this->operator[](pos); }
 
-	bool all() const noexcept {
+	constexpr bool all() const noexcept {
 		bool value = true;
 		for (size_t i = 0; i < N / 64; i++)
 			value &= (buffer[i] == 0xffffffffffffffff);
@@ -194,7 +194,7 @@ public:
 		return value;
 	}
 
-	bool any() const noexcept {
+	constexpr bool any() const noexcept {
 		bool value = false;
 		for (size_t i = 0; i < N / 64; i++)
 			value |= buffer[i];
@@ -203,7 +203,7 @@ public:
 		return value;
 	}
 
-	bool none() const noexcept {
+	constexpr bool none() const noexcept {
 		bool value = true;
 		for (size_t i = 0; i < N / 64; i++)
 			value &= !(buffer[i]);
@@ -213,13 +213,13 @@ public:
 		return value;
 	}
 
-	bitset operator<<(size_t pos) const noexcept {
+	constexpr bitset operator<<(size_t pos) const noexcept {
 		bitset bs = *this;
 		bs <<= pos;
 		return bs;
 	}
 
-	bitset operator>>(size_t pos) const noexcept {
+	constexpr bitset operator>>(size_t pos) const noexcept {
 		bitset bs = *this;
 		bs >>= pos;
 		return bs;
@@ -227,21 +227,21 @@ public:
 };
 
 template <size_t N>
-bitset<N> operator&(const bitset<N> &lhs, const bitset<N> &rhs) noexcept {
+constexpr bitset<N> operator&(const bitset<N> &lhs, const bitset<N> &rhs) noexcept {
 	bitset<N> b = lhs;
 	b &= rhs;
 	return b;
 }
 
 template <size_t N>
-bitset<N> operator|(const bitset<N> &lhs, const bitset<N> &rhs) {
+constexpr bitset<N> operator|(const bitset<N> &lhs, const bitset<N> &rhs) {
 	bitset<N> b = lhs;
 	b |= rhs;
 	return b;
 }
 
 template <size_t N>
-bitset<N> operator^(const bitset<N> &lhs, const bitset<N> &rhs) {
+constexpr bitset<N> operator^(const bitset<N> &lhs, const bitset<N> &rhs) {
 	bitset<N> b = lhs;
 	b ^= rhs;
 	return b;
