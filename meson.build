@@ -34,6 +34,7 @@ if not get_option('frigg_no_install')
 		'include/frg/rbtree.hpp',
 		'include/frg/rcu_radixtree.hpp',
 		'include/frg/scope_exit.hpp',
+		'include/frg/sharded_slab.hpp',
 		'include/frg/slab.hpp',
 		'include/frg/small_vector.hpp',
 		'include/frg/span.hpp',
