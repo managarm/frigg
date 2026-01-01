@@ -51,7 +51,7 @@ template<typename M>
 struct qs_domain {
 	friend struct qs_agent<M>;
 
-	qs_domain()
+	constexpr qs_domain()
 	: _qs_counter{1}, _desired_qs_counter{0}, _num_agents{0}, _agents_to_ack{0} { }
 
 private:
@@ -79,7 +79,7 @@ struct qs_node {
 	template<typename M>
 	friend struct qs_agent;
 
-	qs_node()
+	constexpr qs_node()
 	: on_grace_period{nullptr}, _target_qs_counter{0} { }
 
 	void (*on_grace_period)(qs_node *);

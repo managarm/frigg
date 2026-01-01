@@ -19,14 +19,14 @@ struct option {
 	frg::string_view opt;
 	fn_type fn;
 
-	void apply(frg::string_view value) {
+	constexpr void apply(frg::string_view value) {
 		FRG_ASSERT(fn.ptr);
 		fn.ptr(value, fn.ctx);
 	}
 };
 
 template <typename T>
-auto as_number(T &here) {
+constexpr auto as_number(T &here) {
 	return option::fn_type{
 		[] (frg::string_view value, void *ctx) {
 			auto n = value.to_number<T>();
@@ -38,7 +38,7 @@ auto as_number(T &here) {
 	};
 }
 
-inline auto as_string_view(frg::string_view &here) {
+inline constexpr auto as_string_view(frg::string_view &here) {
 	return option::fn_type{
 		[] (frg::string_view value, void *ctx) {
 			*static_cast<frg::string_view *>(ctx) = value;
@@ -49,7 +49,7 @@ inline auto as_string_view(frg::string_view &here) {
 }
 
 template<typename T, T value>
-auto store_const(T &here) {
+constexpr auto store_const(T &here) {
 	return option::fn_type{
 		[] (frg::string_view, void *ctx) {
 			*static_cast<T *>(ctx) = value;
@@ -59,16 +59,16 @@ auto store_const(T &here) {
 	};
 }
 
-inline auto store_true(bool &here) {
+inline constexpr auto store_true(bool &here) {
 	return store_const<bool, true>(here);
 }
 
-inline auto store_false(bool &here) {
+inline constexpr auto store_false(bool &here) {
 	return store_const<bool, false>(here);
 }
 
 
-inline void parse_arguments(frg::string_view cmdline, std::ranges::range auto args) {
+inline constexpr void parse_arguments(frg::string_view cmdline, std::ranges::range auto args) {
 	auto try_apply_arg = [&] (frg::string_view arg, option opt) -> bool {
 		auto eq = arg.find_first('=');
 

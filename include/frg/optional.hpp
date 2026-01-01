@@ -17,10 +17,10 @@ class optional {
 public:
 	using value_type = T;
 
-	optional()
+	constexpr optional()
 	: _non_null{false} { }
 	
-	optional(null_opt_type)
+	constexpr optional(null_opt_type)
 	: _non_null{false} { }
 
 	optional(const T &object)

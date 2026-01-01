@@ -133,7 +133,7 @@ public:
 	void insert(const Key &key, Value &&value);
 	Value &operator[] (const Key &key);
 
-	bool empty() {
+	constexpr bool empty() const {
 		return !_size;
 	}
 
@@ -189,7 +189,7 @@ public:
 
 	optional<Value> remove(const Key &key);
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _size;
 	}
 

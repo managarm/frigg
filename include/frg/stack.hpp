@@ -13,8 +13,8 @@ public:
 	using value_type = typename Container::value_type;
 	using reference = typename Container::reference;
 
-	stack() { }
-	stack(Allocator alloc) : _container(alloc) { }
+	constexpr stack() { }
+	constexpr stack(Allocator alloc) : _container(alloc) { }
 
 	reference top() {
 		return _container.back();
@@ -33,11 +33,11 @@ public:
 		_container.emplace_back(std::forward<Args>(args)...);
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _container.size();
 	}
 
-	bool empty() const {
+	constexpr bool empty() const {
 		return _container.empty();
 	}
 private:

@@ -64,7 +64,7 @@ using policy_map_aligned_t = decltype(std::declval<Policy>().map(size_t(0), size
 template<typename Policy, typename Mutex>
 class slab_pool {
 public:
-	slab_pool(Policy &plcy);
+	constexpr slab_pool(Policy &plcy);
 
 	slab_pool(const slab_pool &) = delete;
 
@@ -417,7 +417,7 @@ private:
 // --------------------------------------------------------
 
 template<typename Policy, typename Mutex>
-slab_pool<Policy, Mutex>::slab_pool(Policy &plcy)
+constexpr slab_pool<Policy, Mutex>::slab_pool(Policy &plcy)
 : _plcy{plcy}, _usedPages{0} { }
 
 template<typename Policy, typename Mutex>
@@ -812,7 +812,7 @@ void slab_pool<Policy, Mutex>::_trace(char c, void *ptr, size_t size) {
 template<typename Policy, typename Mutex>
 class slab_allocator {
 public:
-	slab_allocator(slab_pool<Policy, Mutex> *pool)
+	constexpr slab_allocator(slab_pool<Policy, Mutex> *pool)
 	: pool_{pool} { }
 
 	void *allocate(size_t size) {

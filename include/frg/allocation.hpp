@@ -42,22 +42,22 @@ void destruct_n(Allocator &allocator, T *pointer, size_t n) {
 
 template<typename Allocator>
 struct unique_memory {
-	friend void swap(unique_memory &a, unique_memory &b) {
+	friend constexpr void swap(unique_memory &a, unique_memory &b) {
 		using std::swap;
 		swap(a.pointer_, b.pointer_);
 		swap(a.size_, b.size_);
 		swap(a.allocator_, b.allocator_);
 	}
 
-	unique_memory()
+	constexpr unique_memory()
 	: pointer_{nullptr}, size_{0}, allocator_{nullptr} { }
 
-	explicit unique_memory(Allocator &allocator, size_t size)
+	constexpr explicit unique_memory(Allocator &allocator, size_t size)
 	: size_{size}, allocator_{&allocator} {
 		pointer_ = allocator_->allocate(size);
 	}
 
-	unique_memory(unique_memory &&other)
+	constexpr unique_memory(unique_memory &&other)
 	: unique_memory{} {
 		swap(*this, other);
 	}
@@ -69,20 +69,20 @@ struct unique_memory {
 			allocator_->free(pointer_);
 	}
 
-	explicit operator bool () {
+	constexpr explicit operator bool () {
 		return pointer_;
 	}
 
-	unique_memory &operator= (unique_memory other) {
+	constexpr unique_memory &operator= (unique_memory other) {
 		swap(*this, other);
 		return *this;
 	}
 
-	void *data() const {
+	constexpr void *data() const {
 		return pointer_;
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return size_;
 	}
 

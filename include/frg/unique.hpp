@@ -7,16 +7,16 @@ namespace frg {
 
 template <typename T, typename Allocator>
 struct unique_ptr {
-	friend void swap(unique_ptr &a, unique_ptr &b) {
+	friend constexpr void swap(unique_ptr &a, unique_ptr &b) {
 		using std::swap;
 		swap(a._ptr, b._ptr);
 		swap(a._allocator, b._allocator);
 	}
 
-	unique_ptr(Allocator allocator)
+	constexpr unique_ptr(Allocator allocator)
 	:_ptr{nullptr}, _allocator(std::move(allocator)) {}
 
-	unique_ptr(Allocator allocator, T *ptr)
+	constexpr unique_ptr(Allocator allocator, T *ptr)
 	:_ptr{ptr}, _allocator(std::move(allocator)) {}
 
 	~unique_ptr() {
@@ -27,40 +27,40 @@ struct unique_ptr {
 	unique_ptr(const unique_ptr &) = delete;
 	unique_ptr &operator=(const unique_ptr &) = delete;
 
-	unique_ptr(unique_ptr &&p)
+	constexpr unique_ptr(unique_ptr &&p)
 	:_ptr{nullptr}, _allocator(p._allocator) {
 		swap(*this, p);
 	}
 
-	unique_ptr &operator=(unique_ptr &&p) {
+	constexpr unique_ptr &operator=(unique_ptr &&p) {
 		swap(*this, p);
 		return *this;
 	}
 
-	T *get() {
+	constexpr T *get() {
 		return _ptr;
 	}
 
-	T &operator*() {
+	constexpr T &operator*() {
 		return *_ptr;
 	}
 
-	T *operator->() {
+	constexpr T *operator->() {
 		return _ptr;
 	}
 
-	T *release() {
+	constexpr T *release() {
 		T *old = _ptr;
 		_ptr = nullptr;
 
 		return old;
 	}
 
-	explicit operator bool() {
+	constexpr explicit operator bool() {
 		return _ptr;
 	}
 
-	void reset(T *ptr) {
+	constexpr void reset(T *ptr) {
 		T *old = _ptr;
 		_ptr = ptr;
 

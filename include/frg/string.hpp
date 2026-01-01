@@ -10,7 +10,7 @@
 
 namespace frg FRG_VISIBILITY {
 template<typename CharT>
-auto generic_strlen(const CharT *c) {
+constexpr auto generic_strlen(const CharT *c) {
 	std::size_t len = 0;
 	while (*(c++)) {
 		len++;
@@ -19,7 +19,7 @@ auto generic_strlen(const CharT *c) {
 }
 
 template<typename CharT>
-auto generic_strnlen(const CharT *c, std::size_t max) {
+constexpr auto generic_strnlen(const CharT *c, std::size_t max) {
 	std::size_t len = 0;
 	while (len < max && *(c++)) {
 		len++;
@@ -33,28 +33,28 @@ public:
 	typedef Char CharType;
 	using value_type = Char;
 
-	basic_string_view()
+	constexpr basic_string_view()
 	: _pointer{nullptr}, _length{0} { }
 
-	basic_string_view(const Char *cs)
+	constexpr basic_string_view(const Char *cs)
 	: _pointer{cs}, _length{generic_strlen(cs)} { }
 
-	basic_string_view(const Char *s, size_t length)
+	constexpr basic_string_view(const Char *s, size_t length)
 	: _pointer{s}, _length{length} { }
 
-	const Char *data() const {
+	constexpr const Char *data() const {
 		return _pointer;
 	}
 
-	const Char &operator[] (size_t index) const {
+	constexpr const Char &operator[] (size_t index) const {
 		return _pointer[index];
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _length;
 	}
 
-	bool operator== (basic_string_view other) const {
+	constexpr bool operator== (basic_string_view other) const {
 		if(_length != other._length)
 			return false;
 		for(size_t i = 0; i < _length; i++)
@@ -63,7 +63,7 @@ public:
 		return true;
 	}
 
-	size_t find_first(Char c, size_t start_from = 0) const {
+	constexpr size_t find_first(Char c, size_t start_from = 0) const {
 		for(size_t i = start_from; i < _length; i++)
 			if(_pointer[i] == c)
 				return i;
@@ -71,7 +71,7 @@ public:
 		return size_t(-1);
 	}
 
-	size_t find_first_of(basic_string_view chars, size_t start_from = 0) const {
+	constexpr size_t find_first_of(basic_string_view chars, size_t start_from = 0) const {
 		for(size_t i = start_from; i < _length; ++i) {
 			for(size_t j = 0; j < chars.size(); ++j)
 				if(_pointer[i] == chars[j])
@@ -80,7 +80,7 @@ public:
 		return size_t(-1);
 	}
 
-	size_t find_last(Char c) const {
+	constexpr size_t find_last(Char c) const {
 		for(size_t i = _length; i > 0; i--)
 			if(_pointer[i - 1] == c)
 				return i - 1;
@@ -88,12 +88,12 @@ public:
 		return size_t(-1);
 	}
 
-	basic_string_view sub_string(size_t from, size_t size) const {
+	constexpr basic_string_view sub_string(size_t from, size_t size) const {
 		FRG_ASSERT(from + size <= _length);
 		return basic_string_view(_pointer + from, size);
 	}
 
-	bool starts_with(basic_string_view other) {
+	constexpr bool starts_with(basic_string_view other) {
 		if (other.size() > size()) {
 			return false;
 		}
@@ -101,7 +101,7 @@ public:
 		return sub_string(0, other.size()) == other;
 	}
 
-	bool ends_with(basic_string_view other) {
+	constexpr bool ends_with(basic_string_view other) {
 		if (other.size() > size()) {
 			return false;
 		}
@@ -110,7 +110,7 @@ public:
 	}
 
 	template<typename T>
-	optional<T> to_number() {
+	constexpr optional<T> to_number() {
 		T value = 0;
 		for(size_t i = 0; i < _length; i++) {
 			if(!(_pointer[i] >= '0' && _pointer[i] <= '9'))
@@ -136,14 +136,14 @@ public:
 	typedef Char CharType;
 	using value_type = Char;
 
-	friend void swap(basic_string &a, basic_string &b) {
+	friend constexpr void swap(basic_string &a, basic_string &b) {
 		using std::swap;
 		swap(a._allocator, b._allocator);
 		swap(a._buffer, b._buffer);
 		swap(a._length, b._length);
 	}
 
-	basic_string(Allocator allocator = Allocator())
+	constexpr basic_string(Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _buffer{const_cast<Char *>(empty_string)}, _length{0} { }
 
 	basic_string(const Char *c_string, Allocator allocator = Allocator())
@@ -203,7 +203,7 @@ public:
 		}
 	}
 
-	basic_string &operator= (basic_string other) {
+	constexpr basic_string &operator= (basic_string other) {
 		swap(*this, other);
 		return *this;
 	}
@@ -291,48 +291,48 @@ public:
 	}
 
 	// used to disable deallocation upon object destruction
-	void detach() {
+	constexpr void detach() {
 		_buffer = const_cast<Char *>(empty_string);
 		_length = 0;
 	}
 
-	Char *data() {
+	constexpr Char *data() {
 		return _buffer;
 	}
-	const Char *data() const {
+	constexpr const Char *data() const {
 		return _buffer;
 	}
 
-	Char &operator[] (size_t index) {
+	constexpr Char &operator[] (size_t index) {
 		return _buffer[index];
 	}
-	const Char &operator[] (size_t index) const {
+	constexpr const Char &operator[] (size_t index) const {
 		return _buffer[index];
 	}
 
-	size_t size() const {
+	constexpr size_t size() const {
 		return _length;
 	}
 
-	bool empty() const {
+	constexpr bool empty() const {
 		return _length == 0;
 	}
 
-	Char *begin() {
+	constexpr Char *begin() {
 		return _buffer;
 	}
-	const Char *begin() const {
+	constexpr const Char *begin() const {
 		return _buffer;
 	}
 
-	Char *end() {
+	constexpr Char *end() {
 		return _buffer + _length;
 	}
-	const Char *end() const {
+	constexpr const Char *end() const {
 		return _buffer + _length;
 	}
 
-	int compare(const basic_string &other) const {
+	constexpr int compare(const basic_string &other) const {
 		if(_length != other.size())
 			return _length < other.size() ? -1 : 1;
 		for(size_t i = 0; i < _length; i++)
@@ -341,7 +341,7 @@ public:
 		return 0;
 	}
 
-	int compare(const char *other) const {
+	constexpr int compare(const char *other) const {
 		auto other_len = generic_strlen(other);
 		if(_length != other_len)
 			return _length < other_len ? -1 : 1;
@@ -351,24 +351,24 @@ public:
 		return 0;
 	}
 
-	bool operator== (const basic_string &other) const {
+	constexpr bool operator== (const basic_string &other) const {
 		return compare(other) == 0;
 	}
 
-	bool operator== (const char *rhs) const {
+	constexpr bool operator== (const char *rhs) const {
 		return compare(rhs) == 0;
 	}
 
-	operator basic_string_view<Char> () const {
+	constexpr operator basic_string_view<Char> () const {
 		return basic_string_view<Char>(_buffer, _length);
 	}
 
-	bool starts_with(basic_string_view<Char> other) {
+	constexpr bool starts_with(basic_string_view<Char> other) {
 		auto self = basic_string_view<Char> { *this };
 		return self.starts_with(other);
 	}
 
-	bool ends_with(basic_string_view<Char> other) {
+	constexpr bool ends_with(basic_string_view<Char> other) {
 		auto self = basic_string_view<Char> { *this };
 		return self.ends_with(other);
 	}
@@ -385,7 +385,7 @@ using string = basic_string<char, Allocator>;
 template<typename Char>
 class hash<basic_string_view<Char>> {
 public:
-	unsigned int operator() (const basic_string_view<Char> &string) const {
+	constexpr unsigned int operator() (const basic_string_view<Char> &string) const {
 		unsigned int hash = 0;
 		for(size_t i = 0; i < string.size(); i++)
 			hash += 31 * hash + string[i];
@@ -396,7 +396,7 @@ public:
 template<typename Char, typename Allocator>
 class hash<basic_string<Char, Allocator>> {
 public:
-	unsigned int operator() (const basic_string<Char, Allocator> &string) const {
+	constexpr unsigned int operator() (const basic_string<Char, Allocator> &string) const {
 		unsigned int hash = 0;
 		for(size_t i = 0; i < string.size(); i++)
 			hash += 31 * hash + string[i];

@@ -17,7 +17,7 @@ enum class color_type {
 };
 
 struct hook_struct {
-	hook_struct()
+	constexpr hook_struct()
 	: parent(nullptr), left(nullptr), right(nullptr),
 			predecessor(nullptr), successor(nullptr),
 			color(color_type::null) { }
@@ -97,7 +97,7 @@ private:
 	// Constructor, Destructor, operators.
 	// ------------------------------------------------------------------------
 public:
-	tree_crtp_struct()
+	constexpr tree_crtp_struct()
 	: _root{nullptr} { }
 
 	tree_crtp_struct(const tree_crtp_struct &other) = delete;
@@ -656,7 +656,7 @@ public:
 	// Constructor, Destructor, operators.
 	// ------------------------------------------------------------------------
 public:
-	tree_struct(L less = L())
+	constexpr tree_struct(L less = L())
 	: _less{std::move(less)} { }
 
 	// ------------------------------------------------------------------------

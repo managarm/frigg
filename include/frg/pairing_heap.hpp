@@ -16,7 +16,7 @@ namespace _pairing {
 // The backlink is required to support deletion of arbitrary elements.
 template<typename T>
 struct pairing_heap_hook {
-	pairing_heap_hook()
+	constexpr pairing_heap_hook()
 	: child{nullptr}, backlink{nullptr}, sibling{nullptr} { }
 
 	pairing_heap_hook(const pairing_heap_hook &) = delete;
@@ -147,7 +147,7 @@ private:
 	// Interface functions.
 	// ------------------------------------------------------------------------
 public:
-	pairing_heap()
+	constexpr pairing_heap()
 	: _root{nullptr} { }
 
 	pairing_heap(const pairing_heap &) = delete;
@@ -158,7 +158,7 @@ public:
 
 	pairing_heap &operator= (const pairing_heap &) = delete;
 
-	bool empty() {
+	constexpr bool empty() {
 		return _root == nullptr;
 	}
 
