@@ -178,6 +178,13 @@ inline auto to(Out &x) {
 	return ostream_out { x };
 }
 
+struct FriggSink {
+	void operator()(const char *s) {
+		FRG_INTF(log)(s);
+	}
+};
+
+using FriggLogger = frg::stack_buffer_logger<frg::FriggSink>;
 
 } // namespace frg
 
