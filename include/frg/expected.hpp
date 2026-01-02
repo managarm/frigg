@@ -245,7 +245,7 @@ struct [[nodiscard]] expected<E, void> {
 	}
 
 	E error(std::source_location loc = std::source_location::current()) const {
-		if(indicates_error(e_)) {
+		if(!indicates_error(e_)) {
 			FriggLogger{}() << frg::fmt("{} line {}: {}: error() on non-error type!", loc.file_name(), loc.line(), loc.function_name()) << frg::endlog;
 			FRG_INTF(panic)("failed to get error() from frg::expected");
 		}
