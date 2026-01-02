@@ -1,0 +1,13 @@
+[wrap-file]
+directory = mimalloc-3.1.5
+source_url = https://github.com/microsoft/mimalloc/archive/refs/tags/v3.1.5.tar.gz
+source_filename = mimalloc-3.1.5.tar.gz
+source_hash = 1c6949032069d5ebea438ec5cedd602d06f40a92ddf0f0d9dcff0993e5f6635c
+patch_filename = mimalloc_3.1.5-1_patch.zip
+patch_url = https://wrapdb.mesonbuild.com/v2/mimalloc_3.1.5-1/get_patch
+patch_hash = 321b4507c1adda5b7aa9954a5f1748e17bf30a11142b4f6c3d52929523565e80
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/mimalloc_3.1.5-1/mimalloc-3.1.5.tar.gz
+wrapdb_version = 3.1.5-1
+
+[provide]
+mimalloc = mi_dep

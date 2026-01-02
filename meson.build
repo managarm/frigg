@@ -81,6 +81,7 @@ endif
 
 if build_tests
 	subdir('tests')
+	subdir('benchmarks')
 endif
 
 if build_slab_analyzer
