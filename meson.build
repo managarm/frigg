@@ -8,6 +8,7 @@ if not get_option('frigg_no_install')
 		'include/frg/algorithm.hpp',
 		'include/frg/allocation.hpp',
 		'include/frg/array.hpp',
+		'include/frg/bitops.hpp',
 		'include/frg/cmdline.hpp',
 		'include/frg/container_of.hpp',
 		'include/frg/detection.hpp',
@@ -33,6 +34,7 @@ if not get_option('frigg_no_install')
 		'include/frg/rbtree.hpp',
 		'include/frg/rcu_radixtree.hpp',
 		'include/frg/scope_exit.hpp',
+		'include/frg/sharded_slab.hpp',
 		'include/frg/slab.hpp',
 		'include/frg/small_vector.hpp',
 		'include/frg/span.hpp',
@@ -79,6 +81,7 @@ endif
 
 if build_tests
 	subdir('tests')
+	subdir('benchmarks')
 endif
 
 if build_slab_analyzer

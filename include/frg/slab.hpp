@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <frg/bitops.hpp>
 #include <frg/string_stub.hpp>
 #include <frg/macros.hpp>
 #include <frg/mutex.hpp>
@@ -16,30 +17,6 @@ namespace {
 
 	constexpr bool enable_checking = false;
 }
-
-template<typename T>
-struct bitop_impl;
-
-template<>
-struct bitop_impl<unsigned long long> {
-	static constexpr int clz(unsigned long long x) {
-		return __builtin_clzll(x);
-	}
-};
-
-template<>
-struct bitop_impl<unsigned long> {
-	static constexpr int clz(unsigned long x) {
-		return __builtin_clzl(x);
-	}
-};
-
-template<>
-struct bitop_impl<unsigned int> {
-	static constexpr int clz(unsigned int x) {
-		return __builtin_clz(x);
-	}
-};
 
 template<typename T, size_t N>
 constexpr size_t array_size(const T (&)[N]) {
@@ -125,7 +102,7 @@ private:
 		}
 
 		// Next, we handle the small sizes. Variables correspond to those in bucket_to_size().
-		auto e = (sizeof(size_t) * 8 - 1) - bitop_impl<size_t>::clz(size);
+		auto e = floor_log2(size);
 		auto f = e - small_step_exp;
 		auto ip = ((f - small_base_exp) << small_step_exp);
 		auto is = ((size - (static_cast<size_t>(1) << e)) + (static_cast<size_t>(1) << f) - 1) >> f;

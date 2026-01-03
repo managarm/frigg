@@ -1,6 +1,8 @@
-gtest = dependency('gtest_main', required: false, disabler: true)
+gtest = dependency('gtest_main')
 
 test_executable = executable('frigg_tests',
+	'sharded_slab.cpp',
+	'support.cpp',
 	'tests.cpp',
 	dependencies: [
 		gtest, frigg_dep
