@@ -1,6 +1,7 @@
 gtest = dependency('gtest_main')
 
 test_executable = executable('frigg_tests',
+	'support.cpp',
 	'tests.cpp',
 	dependencies: [
 		gtest, frigg_dep
