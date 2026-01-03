@@ -1,4 +1,4 @@
-gtest = dependency('gtest_main', required: false, disabler: true)
+gtest = dependency('gtest_main')
 
 test_executable = executable('frigg_tests',
 	'tests.cpp',
