@@ -229,6 +229,20 @@ struct pool {
 		}
 	}
 
+	size_t get_size(void *object) {
+		if (!object)
+			return 0;
+		auto chunk = chunk_header_of(object);
+		if (chunk->type == chunk_type::slab) {
+			return chunk->bkt->object_size;
+		} else {
+			FRG_ASSERT(chunk->type == chunk_type::large);
+			uintptr_t limit = reinterpret_cast<uintptr_t>(chunk->extent_ptr) + chunk->extent_size;
+			uintptr_t start = reinterpret_cast<uintptr_t>(object);
+			return limit - start;
+		}
+	}
+
 private:
 	// Find the chunk_header for an object by aligning the pointer down to chunk_boundary.
 	chunk_header *chunk_header_of(void *object) {

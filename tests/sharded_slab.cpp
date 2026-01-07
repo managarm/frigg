@@ -154,3 +154,19 @@ TEST(sharded_slab, reallocate) {
 		pool.reallocate(p_shrink, 0);
 	}
 }
+
+TEST(sharded_slab, get_size) {
+	pool_type pool;
+
+	EXPECT_EQ(pool.get_size(nullptr), 0);
+
+	size_t small_size = 127;
+	void *p_small = pool.allocate(small_size);
+	EXPECT_GE(pool.get_size(p_small), small_size);
+	pool.deallocate(p_small);
+
+	size_t large_size = 1024 * 1024 - 1;
+	void *p_large = pool.allocate(large_size);
+	EXPECT_GE(pool.get_size(p_large), large_size);
+	pool.deallocate(p_large);
+}
