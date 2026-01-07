@@ -105,3 +105,52 @@ TEST(sharded_slab, cross_thread_deallocation) {
 			main_pool.deallocate(objs[i]);
 	}
 }
+
+TEST(sharded_slab, reallocate) {
+	pool_type pool;
+
+	size_t delta = 15;
+	std::array<size_t, 2> sizes = {256 - delta, 1024 * 1024 - delta};
+
+	for (size_t size : sizes) {
+		void *p = pool.reallocate(nullptr, size);
+		ASSERT_NE(p, nullptr);
+		memset(p, 0x42, size);
+
+		// Grow by small amount.
+		size_t grow_size = size + delta;
+		void *p_grow = pool.reallocate(p, grow_size);
+		ASSERT_NE(p_grow, nullptr);
+		memset(static_cast<unsigned char *>(p_grow) + size, 0x42, grow_size - size);
+		for(size_t i = 0; i < grow_size; ++i) {
+			EXPECT_EQ(static_cast<unsigned char *>(p_grow)[i], 0x42);
+		}
+
+		// Shrink in place.
+		void *p_shrink = pool.reallocate(p_grow, size / 2);
+		EXPECT_EQ(p_shrink, p_grow);
+
+		pool.reallocate(p_shrink, 0);
+	}
+
+	for (size_t size : sizes) {
+		void *p = pool.reallocate(nullptr, size);
+		ASSERT_NE(p, nullptr);
+		memset(p, 0x42, size);
+
+		// Grow by large amount.
+		size_t grow_size = 3 * size;
+		void *p_grow = pool.reallocate(p, grow_size);
+		ASSERT_NE(p_grow, nullptr);
+		memset(static_cast<unsigned char *>(p_grow) + size, 0x42, grow_size - size);
+		for(size_t i = 0; i < grow_size; ++i) {
+			EXPECT_EQ(static_cast<unsigned char *>(p_grow)[i], 0x42);
+		}
+
+		// Shrink in place.
+		void *p_shrink = pool.reallocate(p_grow, size / 2);
+		EXPECT_EQ(p_shrink, p_grow);
+
+		pool.reallocate(p_shrink, 0);
+	}
+}

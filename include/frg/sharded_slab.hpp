@@ -9,6 +9,7 @@
 #include <frg/bitops.hpp>
 #include <frg/expected.hpp>
 #include <frg/macros.hpp>
+#include <frg/string_stub.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -181,6 +182,36 @@ struct pool {
 				return nullptr;
 			return result.value();
 		}
+	}
+
+	void *reallocate(void *object, size_t new_size) {
+		if (!object)
+			return allocate(new_size);
+		if (!new_size) {
+			deallocate(object);
+			return nullptr;
+		}
+
+		auto chunk = chunk_header_of(object);
+		size_t capacity;
+		if (chunk->type == chunk_type::slab) {
+			capacity = chunk->bkt->object_size;
+		} else {
+			FRG_ASSERT(chunk->type == chunk_type::large);
+			uintptr_t limit = reinterpret_cast<uintptr_t>(chunk->extent_ptr) + chunk->extent_size;
+			uintptr_t start = reinterpret_cast<uintptr_t>(object);
+			capacity = limit - start;
+		}
+
+		if (new_size <= capacity)
+			return object;
+
+		auto new_object = allocate(new_size);
+		if (!new_object)
+			return nullptr;
+		memcpy(new_object, object, capacity);
+		deallocate(object);
+		return new_object;
 	}
 
 	void deallocate(void *object) {
