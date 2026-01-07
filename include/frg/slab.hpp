@@ -11,6 +11,16 @@
 
 namespace frg FRG_VISIBILITY {
 
+namespace slab {
+
+template<typename P>
+concept has_poisoning_support = requires(P policy) {
+	policy.poison(nullptr, size_t{0});
+	policy.unpoison(nullptr, size_t{0});
+};
+
+} // namespace slab
+
 namespace {
 	// TODO: We need a frigg logging mechanism to enable this.
 	//constexpr bool logAllocations = true;
@@ -174,8 +184,6 @@ private:
 		&& requires (Policy p, void *buffer, size_t size) { p.output_trace(buffer, size); }
 		&& requires (Policy p) { p.walk_stack(walk_archetype); };
 
-	static constexpr bool has_poisoning = is_detected_v<policy_poison_t, Policy>;
-
 	struct freelist {
 		freelist()
 		: link{nullptr} { }
@@ -288,7 +296,7 @@ private:
 		if(new_size > item_size)
 			return false;
 
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.unpoison_expand(p, item_size);
 			_plcy.poison(p, item_size);
 			_plcy.unpoison(p, new_size);
@@ -302,7 +310,7 @@ private:
 		FRG_ASSERT(!enable_checking
 				|| !((reinterpret_cast<uintptr_t>(p) - slb->address) % item_size));
 
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.unpoison_expand(p, item_size);
 			_plcy.poison(p, item_size);
 			_plcy.unpoison(p, sizeof(freelist));
@@ -339,7 +347,7 @@ private:
 		if(new_size > sup->length)
 			return false;
 
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.unpoison_expand(p, sup->length);
 			_plcy.poison(p, sup->length);
 			_plcy.unpoison(p, new_size);
@@ -365,7 +373,7 @@ private:
 		auto sb_reservation = sup->sb_reservation;
 		auto obj_address = sup->address;
 		auto obj_size = sup->length;
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.poison(sup, sizeof(frame));
 			_plcy.poison(reinterpret_cast<void *>(obj_address), obj_size);
 		}
@@ -468,7 +476,7 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
 		object->~freelist();
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.poison(object, sizeof(freelist));
 			_plcy.unpoison(object, length);
 		}
@@ -643,7 +651,7 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 		overhead += item_size;
 	FRG_ASSERT(overhead < slabsize);
 
-	if constexpr (has_poisoning)
+	if constexpr (slab::has_poisoning_support<Policy>)
 		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(slab_frame));
 	auto slb = new (reinterpret_cast<void *>(address)) slab_frame(
 			address + overhead, slabsize - overhead, index);
@@ -656,7 +664,7 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 	// Partition the slab into individual objects.
 	freelist *first = nullptr;
 	for(size_t off = 0; off < slb->length; off += item_size) {
-		if constexpr (has_poisoning)
+		if constexpr (slab::has_poisoning_support<Policy>)
 			_plcy.unpoison(reinterpret_cast<void *>(slb->address + off), sizeof(freelist));
 		auto object = new (reinterpret_cast<void *>(slb->address + off)) freelist;
 		object->link = first;
@@ -691,7 +699,7 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 			return nullptr;
 		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
-	if constexpr (has_poisoning) {
+	if constexpr (slab::has_poisoning_support<Policy>) {
 		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(frame));
 		_plcy.unpoison(reinterpret_cast<void *>(address + huge_padding), area_size);
 	}

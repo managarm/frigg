@@ -170,3 +170,71 @@ TEST(sharded_slab, get_size) {
 	EXPECT_GE(pool.get_size(p_large), large_size);
 	pool.deallocate(p_large);
 }
+
+struct poison_policy : sharded_slab_policy {
+	static inline std::vector<std::pair<uintptr_t, uintptr_t>> ranges;
+
+	void clear_range(uintptr_t start, uintptr_t end) {
+		std::vector<std::pair<uintptr_t, uintptr_t>> new_ranges;
+		for (const auto &r : ranges) {
+			if (r.second <= start || r.first >= end) {
+				// No overlap.
+				new_ranges.push_back(r);
+			} else {
+				// Overlap.
+				if (r.first < start)
+					new_ranges.emplace_back(r.first, start);
+				if (r.second > end)
+					new_ranges.emplace_back(end, r.second);
+			}
+		}
+		ranges = std::move(new_ranges);
+	}
+
+	void poison(void *p, size_t size) {
+		uintptr_t address = reinterpret_cast<uintptr_t>(p);
+		clear_range(address, address + size);
+	}
+
+	void unpoison(void *p, size_t size) {
+		uintptr_t address = reinterpret_cast<uintptr_t>(p);
+		clear_range(address, address + size);
+		ranges.emplace_back(address, address + size);
+	}
+
+	void unpoison_expand(void *p, size_t size) {
+		uintptr_t address = reinterpret_cast<uintptr_t>(p);
+		clear_range(address, address + size);
+		ranges.emplace_back(address, address + size);
+	}
+};
+
+TEST(sharded_slab, poisoning) {
+	frg::sharded_slab::pool<poison_policy> pool;
+
+	// Range must be unpoisoned after allocate().
+	size_t size = 128;
+	void *p = pool.allocate(size);
+	auto address = reinterpret_cast<uintptr_t>(p);
+	bool exact_match = std::any_of(
+		poison_policy::ranges.begin(),
+		poison_policy::ranges.end(),
+		[&] (const auto &r) {
+			return r.first == address && r.second == address + size;
+		}
+	);
+	EXPECT_TRUE(exact_match);
+
+	// Range must be poisoned after allocate().
+	pool.deallocate(p);
+	// Note: Ideally we would be able to test for non-overlap here.
+	//       However, that is not possible since the freelists are always unpoisoned.
+	exact_match = std::any_of(
+		poison_policy::ranges.begin(),
+		poison_policy::ranges.end(),
+		[&] (const auto &r) {
+			return r.first == address && r.second == address + size;
+		}
+	);
+	EXPECT_FALSE(exact_match);
+}

@@ -9,6 +9,7 @@
 #include <frg/bitops.hpp>
 #include <frg/expected.hpp>
 #include <frg/macros.hpp>
+#include <frg/slab.hpp>
 #include <frg/string_stub.hpp>
 
 namespace frg FRG_VISIBILITY {
@@ -24,7 +25,6 @@ enum class error {
 //       in particular:
 //       * Slab size and page size overrides
 //       * Bucket customizations
-//       * (K)ASAN integration
 //       * Aligned page mapping functions
 //       * Allocation tracing
 template<typename P>
@@ -177,7 +177,7 @@ struct pool {
 			return result.value();
 		} else {
 			auto idx = bucket_index(size);
-			auto result = slab_allocate(&buckets_[idx]);
+			auto result = slab_allocate(&buckets_[idx], size);
 			if (!result)
 				return nullptr;
 			return result.value();
@@ -203,8 +203,13 @@ struct pool {
 			capacity = limit - start;
 		}
 
-		if (new_size <= capacity)
+		if (new_size <= capacity) {
+			if constexpr (slab::has_poisoning_support<P>) {
+				policy_.poison(object, capacity);
+				policy_.unpoison(object, new_size);
+			}
 			return object;
+		}
 
 		auto new_object = allocate(new_size);
 		if (!new_object)
@@ -275,6 +280,9 @@ private:
 		auto aligned_addr = (raw_addr + chunk_boundary - 1) & ~(chunk_boundary - 1);
 		auto chunk = reinterpret_cast<chunk_header *>(aligned_addr);
 
+		if constexpr (slab::has_poisoning_support<P>)
+			policy_.unpoison(chunk, sizeof(chunk_header));
+
 		new (chunk) chunk_header{
 			.type{chunk_type::slab},
 			.owner{this},
@@ -297,8 +305,12 @@ private:
 		compressed_address prev = 0;
 		size_t count = 0;
 		for (size_t offset = first_offset; offset + object_size <= chunk_size; offset += object_size) {
-			auto obj = new (object_from_address(chunk, offset)) free_object{};
-			obj->next = prev;
+			auto obj = object_from_address(chunk, offset);
+			if constexpr (slab::has_poisoning_support<P>) {
+				policy_.unpoison(obj, sizeof(free_object));
+			}
+			auto free_obj = new (object_from_address(chunk, offset)) free_object{};
+			free_obj->next = prev;
 			prev = static_cast<compressed_address>(offset);
 			count++;
 		}
@@ -405,7 +417,7 @@ private:
 			std::memory_order_relaxed));
 	}
 
-	frg::expected<error, void *> slab_allocate(bucket *bkt) {
+	frg::expected<error, void *> slab_allocate(bucket *bkt, size_t size) {
 		slab_chunk_update(bkt);
 
 		// Ensure that we have a chunk to allocate from.
@@ -421,19 +433,31 @@ private:
 		FRG_ASSERT(chunk->owner_free);
 		FRG_ASSERT(chunk->owner_count);
 		auto ca = chunk->owner_free;
-		auto obj = static_cast<free_object *>(object_from_address(chunk, ca));
-		chunk->owner_free = obj->next;
+		auto free_obj = static_cast<free_object *>(object_from_address(chunk, ca));
+		chunk->owner_free = free_obj->next;
 		chunk->owner_count--;
 
 		// Retire chunks once the free list becomes empty.
 		if (!chunk->owner_free)
 			slab_chunk_retire(bkt);
 
-		return object_from_address(chunk, ca);
+		void *obj = free_obj;
+		if constexpr (slab::has_poisoning_support<P>) {
+			policy_.poison(obj, sizeof(free_object));
+			policy_.unpoison(obj, size);
+		}
+
+		return obj;
 	}
 
 	void slab_deallocate_owned(chunk_header *chunk, void *object) {
 		auto ca = object_to_address(chunk, object);
+
+		if constexpr (slab::has_poisoning_support<P>) {
+			policy_.unpoison_expand(object, chunk->bkt->object_size);
+			policy_.poison(object, chunk->bkt->object_size);
+			policy_.unpoison(object, sizeof(free_object));
+		}
 
 		// Owner deallocation: push onto owner_free.
 		auto obj = new (object) free_object{};
@@ -467,6 +491,12 @@ private:
 
 	void slab_deallocate_threaded(chunk_header *chunk, void *object) {
 		auto ca = object_to_address(chunk, object);
+
+		if constexpr (slab::has_poisoning_support<P>) {
+			policy_.unpoison_expand(object, chunk->bkt->object_size);
+			policy_.poison(object, chunk->bkt->object_size);
+			policy_.unpoison(object, sizeof(free_object));
+		}
 
 		// Threaded deallocation: push onto threaded_free by using CAS.
 		auto obj = new (object) free_object{};
@@ -519,6 +549,11 @@ private:
 		auto aligned_addr = (raw_addr + chunk_boundary - 1) & ~(chunk_boundary - 1);
 		auto chunk = reinterpret_cast<chunk_header *>(aligned_addr);
 
+		if constexpr (slab::has_poisoning_support<P>) {
+			policy_.unpoison(chunk, sizeof(chunk_header));
+			policy_.unpoison(reinterpret_cast<void *>(aligned_addr + first_offset), size);
+		}
+
 		new (chunk) chunk_header{
 			.type{chunk_type::large},
 			.owner{this},
@@ -530,7 +565,15 @@ private:
 	}
 
 	void large_free(chunk_header *chunk) {
-		policy_.unmap(chunk->extent_ptr, chunk->extent_size);
+		auto *extent_ptr = chunk->extent_ptr;
+		size_t extent_size = chunk->extent_size;
+
+		if constexpr (slab::has_poisoning_support<P>) {
+			policy_.unpoison_expand(extent_ptr, extent_size);
+			policy_.poison(extent_ptr, extent_size);
+		}
+
+		policy_.unmap(extent_ptr, extent_size);
 	}
 
 	P policy_;
