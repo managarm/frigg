@@ -26,7 +26,6 @@ enum class error {
 //       * Slab size and page size overrides
 //       * Bucket customizations
 //       * Aligned page mapping functions
-//       * Allocation tracing
 template<typename P>
 concept Policy = requires(P policy, void *p, size_t size) {
 	// The map() and unmap() functions can be used to allocate and free memory at page granularity.
@@ -170,18 +169,21 @@ struct pool {
 	}
 
 	void *allocate(size_t size) {
+		void *obj;
 		if (size > max_size_class) {
 			auto result = large_allocate(size);
 			if (!result)
 				return nullptr;
-			return result.value();
+			obj = result.value();
 		} else {
 			auto idx = bucket_index(size);
 			auto result = slab_allocate(&buckets_[idx], size);
 			if (!result)
 				return nullptr;
-			return result.value();
+			obj = result.value();
 		}
+		slab::trace(policy_, 'a', obj, size);
+		return obj;
 	}
 
 	void *reallocate(void *object, size_t new_size) {
@@ -220,6 +222,7 @@ struct pool {
 	}
 
 	void deallocate(void *object) {
+		slab::trace(policy_, 'f', object, 0);
 		if (!object)
 			return;
 		auto chunk = chunk_header_of(object);

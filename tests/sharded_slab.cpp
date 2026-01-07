@@ -238,3 +238,60 @@ TEST(sharded_slab, poisoning) {
 	);
 	EXPECT_FALSE(exact_match);
 }
+
+struct trace_policy : sharded_slab_policy {
+	static inline std::vector<uint8_t> buffer;
+
+	bool enable_trace() { return true; }
+
+	void output_trace(void *buf, size_t size) {
+		const uint8_t *b = static_cast<const uint8_t *>(buf);
+		buffer.insert(buffer.end(), b, b + size);
+	}
+
+	template<typename F>
+	void walk_stack(F fn) {
+		fn(0x1234);
+	}
+};
+
+TEST(sharded_slab, tracing) {
+	frg::sharded_slab::pool<trace_policy> pool;
+	uint64_t word;
+
+	// Verify trace of allocation.
+	void *p = pool.allocate(128);
+
+	// Expected: 'a' (1) + ptr (8) + size (8) + stack (8) + term (8) = 33 bytes.
+	ASSERT_EQ(trace_policy::buffer.size(), 33);
+	EXPECT_EQ(trace_policy::buffer[0], 'a');
+
+	memcpy(&word, &trace_policy::buffer[1], 8);
+	EXPECT_EQ(word, reinterpret_cast<uintptr_t>(p));
+
+	memcpy(&word, &trace_policy::buffer[9], 8);
+	EXPECT_EQ(word, 128);
+
+	memcpy(&word, &trace_policy::buffer[17], 8);
+	EXPECT_EQ(word, 0x1234);
+
+	memcpy(&word, &trace_policy::buffer[25], 8);
+	EXPECT_EQ(word, 0xA5A5A5A5A5A5A5A5ULL);
+
+	// Verify trace of deallocation.
+	trace_policy::buffer.clear();
+	pool.deallocate(p);
+
+	// Expected: 'f' (1) + ptr (8) + stack (8) + term (8) = 25 bytes.
+	ASSERT_EQ(trace_policy::buffer.size(), 25);
+	EXPECT_EQ(trace_policy::buffer[0], 'f');
+
+	memcpy(&word, &trace_policy::buffer[1], 8);
+	EXPECT_EQ(word, reinterpret_cast<uintptr_t>(p));
+
+	memcpy(&word, &trace_policy::buffer[9], 8);
+	EXPECT_EQ(word, 0x1234);
+
+	memcpy(&word, &trace_policy::buffer[17], 8);
+	EXPECT_EQ(word, 0xA5A5A5A5A5A5A5A5ULL);
+}
