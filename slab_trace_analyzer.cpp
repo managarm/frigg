@@ -236,12 +236,16 @@ int main(int argc, char **argv) {
 		}
 
 		printf("\n  found in:\n");
+		bool top = true;
 		for (auto p : stack) {
-			fprintf(stdin_f, "0x%016lx\n", p);
+			// For stack frames below the top, subtract 1 to resolve the call instruction
+			// and not the next instruction after the call.
+			fprintf(stdin_f, "0x%016lx\n", (!p || top) ? p : (p - 1));
 			fflush(stdin_f);
 			getline(&linebuf, &linecap, stdout_f);
 
 			printf("\t%016lx -> %s", p, linebuf);
+			top = false;
 		}
 		printf("--------------------------------------\n\n");
 	}

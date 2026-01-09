@@ -105,3 +105,193 @@ TEST(sharded_slab, cross_thread_deallocation) {
 			main_pool.deallocate(objs[i]);
 	}
 }
+
+TEST(sharded_slab, reallocate) {
+	pool_type pool;
+
+	size_t delta = 15;
+	std::array<size_t, 2> sizes = {256 - delta, 1024 * 1024 - delta};
+
+	for (size_t size : sizes) {
+		void *p = pool.reallocate(nullptr, size);
+		ASSERT_NE(p, nullptr);
+		memset(p, 0x42, size);
+
+		// Grow by small amount.
+		size_t grow_size = size + delta;
+		void *p_grow = pool.reallocate(p, grow_size);
+		ASSERT_NE(p_grow, nullptr);
+		memset(static_cast<unsigned char *>(p_grow) + size, 0x42, grow_size - size);
+		for(size_t i = 0; i < grow_size; ++i) {
+			EXPECT_EQ(static_cast<unsigned char *>(p_grow)[i], 0x42);
+		}
+
+		// Shrink in place.
+		void *p_shrink = pool.reallocate(p_grow, size / 2);
+		EXPECT_EQ(p_shrink, p_grow);
+
+		pool.reallocate(p_shrink, 0);
+	}
+
+	for (size_t size : sizes) {
+		void *p = pool.reallocate(nullptr, size);
+		ASSERT_NE(p, nullptr);
+		memset(p, 0x42, size);
+
+		// Grow by large amount.
+		size_t grow_size = 3 * size;
+		void *p_grow = pool.reallocate(p, grow_size);
+		ASSERT_NE(p_grow, nullptr);
+		memset(static_cast<unsigned char *>(p_grow) + size, 0x42, grow_size - size);
+		for(size_t i = 0; i < grow_size; ++i) {
+			EXPECT_EQ(static_cast<unsigned char *>(p_grow)[i], 0x42);
+		}
+
+		// Shrink in place.
+		void *p_shrink = pool.reallocate(p_grow, size / 2);
+		EXPECT_EQ(p_shrink, p_grow);
+
+		pool.reallocate(p_shrink, 0);
+	}
+}
+
+TEST(sharded_slab, get_size) {
+	pool_type pool;
+
+	EXPECT_EQ(pool.get_size(nullptr), 0);
+
+	size_t small_size = 127;
+	void *p_small = pool.allocate(small_size);
+	EXPECT_GE(pool.get_size(p_small), small_size);
+	pool.deallocate(p_small);
+
+	size_t large_size = 1024 * 1024 - 1;
+	void *p_large = pool.allocate(large_size);
+	EXPECT_GE(pool.get_size(p_large), large_size);
+	pool.deallocate(p_large);
+}
+
+struct poison_policy : sharded_slab_policy {
+	static inline std::vector<std::pair<uintptr_t, uintptr_t>> ranges;
+
+	void clear_range(uintptr_t start, uintptr_t end) {
+		std::vector<std::pair<uintptr_t, uintptr_t>> new_ranges;
+		for (const auto &r : ranges) {
+			if (r.second <= start || r.first >= end) {
+				// No overlap.
+				new_ranges.push_back(r);
+			} else {
+				// Overlap.
+				if (r.first < start)
+					new_ranges.emplace_back(r.first, start);
+				if (r.second > end)
+					new_ranges.emplace_back(end, r.second);
+			}
+		}
+		ranges = std::move(new_ranges);
+	}
+
+	void poison(void *p, size_t size) {
+		uintptr_t address = reinterpret_cast<uintptr_t>(p);
+		clear_range(address, address + size);
+	}
+
+	void unpoison(void *p, size_t size) {
+		uintptr_t address = reinterpret_cast<uintptr_t>(p);
+		clear_range(address, address + size);
+		ranges.emplace_back(address, address + size);
+	}
+
+	void unpoison_expand(void *p, size_t size) {
+		uintptr_t address = reinterpret_cast<uintptr_t>(p);
+		clear_range(address, address + size);
+		ranges.emplace_back(address, address + size);
+	}
+};
+
+TEST(sharded_slab, poisoning) {
+	frg::sharded_slab::pool<poison_policy> pool;
+
+	// Range must be unpoisoned after allocate().
+	size_t size = 128;
+	void *p = pool.allocate(size);
+	auto address = reinterpret_cast<uintptr_t>(p);
+	bool exact_match = std::any_of(
+		poison_policy::ranges.begin(),
+		poison_policy::ranges.end(),
+		[&] (const auto &r) {
+			return r.first == address && r.second == address + size;
+		}
+	);
+	EXPECT_TRUE(exact_match);
+
+	// Range must be poisoned after allocate().
+	pool.deallocate(p);
+	// Note: Ideally we would be able to test for non-overlap here.
+	//       However, that is not possible since the freelists are always unpoisoned.
+	exact_match = std::any_of(
+		poison_policy::ranges.begin(),
+		poison_policy::ranges.end(),
+		[&] (const auto &r) {
+			return r.first == address && r.second == address + size;
+		}
+	);
+	EXPECT_FALSE(exact_match);
+}
+
+struct trace_policy : sharded_slab_policy {
+	static inline std::vector<uint8_t> buffer;
+
+	bool enable_trace() { return true; }
+
+	void output_trace(void *buf, size_t size) {
+		const uint8_t *b = static_cast<const uint8_t *>(buf);
+		buffer.insert(buffer.end(), b, b + size);
+	}
+
+	template<typename F>
+	void walk_stack(F fn) {
+		fn(0x1234);
+	}
+};
+
+TEST(sharded_slab, tracing) {
+	frg::sharded_slab::pool<trace_policy> pool;
+	uint64_t word;
+
+	// Verify trace of allocation.
+	void *p = pool.allocate(128);
+
+	// Expected: 'a' (1) + ptr (8) + size (8) + stack (8) + term (8) = 33 bytes.
+	ASSERT_EQ(trace_policy::buffer.size(), 33);
+	EXPECT_EQ(trace_policy::buffer[0], 'a');
+
+	memcpy(&word, &trace_policy::buffer[1], 8);
+	EXPECT_EQ(word, reinterpret_cast<uintptr_t>(p));
+
+	memcpy(&word, &trace_policy::buffer[9], 8);
+	EXPECT_EQ(word, 128);
+
+	memcpy(&word, &trace_policy::buffer[17], 8);
+	EXPECT_EQ(word, 0x1234);
+
+	memcpy(&word, &trace_policy::buffer[25], 8);
+	EXPECT_EQ(word, 0xA5A5A5A5A5A5A5A5ULL);
+
+	// Verify trace of deallocation.
+	trace_policy::buffer.clear();
+	pool.deallocate(p);
+
+	// Expected: 'f' (1) + ptr (8) + stack (8) + term (8) = 25 bytes.
+	ASSERT_EQ(trace_policy::buffer.size(), 25);
+	EXPECT_EQ(trace_policy::buffer[0], 'f');
+
+	memcpy(&word, &trace_policy::buffer[1], 8);
+	EXPECT_EQ(word, reinterpret_cast<uintptr_t>(p));
+
+	memcpy(&word, &trace_policy::buffer[9], 8);
+	EXPECT_EQ(word, 0x1234);
+
+	memcpy(&word, &trace_policy::buffer[17], 8);
+	EXPECT_EQ(word, 0xA5A5A5A5A5A5A5A5ULL);
+}

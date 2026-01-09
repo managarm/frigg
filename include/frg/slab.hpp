@@ -11,6 +11,65 @@
 
 namespace frg FRG_VISIBILITY {
 
+namespace slab {
+
+template<typename P>
+concept has_poisoning_support = requires(P policy) {
+	policy.poison(nullptr, size_t{0});
+	policy.unpoison(nullptr, size_t{0});
+};
+
+template<typename Policy>
+concept has_trace_support = requires (Policy p) { p.enable_trace(); }
+	&& requires (Policy p, void *buffer, size_t size) { p.output_trace(buffer, size); }
+	&& requires (Policy p) { p.walk_stack([] (uintptr_t) {}); };
+
+template<typename Policy>
+void trace(Policy &plcy, char c, void *ptr, size_t size) {
+	if constexpr (has_trace_support<Policy>) {
+		if (!plcy.enable_trace())
+			return;
+
+		const int num_frames = 12;
+		const size_t bufsize = 1 // Record type.
+			+ 16                 // Pointer and size.
+			+ num_frames * 8     // Stack trace.
+			+ 8;                 // Terminator.
+		uint8_t buffer[bufsize];
+		size_t n = 0;
+
+		auto add_byte = [&] (uint8_t val) {
+			FRG_ASSERT(n + 1 <= bufsize);
+			buffer[n++] = val;
+		};
+
+		auto add_word = [&] (uintptr_t val) {
+			FRG_ASSERT(n + 8 <= bufsize);
+			for (int i = 0; i < 8; i++)
+				buffer[n++] = (val >> (i * 8)) & 0xFF;
+		};
+
+		add_byte(c);
+		add_word(reinterpret_cast<uintptr_t>(ptr));
+		if (c == 'a')
+			add_word(size);
+
+		int k = 0;
+		plcy.walk_stack([&](uintptr_t val){
+			if(k >= num_frames)
+				return;
+			add_word(val);
+			++k;
+		});
+
+		add_word(0xA5A5A5A5A5A5A5A5);
+
+		plcy.output_trace(buffer, n);
+	}
+}
+
+} // namespace slab
+
 namespace {
 	// TODO: We need a frigg logging mechanism to enable this.
 	//constexpr bool logAllocations = true;
@@ -166,16 +225,6 @@ private:
 	// TODO: Refactor the huge frame padding.
 	static constexpr size_t huge_padding = page_size;
 
-	// Necessary because Clang 9 does not support lambdas in unevaluated contexts.
-	static constexpr auto walk_archetype = [] (uintptr_t) { };
-
-	static constexpr bool has_trace_support =
-		requires (Policy p) { p.enable_trace(); }
-		&& requires (Policy p, void *buffer, size_t size) { p.output_trace(buffer, size); }
-		&& requires (Policy p) { p.walk_stack(walk_archetype); };
-
-	static constexpr bool has_poisoning = is_detected_v<policy_poison_t, Policy>;
-
 	struct freelist {
 		freelist()
 		: link{nullptr} { }
@@ -288,7 +337,7 @@ private:
 		if(new_size > item_size)
 			return false;
 
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.unpoison_expand(p, item_size);
 			_plcy.poison(p, item_size);
 			_plcy.unpoison(p, new_size);
@@ -302,7 +351,7 @@ private:
 		FRG_ASSERT(!enable_checking
 				|| !((reinterpret_cast<uintptr_t>(p) - slb->address) % item_size));
 
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.unpoison_expand(p, item_size);
 			_plcy.poison(p, item_size);
 			_plcy.unpoison(p, sizeof(freelist));
@@ -339,7 +388,7 @@ private:
 		if(new_size > sup->length)
 			return false;
 
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.unpoison_expand(p, sup->length);
 			_plcy.poison(p, sup->length);
 			_plcy.unpoison(p, new_size);
@@ -365,7 +414,7 @@ private:
 		auto sb_reservation = sup->sb_reservation;
 		auto obj_address = sup->address;
 		auto obj_size = sup->length;
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.poison(sup, sizeof(frame));
 			_plcy.poison(reinterpret_cast<void *>(obj_address), obj_size);
 		}
@@ -377,7 +426,6 @@ private:
 	void _verify_integrity();
 	void _verify_frame_integrity(frame *fra);
 
-	void _trace(char c, void *ptr, size_t size);
 private:
 	Policy &_plcy;
 
@@ -468,13 +516,13 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 		//if(logAllocations)
 		//	std::cout << "frg/slab: Allocate small-object at " << object << std::endl;
 		object->~freelist();
-		if constexpr (has_poisoning) {
+		if constexpr (slab::has_poisoning_support<Policy>) {
 			_plcy.poison(object, sizeof(freelist));
 			_plcy.unpoison(object, length);
 		}
 		if(enable_checking)
 			_verify_integrity();
-		_trace('a', object, length);
+		slab::trace(_plcy, 'a', object, length);
 		return object;
 	}else{
 		auto area_size = (length + page_size - 1) & ~(page_size - 1);
@@ -494,7 +542,7 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 		//			(void *)fra->address << std::endl;
 		if(enable_checking)
 			_verify_integrity();
-		_trace('a', reinterpret_cast<void *>(fra->address), length);
+		slab::trace(_plcy, 'a', reinterpret_cast<void *>(fra->address), length);
 		return reinterpret_cast<void *>(fra->address);
 	}
 }
@@ -542,7 +590,7 @@ void slab_pool<Policy, Mutex>::free(void *p) {
 	if(enable_checking)
 		_verify_integrity();
 
-	_trace('f', p, 0);
+	slab::trace(_plcy, 'f', p, 0);
 
 	if(!p)
 		return;
@@ -569,7 +617,7 @@ void slab_pool<Policy, Mutex>::deallocate(void *p, size_t size) {
 	if(enable_checking)
 		_verify_integrity();
 
-	_trace('f', p, 0);
+	slab::trace(_plcy, 'f', p, 0);
 
 	if(!p)
 		return;
@@ -643,7 +691,7 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 		overhead += item_size;
 	FRG_ASSERT(overhead < slabsize);
 
-	if constexpr (has_poisoning)
+	if constexpr (slab::has_poisoning_support<Policy>)
 		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(slab_frame));
 	auto slb = new (reinterpret_cast<void *>(address)) slab_frame(
 			address + overhead, slabsize - overhead, index);
@@ -656,7 +704,7 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 	// Partition the slab into individual objects.
 	freelist *first = nullptr;
 	for(size_t off = 0; off < slb->length; off += item_size) {
-		if constexpr (has_poisoning)
+		if constexpr (slab::has_poisoning_support<Policy>)
 			_plcy.unpoison(reinterpret_cast<void *>(slb->address + off), sizeof(freelist));
 		auto object = new (reinterpret_cast<void *>(slb->address + off)) freelist;
 		object->link = first;
@@ -691,7 +739,7 @@ auto slab_pool<Policy, Mutex>::_construct_large(size_t area_size)
 			return nullptr;
 		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
-	if constexpr (has_poisoning) {
+	if constexpr (slab::has_poisoning_support<Policy>) {
 		_plcy.unpoison(reinterpret_cast<void *>(address), sizeof(frame));
 		_plcy.unpoison(reinterpret_cast<void *>(address + huge_padding), area_size);
 	}
@@ -736,50 +784,6 @@ void slab_pool<Policy, Mutex>::_verify_frame_integrity(frame *fra) {
 	if(_frame_tree.get_right(fra))
 		_verify_frame_integrity(frame_tree_type::get_right(fra));
 #endif
-}
-
-template<typename Policy, typename Mutex>
-void slab_pool<Policy, Mutex>::_trace(char c, void *ptr, size_t size) {
-	if constexpr (has_trace_support) {
-		if (!_plcy.enable_trace())
-			return;
-
-		const int num_frames = 12;
-		const size_t bufsize = 1 // Record type.
-			+ 16                 // Pointer and size.
-			+ num_frames * 8     // Stack trace.
-			+ 8;                 // Terminator.
-		uint8_t buffer[bufsize];
-		size_t n = 0;
-
-		auto add_byte = [&] (uint8_t val) {
-			FRG_ASSERT(n + 1 <= bufsize);
-			buffer[n++] = val;
-		};
-
-		auto add_word = [&] (uintptr_t val) {
-			FRG_ASSERT(n + 8 <= bufsize);
-			for (int i = 0; i < 8; i++)
-				buffer[n++] = (val >> (i * 8)) & 0xFF;
-		};
-
-		add_byte(c);
-		add_word(reinterpret_cast<uintptr_t>(ptr));
-		if (c == 'a')
-			add_word(size);
-
-		int k = 0;
-		_plcy.walk_stack([&](uintptr_t val){
-			if(k >= num_frames)
-				return;
-			add_word(val);
-			++k;
-		});
-
-		add_word(0xA5A5A5A5A5A5A5A5);
-
-		_plcy.output_trace(buffer, n);
-	}
 }
 
 // --------------------------------------------------------
