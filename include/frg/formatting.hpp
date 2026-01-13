@@ -23,6 +23,7 @@
 
 #if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
 #include <math.h>
+#include <wchar.h>
 #include <limits>
 #endif
 
@@ -41,6 +42,45 @@ concept SinkFor = requires (T t, const Char *str, Char c, size_t n) {
 
 template<typename T>
 concept Sink = SinkFor<T, typename T::char_type>;
+
+template <typename CharT>
+struct FormatterPolicy;
+
+template<>
+struct FormatterPolicy<char> {
+	static constexpr const char *emptyStr = "";
+	static constexpr const char *dotStr = ".";
+	static constexpr const char *binPrefix = "0b";
+	static constexpr const char *binPrefixUpper = "0B";
+	static constexpr const char *hexPrefix = "0x";
+	static constexpr const char *hexPrefixUpper = "0X";
+	static constexpr const char *inf = "inf";
+	static constexpr const char *infUpper = "INF";
+	static constexpr const char *nan = "nan";
+	static constexpr const char *nanUpper = "NAN";
+	static constexpr const char *hexPrefixZero = "0x0";
+	static constexpr const char *hexPrefixUpperZero = "0X0";
+	static constexpr const char *hexPrefixOne = "0x1";
+	static constexpr const char *hexPrefixUpperOne = "0X1";
+};
+
+template<>
+struct FormatterPolicy<wchar_t> {
+	static constexpr const wchar_t *emptyStr = L"";
+	static constexpr const wchar_t *dotStr = L".";
+	static constexpr const wchar_t *binPrefix = L"0b";
+	static constexpr const wchar_t *binPrefixUpper = L"0B";
+	static constexpr const wchar_t *hexPrefix = L"0x";
+	static constexpr const wchar_t *hexPrefixUpper = L"0X";
+	static constexpr const wchar_t *inf = L"inf";
+	static constexpr const wchar_t *infUpper = L"INF";
+	static constexpr const wchar_t *nan = L"nan";
+	static constexpr const wchar_t *nanUpper = L"NAN";
+	static constexpr const wchar_t *hexPrefixZero = L"0x0";
+	static constexpr const wchar_t *hexPrefixUpperZero = L"0X0";
+	static constexpr const wchar_t *hexPrefixOne = L"0x1";
+	static constexpr const wchar_t *hexPrefixUpperOne = L"0X1";
+};
 
 // ----------------------------------------------------------------------------
 // General formatting machinery.
@@ -81,17 +121,20 @@ struct format_options {
 	bool use_exponential = false;
 };
 
+template <typename Char>
 struct locale_options {
-	locale_options()
-	: decimal_point("."), thousands_sep(""), grouping("") { }
+	using Policy = FormatterPolicy<Char>;
 
-	locale_options(const char *d_p, const char *t_s, const char *grp)
+	locale_options()
+	: decimal_point(Policy::dotStr), thousands_sep(Policy::emptyStr), grouping("") { }
+
+	locale_options(const Char *d_p, const Char *t_s, const char *grp)
 	: decimal_point(d_p), thousands_sep(t_s), grouping(grp) {
 		thousands_sep_size = generic_strlen(thousands_sep);
 	}
 
-	const char *decimal_point;
-	const char *thousands_sep;
+	const Char *decimal_point;
+	const Char *thousands_sep;
 	const char *grouping;
 	size_t thousands_sep_size;
 };
@@ -111,11 +154,11 @@ enum class format_error {
 namespace _fmt_basics {
 	// width: Minimum width of the output (padded with spaces by default).
 	// precision: Minimum number of digits in the output (always padded with zeros).
-	template<Sink S, typename T>
+	template<Sink S, typename T, typename Char>
 	void print_digits(S &sink, T number, bool negative, int radix,
 			int width, int precision, char padding, bool left_justify,
 			bool group_thousands, bool always_sign, bool plus_becomes_space,
-			bool use_capitals, locale_options locale_opts) {
+			bool use_capitals, locale_options<Char> locale_opts) {
 		const char *digits = use_capitals ? "0123456789ABCDEF" : "0123456789abcdef";
 		char buffer[64];
 
@@ -213,19 +256,19 @@ namespace _fmt_basics {
 	// Signed integer formatting. We cannot print -x as that might not fit into the signed type.
 	// Strategy: Cast to unsigned first (i.e. obtain 2s complement) and negate manually by
 	// computing (~x + 1).
-	template<Sink S, typename T>
+	template<Sink S, typename T, typename Char>
 	void print_int(S &sink, T number, int radix, int width = 0,
 			int precision = 1, char padding = ' ', bool left_justify = false,
 			bool group_thousands = false, bool always_sign = false,
 			bool plus_becomes_space = false, bool use_capitals = false,
-			locale_options locale_opts = {}) {
+			locale_options<Char> locale_opts = {}) {
 		if(number < 0) {
 			auto absv = ~static_cast<typename std::make_unsigned_t<T>>(number) + 1;
-			print_digits(sink, absv, true, radix, width, precision, padding,
+			print_digits<S, T, Char>(sink, absv, true, radix, width, precision, padding,
 					left_justify, group_thousands, always_sign, plus_becomes_space, use_capitals,
 					locale_opts);
 		}else{
-			print_digits(sink, number, false, radix, width, precision, padding,
+			print_digits<S, T, Char>(sink, number, false, radix, width, precision, padding,
 					left_justify, group_thousands, always_sign, plus_becomes_space, use_capitals,
 					locale_opts);
 		}
@@ -245,14 +288,14 @@ namespace _fmt_basics {
 					|| fo.conversion == format_conversion::decimal);
 		}
 
-		print_int(sink, object, radix,
+		print_int<S, T, typename S::char_type>(sink, object, radix,
 				fo.minimum_width, fo.precision ? *fo.precision : 1,
 				fo.fill_zeros ? '0' : ' ', fo.left_justify, fo.group_thousands,
 				fo.always_sign, fo.plus_becomes_space, fo.use_capitals);
 	}
 
-	template<typename T>
-	int grouping_extra_characters(T num, int precision, locale_options opts) {
+	template<typename T, typename Char>
+	int grouping_extra_characters(T num, int precision, locale_options<Char> opts) {
 		if (!opts.grouping)
 			opts.grouping = "";
 
@@ -291,13 +334,13 @@ namespace _fmt_basics {
 	}
 
 #if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
-	template<Sink S, typename T>
+	template<Sink S, typename T, typename Char>
 		requires (std::is_floating_point_v<T>)
 	void print_float(S &sink, T number, int width = 0, optional<int> precision = 6,
-			char padding = ' ', bool left_justify = false, bool alt_conversion = false,
+			Char padding = ' ', bool left_justify = false, bool alt_conversion = false,
 			bool use_capitals = false, bool group_thousands = false, bool use_compact = false,
-			bool exponential_form = false, bool print_hexfloat = false, locale_options locale_opts = {}) {
-		(void)group_thousands;
+			bool exponential_form = false, bool print_hexfloat = false, locale_options<Char> locale_opts = {}) {
+		using P = frg::FormatterPolicy<Char>;
 
 		auto textLength = [](int i, unsigned base = 10, bool ignoreSign = false) {
 			int length = (i < 0 && !ignoreSign) ? 1 : 0;
@@ -328,9 +371,9 @@ namespace _fmt_basics {
 				sink.append('-');
 
 			if (inf)
-				sink.append(use_capitals ? "INF" : "inf");
+				sink.append(use_capitals ? P::infUpper : P::inf);
 			else
-				sink.append(use_capitals ? "NAN" : "nan");
+				sink.append(use_capitals ? P::nanUpper : P::nan);
 
 			if (left_justify) {
 				while (pad_length > 0) {
@@ -388,8 +431,16 @@ namespace _fmt_basics {
 
 			// digits after the radix or the alternative form force a decimal point
 			bool print_decimal_point = ((precision && precision.value()) || fracIntegral || alt_conversion);
-			auto decimal_point_length = print_decimal_point ? generic_strlen(locale_opts.decimal_point) : 0;
 
+			auto decimal_point_length = [&]() -> size_t {
+				if (print_decimal_point) {
+					if constexpr (std::is_same_v<Char, char>)
+						return strlen(locale_opts.decimal_point);
+					else
+						return 1;
+				}
+				return 0;
+			}();
 			int total_length = int_length + decimal_point_length + frac_length + exp_length;
 
 			auto pad_length = width > total_length ? width - total_length : 0;
@@ -405,20 +456,20 @@ namespace _fmt_basics {
 				sink.append('-');
 
 			if (use_capitals)
-				sink.append(number == 0.0 ? "0X0" : "0X1");
+				sink.append(number == 0.0 ? (P::hexPrefixUpperZero) : (P::hexPrefixUpperOne));
 			else
-				sink.append(number == 0.0 ? "0x0" : "0x1");
+				sink.append(number == 0.0 ? (P::hexPrefixZero) : (P::hexPrefixOne));
 
 			if (print_decimal_point)
 				sink.append(locale_opts.decimal_point);
 			if (fracIntegral)
-				print_int(sink, fracIntegral, 16, {}, frac_length, '0', {}, {}, {}, {}, use_capitals);
+				print_int<S, decltype(fracIntegral), Char>(sink, fracIntegral, 16, {}, frac_length, '0', {}, {}, {}, {}, use_capitals);
 			if (precision && *precision > frac_length)
-				print_int(sink, 0, 10, {}, *precision - frac_length);
+				print_int<S, decltype(fracIntegral), Char>(sink, 0, 10, {}, *precision - frac_length);
 
 			sink.append(use_capitals ? 'P' : 'p');
 
-			print_int(sink, exp, 10, {}, {}, {}, {}, {}, true);
+			print_int<S, decltype(exp), Char>(sink, exp, 10, {}, {}, {}, {}, {}, true);
 
 			if (left_justify) {
 				while (pad_length > 0) {
@@ -545,13 +596,12 @@ namespace _fmt_basics {
 		if (has_sign)
 			sink.append('-');
 
-		print_int(sink, integralDigits, 10, 0, 1, {}, false, group_thousands, false, false, false, locale_opts);
+		print_int<S, decltype(integralDigits), Char>(sink, integralDigits, 10, 0, 1, {}, false, group_thousands, false, false, false, locale_opts);
 
 		if (print_decimal_point)
 			sink.append(locale_opts.decimal_point);
 		if (*precision > 0)
-			print_int(sink, fracDigits, 10, *precision, *precision, '0');
-
+			print_int<S, decltype(fracDigits), Char>(sink, fracDigits, 10, *precision, *precision, '0');
 
 		if (left_justify) {
 			while (pad_length > 0) {
@@ -563,7 +613,7 @@ namespace _fmt_basics {
 		if (exponential_form) {
 			sink.append(use_capitals ? 'E' : 'e');
 
-			print_int(sink, exponent, 10, 2, 2, '0', false, false, true);
+			print_int<S, decltype(exponent), Char>(sink, exponent, 10, 2, 2, '0', false, false, true);
 		}
 	}
 

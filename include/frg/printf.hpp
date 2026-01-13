@@ -90,9 +90,9 @@ T pop_arg(va_struct *vsp, format_options *opts) {
 	return arg;
 }
 
-template <typename A>
+template <typename A, typename Char>
 concept PrintfFormatAgent =
-    requires(A agent, char c, const char *str, size_t n,
+    requires(A agent, Char c, const Char *str, size_t n,
              frg::format_options opts, frg::printf_size_mod szmod) {
       agent(c);
       agent(str, n);
@@ -100,9 +100,9 @@ concept PrintfFormatAgent =
       { agent.format_type(c, szmod) } -> std::convertible_to<std::optional<frg::printf_arg_type>>;
     };
 
-template<size_t MaxArgs, PrintfFormatAgent A>
+template<typename Char, size_t MaxArgs, PrintfFormatAgent<Char> A>
 	requires (MaxArgs >= 9)
-frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp) {
+frg::expected<format_error> printf_format(A agent, const Char *s, va_struct *vsp) {
 	FRG_ASSERT(s != nullptr);
 	bool dollar_arg_pos = false;
 
@@ -116,7 +116,7 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 	std::array<pos_arg, MaxArgs> pos_args;
 	size_t max_pos_arg = 0;
 
-	const char *p1 = s;
+	const Char *p1 = s;
 	while (*p1) {
 		if (*p1++ != '%')
 			continue;
@@ -133,9 +133,9 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 
 		// Attempt to parse a positional argument of the form `n$`; on success, return a pair of
 		// (one-based value, length including dollar sign).
-		auto parse_positional_arg = [] (const char *p) -> std::optional<std::pair<size_t, size_t>> {
+		auto parse_positional_arg = [] (const Char *p) -> std::optional<std::pair<size_t, size_t>> {
 			size_t val = 0;
-			const char *orig = p;
+			const Char *orig = p;
 			while(*p >= '0' && *p <= '9') {
 				val = val * 10 + (*p - '0');
 				++p;
@@ -403,9 +403,15 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 					pop_arg<void *>(vsp, &opts);
 					break;
 				default:
-					std::ignore = agent("frigg: unhandled printf_arg_type ", 33);
-					std::ignore = agent('0' + std::to_underlying(pos_args[i].type));
-					std::ignore = agent('\0');
+					if constexpr (std::is_same_v<Char, char>) {
+						(void) agent("frigg: unhandled printf_arg_type ", 33);
+						(void) agent('0' + std::to_underlying(pos_args[i].type));
+						(void) agent('\0');
+					} else {
+						(void) agent(L"frigg: unhandled printf_arg_type ", 33);
+						(void) agent(L'0' + std::to_underlying(pos_args[i].type));
+						(void) agent(L'\0');
+					}
 					return frg::format_error::agent_error;
 			}
 		}
@@ -659,14 +665,16 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 template<typename Char, SinkFor<Char> S>
 void do_printf_chars(S &sink, Char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp) {
+	using P = frg::FormatterPolicy<Char>;
+
 	switch(t) {
 	case 'p':
 		FRG_ASSERT(!opts.fill_zeros);
 		FRG_ASSERT(!opts.left_justify);
 		FRG_ASSERT(!opts.alt_conversion);
 		FRG_ASSERT(opts.minimum_width == 0);
-		sink.append("0x");
-		_fmt_basics::print_int(sink, (uintptr_t)pop_arg<void*>(vsp, &opts), 16);
+		sink.append(P::hexPrefix);
+		_fmt_basics::print_int<S, uintptr_t, Char>(sink, (uintptr_t)pop_arg<void*>(vsp, &opts), 16);
 		break;
 	case 'c':
 		FRG_ASSERT(!opts.fill_zeros);
@@ -744,9 +752,11 @@ void do_printf_chars(S &sink, Char t, format_options opts,
 	}
 }
 
-template<Sink S>
-void do_printf_ints(S &sink, char t, format_options opts,
-		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
+template<typename Char, Sink S>
+void do_printf_ints(S &sink, Char t, format_options opts,
+		printf_size_mod szmod, va_struct *vsp, locale_options<Char> locale_opts = {}) {
+	using P = FormatterPolicy<Char>;
+
 	auto pad_to_min = [&] {
 		bool put_sign = opts.always_sign;
 
@@ -785,7 +795,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 		if(opts.precision && *opts.precision == 0 && !number) {
 			pad_to_min();
 		}else{
-			_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
+			_fmt_basics::print_int<S, long, Char>(sink, number, 10, opts.minimum_width,
 					opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 					opts.left_justify, opts.group_thousands, opts.always_sign,
 					opts.plus_becomes_space, false, locale_opts);
@@ -796,13 +806,13 @@ void do_printf_ints(S &sink, char t, format_options opts,
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion) {
 				opts.minimum_width -= 2;
-				sink.append(t == 'b' ? "0b" : "0B");
+				sink.append(t == 'b' ? P::binPrefix : P::binPrefixUpper);
 			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				pad_to_min();
 			}else{
-				_fmt_basics::print_int(sink, number, 2, opts.minimum_width,
+				_fmt_basics::print_int<S, decltype(number), Char>(sink, number, 2, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
 						false, locale_opts);
@@ -836,7 +846,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			if(opts.precision && *opts.precision == 0 && !number) {
 				pad_to_min();
 			}else{
-				_fmt_basics::print_int(sink, number, 8, opts.minimum_width,
+				_fmt_basics::print_int<S, decltype(number), Char>(sink, number, 8, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
 						false, locale_opts);
@@ -865,13 +875,13 @@ void do_printf_ints(S &sink, char t, format_options opts,
 		auto print = [&] (auto number) {
 			if (number && opts.alt_conversion) {
 				opts.minimum_width -= 2;
-				sink.append(t == 'x' ? "0x" : "0X");
+				sink.append(t == 'x' ? P::hexPrefix : P::hexPrefixUpper);
 			}
 
 			if(opts.precision && *opts.precision == 0 && !number) {
 				pad_to_min();
 			}else{
-				_fmt_basics::print_int(sink, number, 16, opts.minimum_width,
+				_fmt_basics::print_int<S, decltype(number), Char>(sink, number, 16, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, false, opts.always_sign, opts.plus_becomes_space,
 						t == 'X', locale_opts);
@@ -901,7 +911,7 @@ void do_printf_ints(S &sink, char t, format_options opts,
 			if(opts.precision && *opts.precision == 0 && !number) {
 				pad_to_min();
 			}else{
-				_fmt_basics::print_int(sink, number, 10, opts.minimum_width,
+				_fmt_basics::print_int<S, decltype(number), Char>(sink, number, 10, opts.minimum_width,
 						opts.precision ? *opts.precision : 1, opts.fill_zeros ? '0' : ' ',
 						opts.left_justify, opts.group_thousands, opts.always_sign,
 						opts.plus_becomes_space, false, locale_opts);
@@ -931,9 +941,9 @@ void do_printf_ints(S &sink, char t, format_options opts,
 }
 
 #if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
-template<Sink S>
-void do_printf_floats(S &sink, char t, format_options opts,
-		printf_size_mod szmod, va_struct *vsp, locale_options locale_opts = {}) {
+template<typename Char, Sink S>
+void do_printf_floats(S &sink, Char t, format_options opts,
+		printf_size_mod szmod, va_struct *vsp, locale_options<Char> locale_opts = {}) {
 	bool use_capitals = true;
 	bool use_compact = false;
 	bool exponent_form = false;
@@ -969,17 +979,19 @@ void do_printf_floats(S &sink, char t, format_options opts,
 
 #ifndef FRG_DONT_USE_LONG_DOUBLE
 		if (szmod == printf_size_mod::longdouble_size) {
-			_fmt_basics::print_float(sink, pop_arg<long double>(vsp, &opts),
+			_fmt_basics::print_float<S, long double, typename S::char_type>(
+					sink, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, opts.precision,
-					opts.fill_zeros ? '0' : ' ', opts.left_justify, opts.alt_conversion,
+					Char(opts.fill_zeros ? '0' : ' '), opts.left_justify, opts.alt_conversion,
 					use_capitals, opts.group_thousands, use_compact, exponent_form, print_hexfloat, locale_opts);
 			break;
 		}
 #endif
 		FRG_ASSERT(szmod == printf_size_mod::default_size || szmod == printf_size_mod::long_size);
-		_fmt_basics::print_float(sink, pop_arg<double>(vsp, &opts),
+		_fmt_basics::print_float<S, double, typename S::char_type>(
+				sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, opts.precision,
-				opts.fill_zeros ? '0' : ' ', opts.left_justify, opts.alt_conversion, use_capitals,
+				Char(opts.fill_zeros ? '0' : ' '), opts.left_justify, opts.alt_conversion, use_capitals,
 				opts.group_thousands, use_compact, exponent_form, print_hexfloat, locale_opts);
 		break;
 	default:

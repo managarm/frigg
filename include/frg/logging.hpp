@@ -116,7 +116,7 @@ private:
 
 template <typename Container>
 struct container_logger {
-	using char_type = char;
+	using char_type = Container::value_type;
 
 	constexpr container_logger(Container &cont)
 	: cont_{cont} { }
