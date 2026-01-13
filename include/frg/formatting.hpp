@@ -33,7 +33,7 @@ namespace frg FRG_VISIBILITY {
 // append() is overloaded for a variety of types.
 
 template<typename T>
-concept Sink = requires (T t, const char *str, char c) {
+concept Sink = requires (T t, const typename T::value_type *str, typename T::value_type c) {
 	t.append(str);
 	t.append(c);
 };
