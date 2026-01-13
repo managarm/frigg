@@ -656,8 +656,8 @@ frg::expected<format_error> printf_format(A agent, const char *s, va_struct *vsp
 	return {};
 }
 
-template<Sink S>
-void do_printf_chars(S &sink, char t, format_options opts,
+template<typename Char, SinkFor<Char> S>
+void do_printf_chars(S &sink, Char t, format_options opts,
 		printf_size_mod szmod, va_struct *vsp) {
 	switch(t) {
 	case 'p':
@@ -688,49 +688,54 @@ void do_printf_chars(S &sink, char t, format_options opts,
 		FRG_ASSERT(!opts.alt_conversion);
 
 		if(szmod == printf_size_mod::default_size) {
-			auto s = (const char *)pop_arg<void*>(vsp, &opts);
-			if(!s)
-				s = "(null)";
+			if constexpr (SinkFor<S, char>) {
+				auto s = (const char *)pop_arg<void*>(vsp, &opts);
+				if(!s)
+					s = "(null)";
 
-			int length;
-			if(opts.precision)
-				length = generic_strnlen(s, *opts.precision);
-			else
-				length = generic_strlen(s);
+				int length;
+				if(opts.precision)
+					length = generic_strnlen(s, *opts.precision);
+				else
+					length = generic_strlen(s);
 
-			if(opts.left_justify) {
-				for(int i = 0; i < length && s[i]; i++)
-					sink.append(s[i]);
-				for(int i = length; i < opts.minimum_width; i++)
-					sink.append(' ');
-			}else{
-				for(int i = length; i < opts.minimum_width; i++)
-					sink.append(' ');
-				for(int i = 0; i < length && s[i]; i++)
-					sink.append(s[i]);
+				if(opts.left_justify) {
+					sink.append(s, length);
+					for(int i = length; i < opts.minimum_width; i++)
+						sink.append(' ');
+				}else{
+					for(int i = length; i < opts.minimum_width; i++)
+						sink.append(' ');
+					sink.append(s, length);
+				}
+			} else {
+				FRG_ASSERT(!"Requested char output on Sink that does not support it.");
 			}
 		}else{
 			FRG_ASSERT(szmod == printf_size_mod::long_size);
-			auto s = (const wchar_t *)pop_arg<void*>(vsp, &opts);
-			if(!s)
-				s = L"(null)";
 
-			int length;
-			if(opts.precision)
-				length = generic_strnlen(s, *opts.precision);
-			else
-				length = generic_strlen(s);
+			if constexpr (SinkFor<S, wchar_t>) {
+				auto s = (const wchar_t *)pop_arg<void*>(vsp, &opts);
+				if(!s)
+					s = L"(null)";
 
-			if(opts.left_justify) {
-				for(int i = 0; i < length && s[i]; i++)
-					sink.append(s[i]);
-				for(int i = length; i < opts.minimum_width; i++)
-					sink.append(' ');
-			}else{
-				for(int i = length; i < opts.minimum_width; i++)
-					sink.append(' ');
-				for(int i = 0; i < length && s[i]; i++)
-					sink.append(s[i]);
+				int length;
+				if(opts.precision)
+					length = generic_strnlen(s, *opts.precision);
+				else
+					length = generic_strlen(s);
+
+				if(opts.left_justify) {
+					sink.append(s, length);
+					for(int i = length; i < opts.minimum_width; i++)
+						sink.append(' ');
+				}else{
+					for(int i = length; i < opts.minimum_width; i++)
+						sink.append(' ');
+					sink.append(s, length);
+				}
+			} else {
+				FRG_ASSERT(!"Requested wchar_t output on Sink that does not support it.");
 			}
 		}
 	} break;

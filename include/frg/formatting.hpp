@@ -32,11 +32,15 @@ namespace frg FRG_VISIBILITY {
 // Supports a single operation: append().
 // append() is overloaded for a variety of types.
 
-template<typename T>
-concept Sink = requires (T t, const char *str, char c) {
+template<typename T, typename Char = char>
+concept SinkFor = requires (T t, const Char *str, Char c, size_t n) {
+	t.append(str, n);
 	t.append(str);
 	t.append(c);
 };
+
+template<typename T>
+concept Sink = SinkFor<T, typename T::char_type>;
 
 // ----------------------------------------------------------------------------
 // General formatting machinery.
