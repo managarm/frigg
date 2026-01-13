@@ -137,6 +137,37 @@ struct container_logger {
 		}
 	}
 
+#if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
+	void append(const wchar_t *str, size_t n) {
+		char buf[512];
+		mbstate_t state = { };
+
+		const wchar_t *curr = str;
+		size_t remaining = n;
+
+		while (remaining > 0 && curr) {
+			const wchar_t *start = curr;
+
+			size_t num_chars = wcsnrtombs(buf, &curr, remaining, sizeof(buf), &state);
+			if (num_chars == size_t(-1))
+				return;
+
+			append(buf, num_chars);
+
+			if (!curr) {
+				break;
+			} else {
+				size_t consumed = curr - start;
+
+				if (consumed > remaining || !consumed)
+					break;
+
+				remaining -= consumed;
+			}
+		}
+	}
+#endif /* __STDC_HOSTED__ || defined(FRG_HAVE_LIBC) */
+
 private:
 	Container &cont_;
 };

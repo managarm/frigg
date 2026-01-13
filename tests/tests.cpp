@@ -350,7 +350,7 @@ TEST(formatting, printf) {
 
 		frg::container_logger<std::string> *sink_;
 		frg::va_struct *vsp_;
-		frg::locale_options loc_;
+		frg::locale_options<char> loc_;
 	};
 
 	auto do_test = [] (const char *expected, const char *format, ...) {
@@ -365,13 +365,13 @@ TEST(formatting, printf) {
 		std::string buf;
 		frg::container_logger<std::string> sink{buf};
 
-		auto res = frg::printf_format<9>(test_agent{&sink, &vs}, format, &vs);
+		auto res = frg::printf_format<char, 9>(test_agent{&sink, &vs}, format, &vs);
 		ASSERT_TRUE(res);
 
 		ASSERT_STREQ(expected, buf.data());
 	};
 
-	auto do_test_locale = [] (frg::locale_options loc, const char *expected, const char *format, ...) {
+	auto do_test_locale = [] (frg::locale_options<char> loc, const char *expected, const char *format, ...) {
 		va_list args;
 		va_start(args, format);
 
@@ -383,7 +383,7 @@ TEST(formatting, printf) {
 		std::string buf;
 		frg::container_logger<std::string> sink{buf};
 
-		auto res = frg::printf_format<9>(test_agent{&sink, &vs, loc}, format, &vs);
+		auto res = frg::printf_format<char, 9>(test_agent{&sink, &vs, loc}, format, &vs);
 		ASSERT_TRUE(res);
 
 		ASSERT_STREQ(expected, buf.data());
