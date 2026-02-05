@@ -58,4 +58,16 @@ static_assert(ceil_log2(7) == 3);
 static_assert(ceil_log2(8) == 3);
 static_assert(ceil_log2(9) == 4);
 
+// `alignment` must be a power of 2.
+template <std::integral T>
+constexpr T align_down(T value, auto alignment) {
+	return static_cast<T>(value & ~(static_cast<T>(alignment) - 1));
+}
+
+// `alignment` must be a power of 2.
+template <std::integral T>
+constexpr T align_up(T value, auto alignment) {
+	return align_down(static_cast<T>(value + alignment - 1), alignment);
+}
+
 } // namespace frg
