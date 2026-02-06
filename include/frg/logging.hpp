@@ -20,6 +20,8 @@ using sink_finalize_t = decltype(std::declval<Sink>().finalize(true));
 template<typename Sink, size_t Limit = 128>
 struct stack_buffer_logger {
 	struct item {
+		using value_type = char;
+
 		item(stack_buffer_logger *logger)
 		: _logger{logger}, _off{0}, _emitted{false}, _done{false} { }
 
@@ -101,6 +103,8 @@ private:
 
 template <typename Container>
 struct container_logger {
+	using value_type = char;
+
 	constexpr container_logger(Container &cont)
 	: cont_{cont} { }
 
@@ -133,6 +137,37 @@ struct container_logger {
 		}
 	}
 
+#if __STDC_HOSTED__ || defined(FRG_HAVE_LIBC)
+	void append(const wchar_t *str, size_t n) {
+		char buf[512];
+		mbstate_t state = { };
+
+		const wchar_t *curr = str;
+		size_t remaining = n;
+
+		while (remaining > 0 && curr) {
+			const wchar_t *start = curr;
+
+			size_t num_chars = wcsnrtombs(buf, &curr, remaining, sizeof(buf), &state);
+			if (num_chars == size_t(-1))
+				return;
+
+			append(buf, num_chars);
+
+			if (!curr) {
+				break;
+			} else {
+				size_t consumed = curr - start;
+
+				if (consumed > remaining || !consumed)
+					break;
+
+				remaining -= consumed;
+			}
+		}
+	}
+#endif /* __STDC_HOSTED__ || defined(FRG_HAVE_LIBC) */
+
 private:
 	Container &cont_;
 };
@@ -150,6 +185,8 @@ concept is_ostream_like = requires(Out &out, const char *str, char c) { out << s
 
 template<typename Out> requires is_ostream_like<Out>
 struct ostream_out {
+	using value_type = char;
+
 	Out &output;
 
 	ostream_out(Out &out) : output(out) { }
