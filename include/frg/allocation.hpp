@@ -41,6 +41,20 @@ void destruct_n(Allocator &allocator, T *pointer, size_t n) {
 }
 
 template<typename Allocator>
+struct destruct_with_allocator {
+	destruct_with_allocator(Allocator allocator)
+	: allocator_{std::move(allocator)} { }
+
+	template<typename X>
+	void operator() (X *obj) {
+		frg::destruct(allocator_, obj);
+	}
+
+private:
+	Allocator allocator_;
+};
+
+template<typename Allocator>
 struct unique_memory {
 	friend constexpr void swap(unique_memory &a, unique_memory &b) {
 		using std::swap;

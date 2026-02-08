@@ -32,6 +32,7 @@ if not get_option('frigg_no_install')
 		'include/frg/qs.hpp',
 		'include/frg/random.hpp',
 		'include/frg/rbtree.hpp',
+		'include/frg/rcu.hpp',
 		'include/frg/rcu_radixtree.hpp',
 		'include/frg/scope_exit.hpp',
 		'include/frg/sharded_slab.hpp',
