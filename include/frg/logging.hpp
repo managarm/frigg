@@ -20,6 +20,8 @@ using sink_finalize_t = decltype(std::declval<Sink>().finalize(true));
 template<typename Sink, size_t Limit = 128>
 struct stack_buffer_logger {
 	struct item {
+		using char_type = char;
+
 		item(stack_buffer_logger *logger)
 		: _logger{logger}, _off{0}, _emitted{false}, _done{false} { }
 
@@ -67,6 +69,19 @@ struct stack_buffer_logger {
 			}
 		}
 
+		void append(const char *str, size_t n) {
+			while(*str && n) {
+				FRG_ASSERT(_off < Limit);
+				if(_off + 1 == Limit) {
+					_buffer[_off] = 0;
+					_logger->_emit(_buffer);
+					_off = 0;
+				}
+				_buffer[_off++] = *str++;
+				n--;
+			}
+		}
+
 	private:
 		stack_buffer_logger *_logger;
 		char _buffer[Limit];
@@ -101,6 +116,8 @@ private:
 
 template <typename Container>
 struct container_logger {
+	using char_type = Container::value_type;
+
 	constexpr container_logger(Container &cont)
 	: cont_{cont} { }
 
@@ -146,13 +163,19 @@ constexpr auto output_to(Container &cont) {
 }
 
 template<typename Out>
-concept is_ostream_like = requires(Out &out, const char *str, char c) { out << str; out << c; };
+concept is_ostream_like = requires(Out &out, const char *str, char c, size_t n) { out << str; out << c; out.write(str, n); };
 
 template<typename Out> requires is_ostream_like<Out>
 struct ostream_out {
+	using char_type = char;
+
 	Out &output;
 
 	ostream_out(Out &out) : output(out) { }
+
+	void append(const char *str, size_t n) {
+		output.write(str, n);
+	}
 
 	void append(const char *str) {
 		output << str;
