@@ -8,10 +8,11 @@
 #include <frg/eternal.hpp>
 #include <frg/macros.hpp>
 #include <frg/tuple.hpp>
+#include <frg/rcu.hpp>
 
 namespace frg FRG_VISIBILITY {
 
-template<typename T, typename Allocator>
+template<typename T, typename Allocator, rcu_policy Rcu>
 struct rcu_radixtree {
 private:
 	static constexpr unsigned int ll = 15;
@@ -33,11 +34,13 @@ private:
 		link_node *parent;
 	};
 
-	struct link_node : node {
+	struct link_node
+	: node, Rcu::template obj_base<link_node, destruct_with_allocator<Allocator>> {
 		std::atomic<node *> links[16];
 	};
 
-	struct entry_node : node {
+	struct entry_node
+	: node, Rcu::template obj_base<entry_node, destruct_with_allocator<Allocator>> {
 		std::atomic<uint16_t> mask;
 		aligned_storage<sizeof(T), alignof(T)> entries[16];
 	};
@@ -66,7 +69,7 @@ public:
 				}
 
 				tn = cn->parent;
-				frg::destruct(_allocator, cn);
+				cn->retire({_allocator});
 			}else{
 				auto cn = static_cast<link_node *>(n);
 
@@ -82,7 +85,7 @@ public:
 				// When this link_node is a leaf, delete it.
 				if(!tn) {
 					tn = cn->parent;
-					frg::destruct(_allocator, cn);
+					cn->retire({_allocator});
 				}
 			}
 			n = tn;
