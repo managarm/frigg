@@ -14,6 +14,10 @@ struct bitops_impl { };
 
 template<>
 struct bitops_impl<unsigned long long> {
+	static constexpr int ffs(unsigned long long x) {
+		return __builtin_ffsll(x);
+	}
+
 	static constexpr int clz(unsigned long long x) {
 		return __builtin_clzll(x);
 	}
@@ -21,6 +25,10 @@ struct bitops_impl<unsigned long long> {
 
 template<>
 struct bitops_impl<unsigned long> {
+	static constexpr int ffs(unsigned long x) {
+		return __builtin_ffsl(x);
+	}
+
 	static constexpr int clz(unsigned long x) {
 		return __builtin_clzl(x);
 	}
@@ -28,10 +36,20 @@ struct bitops_impl<unsigned long> {
 
 template<>
 struct bitops_impl<unsigned int> {
+	static constexpr int ffs(unsigned int x) {
+		return __builtin_ffs(x);
+	}
+
 	static constexpr int clz(unsigned int x) {
 		return __builtin_clz(x);
 	}
 };
+
+template<typename T>
+requires std::is_unsigned_v<T>
+constexpr int ffs(T x) {
+	return bitops_impl<T>::ffs(x);
+}
 
 template<typename T>
 requires std::is_unsigned_v<T>
