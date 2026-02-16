@@ -263,8 +263,10 @@ namespace _fmt_basics {
 			bool plus_becomes_space = false, bool use_capitals = false,
 			locale_options<Char> locale_opts = {}) {
 		if(number < 0) {
-			auto absv = ~static_cast<typename std::make_unsigned_t<T>>(number) + 1;
-			print_digits<S, T, Char>(sink, absv, true, radix, width, precision, padding,
+			// This is valid in C (N3220 6.2.6.2) and C++ ([N4950 basic.fundamental 6.8.2.3])
+			using UnsignedT = std::make_unsigned_t<T>;
+			auto absv = ~static_cast<UnsignedT>(number) + 1;
+			print_digits<S, UnsignedT, Char>(sink, absv, true, radix, width, precision, padding,
 					left_justify, group_thousands, always_sign, plus_becomes_space, use_capitals,
 					locale_opts);
 		}else{
