@@ -20,8 +20,7 @@ struct unique_ptr {
 	:_ptr{ptr}, _allocator(std::move(allocator)) {}
 
 	~unique_ptr() {
-		if (_ptr)
-			_allocator.free(_ptr);
+		reset(nullptr);
 	}
 
 	unique_ptr(const unique_ptr &) = delete;
@@ -61,11 +60,15 @@ struct unique_ptr {
 	}
 
 	constexpr void reset(T *ptr) {
-		T *old = _ptr;
-		_ptr = ptr;
+		if (_ptr == ptr)
+			return;
 
-		if (old)
-			_allocator.free(old);
+		if (_ptr != nullptr) {
+			_ptr->~T();
+			_allocator.free(_ptr);
+		}
+
+		_ptr = ptr;
 	}
 
 private:
