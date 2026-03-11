@@ -64,11 +64,11 @@ struct unique_memory {
 	}
 
 	constexpr unique_memory()
-	: pointer_{nullptr}, size_{0}, allocator_{nullptr} { }
+	: pointer_{nullptr}, size_{0}, allocator_{} { }
 
-	constexpr explicit unique_memory(Allocator &allocator, size_t size)
-	: size_{size}, allocator_{&allocator} {
-		pointer_ = allocator_->allocate(size);
+	constexpr explicit unique_memory(Allocator allocator, size_t size)
+	: size_{size}, allocator_{std::move(allocator)} {
+		pointer_ = allocator_.allocate(size);
 	}
 
 	constexpr unique_memory(unique_memory &&other)
@@ -80,7 +80,7 @@ struct unique_memory {
 
 	~unique_memory() {
 		if(pointer_)
-			allocator_->free(pointer_);
+			allocator_.free(pointer_);
 	}
 
 	constexpr explicit operator bool () {
@@ -103,7 +103,7 @@ struct unique_memory {
 private:
 	void *pointer_;
 	size_t size_;
-	Allocator *allocator_;
+	[[no_unique_address]] Allocator allocator_;
 };
 
 } // namespace frg
