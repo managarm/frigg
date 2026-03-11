@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <type_traits>
 #include <utility>
 #include <frg/allocation.hpp>
@@ -231,10 +232,156 @@ private:
 	borrow_pointer _back;
 };
 
+// TODO: As an alternative design, we could also use the existing list hook
+//       together with std::atomic_ref (or atomic builtins).
+//       Evaluate whether that makes sense or not.
+template<typename T>
+struct intrusive_rcu_list_hook {
+	constexpr intrusive_rcu_list_hook()
+	: next{nullptr}, previous{nullptr}, in_list{false} { }
+
+	std::atomic<T *> next;
+	std::atomic<T *> previous;
+	bool in_list;
+};
+
+// RCU-compatible linked list.
+// Supports lock-free traversal if the nodes are RCU-protected.
+// Note that this list does not support multiple concurrent writers.
+template<typename T, typename Locate>
+struct intrusive_rcu_list {
+private:
+	using hook = intrusive_rcu_list_hook<T>;
+
+public:
+	// TODO: We could add a reverse_iterator but bi-directional iterators
+	//       would be messy since the end of the list is represented by nullptr.
+	struct iterator {
+		iterator(T *current, Locate locate)
+		: _current(current), locate_(locate) { }
+
+		T *operator*() const { return _current; }
+
+		bool operator==(const iterator &other) const {
+			return _current == other._current;
+		}
+		bool operator!=(const iterator &other) const {
+			return !(*this == other);
+		}
+
+		iterator &operator++() {
+			_current = h(_current).next.load(std::memory_order_acquire);
+			return *this;
+		}
+		iterator operator++(int) {
+			auto copy = *this;
+			++(*this);
+			return copy;
+		}
+
+	private:
+		hook &h(T *ptr) { return locate_(*ptr); }
+
+		T *_current;
+		FRG_NO_UNIQUE_ADDRESS Locate locate_;
+	};
+
+	constexpr intrusive_rcu_list(Locate locate = {})
+	: _front{nullptr}, _back{nullptr}, locate_(locate)  { }
+
+	iterator iterator_to(T *ptr) {
+		FRG_ASSERT(h(ptr).in_list);
+		return iterator{ptr, locate_};
+	}
+
+	void push_front(T *element) {
+		FRG_ASSERT(element);
+		FRG_ASSERT(!h(element).in_list);
+		T *old_front = _front.load(std::memory_order_relaxed);
+		// Prepare the new element.
+		h(element).next.store(old_front, std::memory_order_relaxed);
+		h(element).previous.store(nullptr, std::memory_order_relaxed);
+		h(element).in_list = true;
+		// Publish the new element with release ordering.
+		if(!old_front) {
+			_back.store(element, std::memory_order_release);
+		} else {
+			h(old_front).previous.store(element, std::memory_order_release);
+		}
+		_front.store(element, std::memory_order_release);
+	}
+
+	void push_back(T *element) {
+		FRG_ASSERT(element);
+		FRG_ASSERT(!h(element).in_list);
+		T *old_back = _back.load(std::memory_order_relaxed);
+		// Prepare the new element.
+		h(element).next.store(nullptr, std::memory_order_relaxed);
+		h(element).previous.store(old_back, std::memory_order_relaxed);
+		h(element).in_list = true;
+		// Publish the new element with release ordering.
+		if(!old_back) {
+			_front.store(element, std::memory_order_release);
+		} else {
+			h(old_back).next.store(element, std::memory_order_release);
+		}
+		_back.store(element, std::memory_order_release);
+	}
+
+	// Note that erase() does not clear element->previous and element->next,
+	// such that iterators that are currently at element are not invalidated.
+	void erase(T *element) {
+		FRG_ASSERT(element);
+		FRG_ASSERT(h(element).in_list);
+		T *next = h(element).next.load(std::memory_order_relaxed);
+		T *previous = h(element).previous.load(std::memory_order_relaxed);
+		// Publish the updated pointers with release ordering.
+		if(!next) {
+			_back.store(previous, std::memory_order_release);
+		} else {
+			h(next).previous.store(previous, std::memory_order_release);
+		}
+		if(!previous) {
+			_front.store(next, std::memory_order_release);
+		} else {
+			h(previous).next.store(next, std::memory_order_release);
+		}
+	}
+
+	bool empty() const {
+		return !_front.load(std::memory_order_acquire);
+	}
+
+	T *front() {
+		return _front.load(std::memory_order_acquire);
+	}
+
+	T *back() {
+		return _back.load(std::memory_order_acquire);
+	}
+
+	iterator begin() {
+		return iterator{_front.load(std::memory_order_acquire), locate_};
+	}
+	iterator end() {
+		return iterator{nullptr, locate_};
+	}
+
+private:
+	hook &h(T *ptr) { return locate_(*ptr); }
+
+	std::atomic<T *> _front;
+	std::atomic<T *> _back;
+	FRG_NO_UNIQUE_ADDRESS Locate locate_;
+
+};
+
 } // namespace _list
 
 using _list::intrusive_list_hook;
 using _list::intrusive_list;
+using _list::intrusive_rcu_list_hook;
+using _list::intrusive_rcu_list;
 
 template<typename T>
 using default_list_hook = intrusive_list_hook<
