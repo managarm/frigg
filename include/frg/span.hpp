@@ -39,6 +39,10 @@ struct span {
 		return n_;
 	}
 
+	constexpr size_t size_bytes() const {
+		return n_ * sizeof(T);
+	}
+
 	constexpr T &operator[] (size_t i) const {
 		return p_[i];
 	}
