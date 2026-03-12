@@ -80,7 +80,7 @@ struct intrusive_shared_ptr {
 
 private:
 	T *ptr_{nullptr};
-	[[no_unique_address]] Allocator alloc_{};
+	FRG_NO_UNIQUE_ADDRESS Allocator alloc_{};
 };
 
 template<typename T, typename Allocator, typename... Args>

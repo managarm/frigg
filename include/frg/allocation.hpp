@@ -103,7 +103,7 @@ struct unique_memory {
 private:
 	void *pointer_;
 	size_t size_;
-	[[no_unique_address]] Allocator allocator_;
+	FRG_NO_UNIQUE_ADDRESS Allocator allocator_;
 };
 
 } // namespace frg
