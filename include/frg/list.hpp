@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <iterator>
 #include <type_traits>
 #include <utility>
 #include <frg/allocation.hpp>
@@ -42,6 +43,11 @@ private:
 public:
 	struct iterator : private composition<locate_tag, Locate> {
 	friend struct intrusive_list;
+		using iterator_category = std::forward_iterator_tag;
+		using iterator_concept = std::forward_iterator_tag;
+		using difference_type = ptrdiff_t;
+		using value_type = borrow_pointer;
+
 	private:
 		hook &h(borrow_pointer ptr) {
 			return get<locate_tag>(this)(*ptr);
@@ -51,7 +57,13 @@ public:
 		iterator(borrow_pointer current)
 		: _current(current) { }
 
+		iterator() : _current{nullptr} { }
+
 		borrow_pointer operator* () const {
+			return _current;
+		}
+
+		borrow_pointer operator-> () const {
 			return _current;
 		}
 
