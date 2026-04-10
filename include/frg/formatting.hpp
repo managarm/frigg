@@ -341,7 +341,8 @@ namespace _fmt_basics {
 	void print_float(S &sink, T number, int width = 0, optional<int> precision = 6,
 			Char padding = ' ', bool left_justify = false, bool alt_conversion = false,
 			bool use_capitals = false, bool group_thousands = false, bool use_compact = false,
-			bool exponential_form = false, bool print_hexfloat = false, locale_options<Char> locale_opts = {}) {
+			bool exponential_form = false, bool print_hexfloat = false, bool always_sign = false,
+			locale_options<Char> locale_opts = {}) {
 		using P = frg::FormatterPolicy<Char>;
 
 		auto textLength = [](int i, int base = 10, bool ignoreSign = false) {
@@ -360,7 +361,7 @@ namespace _fmt_basics {
 
 		bool inf = __builtin_isinf(number), nan = __builtin_isnan(number);
 		if (inf || nan) {
-			auto total_length = 3 + has_sign;
+			auto total_length = 3 + (has_sign || always_sign);
 			auto pad_length = width > total_length ? width - total_length : 0;
 			if (!left_justify) {
 				while (pad_length > 0) {
@@ -371,6 +372,8 @@ namespace _fmt_basics {
 
 			if (has_sign)
 				sink.append('-');
+			else if (always_sign)
+				sink.append('+');
 
 			if (inf)
 				sink.append(use_capitals ? P::infUpper : P::inf);
@@ -427,7 +430,7 @@ namespace _fmt_basics {
 				}
 			}
 
-			auto int_length = has_sign + 3;
+			auto int_length = (has_sign || always_sign) + 3;
 			int frac_length = (shift_by >> 2) - trailingZeroes;
 			auto exp_length = 2 + textLength(exp, 10, true);
 
@@ -456,6 +459,8 @@ namespace _fmt_basics {
 
 			if (has_sign)
 				sink.append('-');
+			else if (always_sign)
+				sink.append('+');
 
 			if (use_capitals)
 				sink.append(number == 0.0 ? (P::hexPrefixUpperZero) : (P::hexPrefixUpperOne));
@@ -580,7 +585,7 @@ namespace _fmt_basics {
 		auto decimal_point_length = print_decimal_point ? generic_strlen(locale_opts.decimal_point) : 0;
 
 		// Plus one for the decimal point
-		int total_length = has_sign + int_length + group_sep_length + decimal_point_length + *precision;
+		int total_length = (has_sign || always_sign) + int_length + group_sep_length + decimal_point_length + *precision;
 
 		// Handle the exponent in the style of `e+09`
 		if (exponential_form)
@@ -597,8 +602,10 @@ namespace _fmt_basics {
 
 		if (has_sign)
 			sink.append('-');
+		else if (always_sign)
+			sink.append('+');
 
-		print_int<S, decltype(integralDigits), Char>(sink, integralDigits, 10, 0, 1, {}, false, group_thousands, false, false, false, locale_opts);
+		print_int<S, decltype(integralDigits), Char>(sink, integralDigits, 10, 0, 1, {}, false, group_thousands, false, false, false, false, locale_opts);
 
 		if (print_decimal_point)
 			sink.append(locale_opts.decimal_point);

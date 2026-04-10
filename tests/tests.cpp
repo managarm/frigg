@@ -503,6 +503,7 @@ TEST(formatting, printf) {
 	do_test("1.100000", "%f", 1.1);
 	do_test("3.140000", "%f", 3.14);
 	do_test("0.0", "%.1f", 0.0);
+	do_test("+0.0", "%+.1f", 0.0);
 
 	// Test %g
 	do_test("0", "%g", 0.0);

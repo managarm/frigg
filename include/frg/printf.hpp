@@ -992,7 +992,8 @@ void do_printf_floats(S &sink, Char t, format_options opts,
 					sink, pop_arg<long double>(vsp, &opts),
 					opts.minimum_width, opts.precision,
 					Char(opts.fill_zeros ? '0' : ' '), opts.left_justify, opts.alt_conversion,
-					use_capitals, opts.group_thousands, use_compact, exponent_form, print_hexfloat, locale_opts);
+					use_capitals, opts.group_thousands, use_compact, exponent_form, print_hexfloat,
+					opts.always_sign, locale_opts);
 			break;
 		}
 #endif
@@ -1001,7 +1002,8 @@ void do_printf_floats(S &sink, Char t, format_options opts,
 				sink, pop_arg<double>(vsp, &opts),
 				opts.minimum_width, opts.precision,
 				Char(opts.fill_zeros ? '0' : ' '), opts.left_justify, opts.alt_conversion, use_capitals,
-				opts.group_thousands, use_compact, exponent_form, print_hexfloat, locale_opts);
+				opts.group_thousands, use_compact, exponent_form, print_hexfloat,
+				opts.always_sign, locale_opts);
 		break;
 	default:
 		FRG_ASSERT(!"Unexpected printf terminal");
