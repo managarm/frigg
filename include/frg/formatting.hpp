@@ -158,7 +158,8 @@ namespace _fmt_basics {
 	void print_digits(S &sink, T number, bool negative, int radix,
 			int width, int precision, char padding, bool left_justify,
 			bool group_thousands, bool always_sign, bool plus_becomes_space,
-			bool use_capitals, locale_options<Char> locale_opts) {
+			bool use_capitals, bool alt_conversion, locale_options<Char> locale_opts) {
+		using P = frg::FormatterPolicy<Char>;
 		const char *digits = use_capitals ? "0123456789ABCDEF" : "0123456789abcdef";
 		char buffer[64];
 
@@ -197,13 +198,18 @@ namespace _fmt_basics {
 			}
 		};
 
+		T remaining_num = number;
+
 		// print the number in reverse order and determine #digits.
 		do {
 			FRG_ASSERT(k < 64); // TODO: variable number of digits
-			buffer[k++] = digits[number % radix];
-			number /= radix;
+			buffer[k++] = digits[remaining_num % radix];
+			remaining_num /= radix;
 			step_grouping();
-		} while(number);
+		} while(remaining_num);
+
+		if (radix == 8 && alt_conversion && k >= precision && number != 0)
+			precision = k + 1;
 
 		if (k < precision)
 			for (int i = 0; i < precision - k; i++)
@@ -218,6 +224,11 @@ namespace _fmt_basics {
 		if(negative || always_sign || plus_becomes_space)
 			extra++;
 
+		if (radix == 16 && alt_conversion && number)
+			extra += generic_strlen(use_capitals ? P::hexPrefixUpper : P::hexPrefix);
+		else if (radix == 2 && alt_conversion && number)
+			extra += generic_strlen(use_capitals ? P::binPrefixUpper : P::binPrefix);
+
 		int final_width = max(k, precision) + extra;
 
 		if(!left_justify && final_width < width && padding != '0')
@@ -230,6 +241,11 @@ namespace _fmt_basics {
 			sink.append('+');
 		else if(plus_becomes_space)
 			sink.append(' ');
+
+		if (radix == 16 && alt_conversion && number)
+			sink.append(use_capitals ? P::hexPrefixUpper : P::hexPrefix);
+		if (radix == 2 && alt_conversion && number)
+			sink.append(use_capitals ? P::binPrefixUpper : P::binPrefix);
 
 		if(!left_justify && final_width < width && padding == '0')
 			for(int i = 0; i < width - final_width; i++)
@@ -261,18 +277,18 @@ namespace _fmt_basics {
 			int precision = 1, char padding = ' ', bool left_justify = false,
 			bool group_thousands = false, bool always_sign = false,
 			bool plus_becomes_space = false, bool use_capitals = false,
-			locale_options<Char> locale_opts = {}) {
+			bool alt_conversion = false, locale_options<Char> locale_opts = {}) {
 		if(number < 0) {
 			// This is valid in C (N3220 6.2.6.2) and C++ ([N4950 basic.fundamental 6.8.2.3])
 			using UnsignedT = std::make_unsigned_t<T>;
 			auto absv = ~static_cast<UnsignedT>(number) + 1;
 			print_digits<S, UnsignedT, Char>(sink, absv, true, radix, width, precision, padding,
 					left_justify, group_thousands, always_sign, plus_becomes_space, use_capitals,
-					locale_opts);
+					alt_conversion, locale_opts);
 		}else{
 			print_digits<S, T, Char>(sink, number, false, radix, width, precision, padding,
 					left_justify, group_thousands, always_sign, plus_becomes_space, use_capitals,
-					locale_opts);
+					alt_conversion, locale_opts);
 		}
 	}
 
