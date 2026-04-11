@@ -35,6 +35,7 @@ namespace frg FRG_VISIBILITY {
 
 template<typename T, typename Char = char>
 concept SinkFor = requires (T t, const Char *str, Char c, size_t n) {
+	t.append(str, n, n);
 	t.append(str, n);
 	t.append(str);
 	t.append(c);

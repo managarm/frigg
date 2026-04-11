@@ -677,6 +677,9 @@ void do_printf_chars(S &sink, Char t, format_options opts,
 		sink.append(P::hexPrefix);
 		_fmt_basics::print_int<S, uintptr_t, Char>(sink, (uintptr_t)pop_arg<void*>(vsp, &opts), 16);
 		break;
+	case 'C':
+		FRG_ASSERT(szmod == printf_size_mod::long_size);
+		[[fallthrough]];
 	case 'c':
 		FRG_ASSERT(!opts.fill_zeros);
 		FRG_ASSERT(!opts.alt_conversion);
@@ -692,6 +695,9 @@ void do_printf_chars(S &sink, Char t, format_options opts,
 			sink.append(pop_arg<char>(vsp, &opts));
 		}
 		break;
+	case 'S':
+		FRG_ASSERT(szmod == printf_size_mod::long_size);
+		[[fallthrough]];
 	case 's': {
 		FRG_ASSERT(!opts.fill_zeros);
 		FRG_ASSERT(!opts.alt_conversion);
@@ -702,11 +708,7 @@ void do_printf_chars(S &sink, Char t, format_options opts,
 				if(!s)
 					s = "(null)";
 
-				int length;
-				if(opts.precision)
-					length = generic_strnlen(s, *opts.precision);
-				else
-					length = generic_strlen(s);
+				size_t length = opts.precision ? generic_strnlen(s, *opts.precision) : generic_strlen(s);
 
 				if(opts.left_justify) {
 					sink.append(s, length);
@@ -728,20 +730,22 @@ void do_printf_chars(S &sink, Char t, format_options opts,
 				if(!s)
 					s = L"(null)";
 
-				int length;
-				if(opts.precision)
-					length = generic_strnlen(s, *opts.precision);
-				else
-					length = generic_strlen(s);
+				size_t length = opts.precision ? generic_strnlen(s, *opts.precision) : generic_strlen(s);
 
 				if(opts.left_justify) {
-					sink.append(s, length);
+					if (opts.precision)
+						sink.append(s, length, *opts.precision);
+					else
+						sink.append(s, length);
 					for(int i = length; i < opts.minimum_width; i++)
 						sink.append(' ');
 				}else{
 					for(int i = length; i < opts.minimum_width; i++)
 						sink.append(' ');
-					sink.append(s, length);
+					if (opts.precision)
+						sink.append(s, length, *opts.precision);
+					else
+						sink.append(s, length);
 				}
 			} else {
 				FRG_ASSERT(!"Requested wchar_t output on Sink that does not support it.");
