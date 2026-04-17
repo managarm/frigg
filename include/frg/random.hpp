@@ -89,6 +89,7 @@ struct pcg_basic32 {
 	}
 
 	constexpr uint32_t operator()(uint32_t bound) {
+		FRG_ASSERT(bound > 0);
 		uint32_t threshold = -bound % bound;
 		for (;;) {
 			auto r = operator()();
