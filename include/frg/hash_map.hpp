@@ -276,8 +276,10 @@ Value &hash_map<Key, Value, Hash, Allocator>::operator[](const Key &key) {
 			return item->entry.template get<1>();
 	}
 
-	if (_size >= _capacity)
+	if (_size >= _capacity) {
 		rehash();
+		bucket = ((unsigned int)_hasher(key)) % _capacity;
+	}
 
 	auto item = frg::construct<chain>(_allocator, key, Value{});
 	item->next = _table[bucket];
