@@ -94,6 +94,12 @@ static_assert(ceil_log2(uint32_t{1} << 31) == 31);
 static_assert(ceil_log2((uint32_t{1} << 31) + 1) == 32);
 static_assert(ceil_log2(~uint32_t{1}) == 32);
 
+template<typename T>
+requires std::is_unsigned_v<T>
+constexpr bool is_p2(T x) {
+	return x && !(x & (x - 1));
+}
+
 // `alignment` must be a power of 2.
 template <std::integral T>
 constexpr T align_down(T value, auto alignment) {
