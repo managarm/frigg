@@ -18,6 +18,10 @@ private:
 	static constexpr unsigned int ll = 15;
 
 	uint64_t pfx_of(uint64_t k, unsigned int d) {
+		// Depth zero can occur for root nodes. In this case, zero is the correctly masked prefix
+		// such that all possible keys are considered to be below the root node.
+		if (!d)
+			return 0;
 		return k & (uint64_t(-1) << (64 - d * 4));
 	}
 
