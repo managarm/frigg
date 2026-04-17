@@ -63,7 +63,12 @@ public:
 		for (auto &i : buffer)
 			i = 0;
 	}
-	constexpr bitset(unsigned long long val) noexcept { buffer[0] = val; }
+	constexpr bitset(unsigned long long val) noexcept {
+		buffer[0] = val;
+		for (size_t i = 1; i < buffer_size; i++)
+			buffer[i] = 0;
+		mask_last_bit();
+	}
 
 	constexpr bitset &operator&=(const bitset &rhs) noexcept {
 		for (size_t i = 0; i < buffer_size; i++)
