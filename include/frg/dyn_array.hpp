@@ -69,7 +69,7 @@ public:
 	}
 
 	constexpr bool empty() const {
-		return size_;
+		return size_ == 0;
 	}
 
 	constexpr T *begin() {
