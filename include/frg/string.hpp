@@ -172,7 +172,7 @@ public:
 	explicit basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _length{view.size()} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
+		memcpy(_buffer, view.data(), sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
