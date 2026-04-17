@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <climits>
 
+#include <frg/macros.hpp>
+
 namespace frg {
 namespace detail {
 constexpr std::size_t div_roundup(std::size_t v1, std::size_t v2) { return (v1 + v2 - 1) / v2; }
@@ -61,7 +63,12 @@ public:
 		for (auto &i : buffer)
 			i = 0;
 	}
-	constexpr bitset(unsigned long long val) noexcept { buffer[0] = val; }
+	constexpr bitset(unsigned long long val) noexcept {
+		buffer[0] = val;
+		for (size_t i = 1; i < buffer_size; i++)
+			buffer[i] = 0;
+		mask_last_bit();
+	}
 
 	constexpr bitset &operator&=(const bitset &rhs) noexcept {
 		for (size_t i = 0; i < buffer_size; i++)
@@ -81,6 +88,7 @@ public:
 		return *this;
 	}
 	constexpr bitset &operator<<=(size_t pos) noexcept {
+		FRG_ASSERT(pos < buffer_size * 64);
 		if (pos != 0) {
 			size_t wshift = pos / 64;
 			size_t offset = pos % 64;
@@ -104,6 +112,7 @@ public:
 	}
 
 	constexpr bitset &operator>>=(size_t pos) noexcept {
+		FRG_ASSERT(pos < buffer_size * 64);
 		if (pos != 0) {
 			const size_t wshift = pos / 64;
 			const size_t offset = pos % 64;

@@ -3,6 +3,8 @@
 
 #include <utility>
 
+#include <frg/allocation.hpp>
+
 namespace frg {
 
 template <typename T, typename Allocator>
@@ -20,8 +22,7 @@ struct unique_ptr {
 	:_ptr{ptr}, _allocator(std::move(allocator)) {}
 
 	~unique_ptr() {
-		if (_ptr)
-			_allocator.free(_ptr);
+		frg::destruct(_allocator, _ptr);
 	}
 
 	unique_ptr(const unique_ptr &) = delete;
@@ -64,8 +65,7 @@ struct unique_ptr {
 		T *old = _ptr;
 		_ptr = ptr;
 
-		if (old)
-			_allocator.free(old);
+		frg::destruct(_allocator, old);
 	}
 
 private:
@@ -75,8 +75,7 @@ private:
 
 template <typename T, typename Allocator, typename ...Args>
 unique_ptr<T, Allocator> make_unique(Allocator allocator, Args &&...args) {
-	T *ptr = new (allocator.allocate(sizeof(T))) T{
-			std::forward<Args>(args)...};
+	T *ptr = frg::construct<T>(allocator, std::forward<Args>(args)...);
 	return unique_ptr<T, Allocator>{std::move(allocator), ptr};
 }
 

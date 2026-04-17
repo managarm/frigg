@@ -54,13 +54,13 @@ constexpr int ffs(T x) {
 template<typename T>
 requires std::is_unsigned_v<T>
 constexpr int clz(T x) {
+	FRG_ASSERT(x > 0);
 	return bitops_impl<T>::clz(x);
 }
 
 template<typename T>
 constexpr int floor_log2(T x) {
 	using U = std::make_unsigned_t<T>;
-	FRG_ASSERT(x > 0);
 	return sizeof(U) * CHAR_BIT - 1 - clz<U>(static_cast<U>(x));
 }
 
@@ -78,7 +78,6 @@ static_assert(floor_log2(~uint32_t{1}) == 31);
 template<typename T>
 constexpr int ceil_log2(T x) {
 	using U = std::make_unsigned_t<T>;
-	FRG_ASSERT(x > 0);
 	if (x == 1)
 		return 0;
 	return sizeof(U) * CHAR_BIT - clz<U>(static_cast<U>(x - 1));
@@ -94,6 +93,12 @@ static_assert(ceil_log2(3) == 2);
 static_assert(ceil_log2(uint32_t{1} << 31) == 31);
 static_assert(ceil_log2((uint32_t{1} << 31) + 1) == 32);
 static_assert(ceil_log2(~uint32_t{1}) == 32);
+
+template<typename T>
+requires std::is_unsigned_v<T>
+constexpr bool is_p2(T x) {
+	return x && !(x & (x - 1));
+}
 
 // `alignment` must be a power of 2.
 template <std::integral T>

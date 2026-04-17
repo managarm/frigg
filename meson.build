@@ -29,7 +29,6 @@ if not get_option('frigg_no_install')
 		'include/frg/optional.hpp',
 		'include/frg/pairing_heap.hpp',
 		'include/frg/printf.hpp',
-		'include/frg/qs.hpp',
 		'include/frg/random.hpp',
 		'include/frg/rbtree.hpp',
 		'include/frg/rcu.hpp',

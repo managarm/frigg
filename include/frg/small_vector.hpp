@@ -325,10 +325,10 @@ private:
 		if (capacity <= _capacity)
 			return;
 
-		auto container = _get_container();		
+		auto container = _get_container();
 		size_t new_capacity = capacity * 2;
 		T *new_array = (T *)_allocator.allocate(sizeof(T) * new_capacity);
-		for(size_t i = 0; i < _capacity; i++)
+		for(size_t i = 0; i < _size; i++)
 			new (&new_array[i]) T(std::move(container[i]));
 
 		for(size_t i = 0; i < _size; i++)

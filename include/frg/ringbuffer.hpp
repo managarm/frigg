@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <frg/allocation.hpp>
+#include <frg/bitops.hpp>
 #include <frg/macros.hpp>
 #include <frg/span.hpp>
 #include <frg/utility.hpp>
@@ -13,7 +14,9 @@ namespace frg FRG_VISIBILITY {
 template <typename Allocator>
 struct byte_ring_buffer {
 	byte_ring_buffer(size_t capacity, Allocator allocator = Allocator())
-	: buffer_{allocator, capacity}, capacity_{capacity}, mask_{capacity - 1} {}
+	: buffer_{allocator, capacity}, capacity_{capacity}, mask_{capacity - 1} {
+		FRG_ASSERT(is_p2(capacity));
+	}
 
 	[[nodiscard]] bool empty() const { return tail_ == head_; }
 	[[nodiscard]] size_t size() const { return head_ - tail_; }

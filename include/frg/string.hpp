@@ -172,7 +172,7 @@ public:
 	explicit basic_string(const basic_string_view<Char> &view, Allocator allocator = Allocator())
 	: _allocator{std::move(allocator)}, _length{view.size()} {
 		_buffer = (Char *)_allocator.allocate(sizeof(Char) * _length + 1);
-		memcpy(_buffer, view.data(), sizeof(Char) * _length + 1);
+		memcpy(_buffer, view.data(), sizeof(Char) * _length);
 		_buffer[_length] = 0;
 	}
 
@@ -226,28 +226,22 @@ public:
 		_buffer = new_buffer;
 	}
 
-	// TODO: Inefficient. Does two copies (one here, one in constructor).
 	// TODO: Better: Return expression template?
 	basic_string operator+ (const basic_string_view<Char> &other) {
 		size_t new_length = _length + other.size();
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
-		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
-		memcpy(new_buffer + _length, other.data(), sizeof(Char) * other.size());
-		new_buffer[new_length] = 0;
-
-		return basic_string(_allocator, new_buffer, new_length);
+		basic_string result(new_length, Char{}, _allocator);
+		memcpy(result.data(), _buffer, sizeof(Char) * _length);
+		memcpy(result.data() + _length, other.data(), sizeof(Char) * other.size());
+		return result;
 	}
 
-	// TODO: Inefficient. Does two copies (one here, one in constructor).
 	// TODO: Better: Return expression template?
 	basic_string operator+ (Char c) {
 		size_t new_length = _length + 1;
-		Char *new_buffer = (Char *)_allocator.allocate(sizeof(Char) * new_length + 1);
-		memcpy(new_buffer, _buffer, sizeof(Char) * _length);
-		new_buffer[_length] = c;
-		new_buffer[new_length] = 0;
-
-		return basic_string(_allocator, new_buffer, new_length);
+		basic_string result(new_length, Char{}, _allocator);
+		memcpy(result.data(), _buffer, sizeof(Char) * _length);
+		result.data()[_length] = c;
+		return result;
 	}
 
 	void push_back(Char c) {
