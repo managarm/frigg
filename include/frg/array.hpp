@@ -56,10 +56,10 @@ struct array {
 	}
 
 	constexpr reference back() {
-		return _stor[N];
+		return _stor[N - 1];
 	}
 	constexpr const_reference back() const {
-		return _stor[N];
+		return _stor[N - 1];
 	}
 
 	constexpr iterator begin() noexcept {
