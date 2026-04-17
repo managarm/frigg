@@ -38,7 +38,8 @@ struct intrusive_shared_ptr {
 	intrusive_shared_ptr(adopt_rc_t, T *ptr, Allocator alloc = {})
 	: ptr_{ptr}, alloc_{std::move(alloc)} { }
 
-	intrusive_shared_ptr(const intrusive_shared_ptr &other) : ptr_{other.ptr_} {
+	intrusive_shared_ptr(const intrusive_shared_ptr &other)
+	: ptr_{other.ptr_}, alloc_{other.alloc_} {
 		if(ptr_)
 			ref_rc(ptr_);
 	}
