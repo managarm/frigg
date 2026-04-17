@@ -211,7 +211,7 @@ void vector<T, Allocator>::_ensure_capacity(size_t capacity) {
 
 	size_t new_capacity = capacity * 2;
 	T *new_array = (T *)_allocator.allocate(sizeof(T) * new_capacity);
-	for(size_t i = 0; i < _capacity; i++)
+	for(size_t i = 0; i < _size; i++)
 		new (&new_array[i]) T(std::move(_elements[i]));
 
 	for(size_t i = 0; i < _size; i++)
