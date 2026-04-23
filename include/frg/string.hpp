@@ -27,6 +27,13 @@ constexpr auto generic_strnlen(const CharT *c, std::size_t max) {
 	return len;
 }
 
+template<typename CharT>
+constexpr auto generic_strcmp(const CharT *l, const CharT *r) {
+	for(; *l == *r && *l && *r; l++, r++)
+		;
+	return *l - *r;
+}
+
 template<typename Char>
 class basic_string_view {
 public:
