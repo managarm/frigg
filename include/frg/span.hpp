@@ -39,6 +39,10 @@ struct span {
 		return n_;
 	}
 
+	constexpr bool empty() const {
+		return n_ == 0;
+	}
+
 	constexpr size_t size_bytes() const {
 		return n_ * sizeof(T);
 	}
