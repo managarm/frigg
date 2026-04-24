@@ -39,6 +39,10 @@ struct span {
 		return n_;
 	}
 
+	constexpr bool empty() const {
+		return n_ == 0;
+	}
+
 	constexpr size_t size_bytes() const {
 		return n_ * sizeof(T);
 	}
@@ -47,14 +51,16 @@ struct span {
 		return p_[i];
 	}
 
-	span subspan(size_t disp) {
-		FRG_ASSERT(disp <= n_);
-		return {p_ + disp, n_ - disp};
+	template <typename Self>
+	auto subspan(this Self&& self, size_t disp) {
+		FRG_ASSERT(disp <= self.n_);
+		return span{self.data() + disp, self.n_ - disp};
 	}
 
-	span subspan(size_t disp, size_t length) {
-		FRG_ASSERT(disp + length <= n_);
-		return {p_ + disp, length};
+	template <typename Self>
+	auto subspan(this Self&& self, size_t disp, size_t length) {
+		FRG_ASSERT(disp + length <= self.n_);
+		return span{self.data() + disp, length};
 	}
 
 private:
