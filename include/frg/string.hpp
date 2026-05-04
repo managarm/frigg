@@ -28,10 +28,12 @@ constexpr auto generic_strnlen(const CharT *c, std::size_t max) {
 }
 
 template<typename CharT>
-constexpr auto generic_strcmp(const CharT *l, const CharT *r) {
+	requires (sizeof(CharT) <= sizeof(int))
+constexpr int generic_strcmp(const CharT *l, const CharT *r) {
 	for(; *l == *r && *l && *r; l++, r++)
 		;
-	return static_cast<std::make_unsigned_t<CharT>>(*l) - static_cast<std::make_unsigned_t<CharT>>(*r);
+	int res = static_cast<std::make_unsigned_t<CharT>>(*l) - static_cast<std::make_unsigned_t<CharT>>(*r);
+	return res;
 }
 
 template<typename Char>

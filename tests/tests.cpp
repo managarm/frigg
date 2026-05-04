@@ -53,6 +53,32 @@ TEST(strings, compare_method_comparison) {
 	EXPECT_EQ(s1.compare(s4), 0);
 }
 
+TEST(strings, generic_string_compare) {
+	EXPECT_EQ(frg::generic_strcmp("abc", "abc"), 0);
+
+	EXPECT_LT(frg::generic_strcmp("abc", "abd"), 0);
+	EXPECT_GT(frg::generic_strcmp("abd", "abc"), 0);
+
+	EXPECT_EQ(frg::generic_strcmp("a", ""), 97);
+	EXPECT_EQ(frg::generic_strcmp("", "a"), -97);
+
+	const char s1[] = {static_cast<char>(0xFF), '\0'};
+	const char s2[] = {0x01, '\0'};
+	EXPECT_EQ(frg::generic_strcmp(s1, s2), 254);
+
+	const wchar_t w1[] = {static_cast<wchar_t>(std::numeric_limits<std::make_unsigned_t<wchar_t>>::max()), L'\0'};
+	const wchar_t w2[] = {0x01, L'\0'};
+	EXPECT_EQ(frg::generic_strcmp(w1, w2), std::numeric_limits<std::make_unsigned_t<wchar_t>>::max() - 1);
+
+	const wchar_t w3[] = {L'\0', L'\0'};
+	const wchar_t w4[] = {0x01, L'\0'};
+	EXPECT_EQ(frg::generic_strcmp(w3, w4), -1);
+
+	EXPECT_EQ(frg::generic_strcmp("\x80", ""), 128);
+	EXPECT_EQ(frg::generic_strcmp(L"\u0001", L"\u0000"), 1);
+	EXPECT_EQ(frg::generic_strcmp(L"\x10001", L"\x10000"), 1);
+}
+
 TEST(string_view, find) {
 	frg::string_view s1 { "ABC" };
 
