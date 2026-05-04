@@ -31,7 +31,7 @@ template<typename CharT>
 constexpr auto generic_strcmp(const CharT *l, const CharT *r) {
 	for(; *l == *r && *l && *r; l++, r++)
 		;
-	return *l - *r;
+	return static_cast<std::make_unsigned_t<CharT>>(*l) - static_cast<std::make_unsigned_t<CharT>>(*r);
 }
 
 template<typename Char>
