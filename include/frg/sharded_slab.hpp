@@ -39,36 +39,14 @@ concept Policy = requires(P policy, void *p, size_t size) {
 // as long as the policy is identical.
 template<Policy P>
 struct pool {
+	using policy_traits = slab_policy_traits<P>;
+
 	static constexpr size_t page_size = 4096;
 	static constexpr size_t chunk_boundary = 1 << 18;
 	static constexpr size_t chunk_size = chunk_boundary;
 
 	// TODO: We may want to make this dependent on the number of objects in the chunk.
 	static constexpr size_t reactivate_threshold = 8;
-
-	// Size classes are powers of two from 16 to 4096.
-	// TODO: Adopt the same size classes as the original slab code.
-	static constexpr size_t min_shift = 4;
-	static constexpr size_t max_shift = 12;
-	static constexpr size_t min_size_class = size_t{1} << min_shift;
-	static constexpr size_t max_size_class = size_t{1} << max_shift;
-	static constexpr size_t num_size_classes = max_shift - min_shift + 1;
-
-	// Map a size to a bucket index. Returns the index of the smallest size class >= size.
-	static constexpr size_t bucket_index(size_t size) {
-		FRG_ASSERT(size <= max_size_class);
-		if (size < min_size_class)
-			return 0;
-		return ceil_log2(size) - min_shift;
-	}
-
-	static_assert(bucket_index(16) == 0);
-	static_assert(bucket_index(4096) == 8);
-
-	// Inverse of bucket_index().
-	static constexpr size_t size_of_bucket(size_t index) {
-		return min_size_class << index;
-	}
 
 	// Stores the address of an object as the object's offset vs. its chunk_header.
 	// This is needed to be able to compress the chunk_state struct below to a size that can be manipulated by a single CAS.
@@ -163,20 +141,20 @@ struct pool {
 	};
 
 	constexpr pool() {
-		for (size_t i = 0; i < num_size_classes; i++) {
-			buckets_[i].object_size = size_of_bucket(i);
+		for (size_t i = 0; i < policy_traits::num_buckets; i++) {
+			buckets_[i].object_size = policy_traits::bucket_to_size(i);
 		}
 	}
 
 	void *allocate(size_t size) {
 		void *obj;
-		if (size > max_size_class) {
+		if (size > policy_traits::max_bucket_size) {
 			auto result = large_allocate(size);
 			if (!result)
 				return nullptr;
 			obj = result.value();
 		} else {
-			auto idx = bucket_index(size);
+			auto idx = policy_traits::size_to_bucket(size);
 			auto result = slab_allocate(&buckets_[idx], size);
 			if (!result)
 				return nullptr;
@@ -580,7 +558,7 @@ private:
 	}
 
 	P policy_;
-	bucket buckets_[num_size_classes];
+	bucket buckets_[policy_traits::num_buckets];
 };
 
 } // namespace sharded_slab
