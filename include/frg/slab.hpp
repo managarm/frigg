@@ -97,26 +97,9 @@ using policy_poison_t = decltype(std::declval<Policy>().poison(nullptr, size_t(0
 template<typename Policy>
 using policy_map_aligned_t = decltype(std::declval<Policy>().map(size_t(0), size_t(0)));
 
-template<typename Policy, typename Mutex>
-class slab_pool {
-public:
-	constexpr slab_pool(Policy &plcy);
-
-	slab_pool(const slab_pool &) = delete;
-
-	slab_pool &operator= (const slab_pool &) = delete;
-
-	void *allocate(size_t length);
-	void *realloc(void *pointer, size_t new_length);
-	void free(void *pointer);
-	void deallocate(void *pointer, size_t size);
-	size_t get_size(void *pointer);
-
-	size_t numUsedPages() {
-		return _usedPages;
-	}
-
-private:
+// Common configuration for slab allocators (slab_pool and shared_slab_pool).
+template<typename Policy>
+struct slab_policy_traits {
 	// The following variables configure the size of the buckets.
 	// Bucket size increases both with small_base_exp and small_step_exp. Furthermore,
 	// small_step_exp controls how many buckets are between any two power-of-2 buckets.
@@ -191,6 +174,29 @@ private:
 
 	static_assert(test_bucket_calculation(num_buckets),
 		"The bucket size calculation seems to be broken");
+};
+
+template<typename Policy, typename Mutex>
+class slab_pool {
+public:
+	constexpr slab_pool(Policy &plcy);
+
+	slab_pool(const slab_pool &) = delete;
+
+	slab_pool &operator= (const slab_pool &) = delete;
+
+	void *allocate(size_t length);
+	void *realloc(void *pointer, size_t new_length);
+	void free(void *pointer);
+	void deallocate(void *pointer, size_t size);
+	size_t get_size(void *pointer);
+
+	size_t numUsedPages() {
+		return _usedPages;
+	}
+
+private:
+	using policy_traits = slab_policy_traits<Policy>;
 
 	static constexpr size_t page_size = [](){
 		if constexpr (is_detected_v<policy_pagesize_t, Policy>)
@@ -329,7 +335,7 @@ private:
 	slab_frame *_construct_slab(int index);
 
 	bool reallocate_in_slab_(slab_frame *slb, void *p, size_t new_size) {
-		size_t item_size = bucket_to_size(slb->index);
+		size_t item_size = policy_traits::bucket_to_size(slb->index);
 		FRG_ASSERT(slb->contains(p));
 		FRG_ASSERT(!enable_checking
 				|| !((reinterpret_cast<uintptr_t>(p) - slb->address) % item_size));
@@ -346,7 +352,7 @@ private:
 	}
 
 	void free_in_slab_(slab_frame *slb, void *p) {
-		size_t item_size = bucket_to_size(slb->index);
+		size_t item_size = policy_traits::bucket_to_size(slb->index);
 		FRG_ASSERT(slb->contains(p));
 		FRG_ASSERT(!enable_checking
 				|| !((reinterpret_cast<uintptr_t>(p) - slb->address) % item_size));
@@ -434,7 +440,7 @@ private:
 	frame_tree_type _frame_tree;
 #endif
 	size_t _usedPages;
-	bucket _bkts[num_buckets];
+	bucket _bkts[policy_traits::num_buckets];
 };
 
 // --------------------------------------------------------
@@ -456,9 +462,9 @@ void *slab_pool<Policy, Mutex>::allocate(size_t length) {
 	if(!length)
 		length = 1;
 
-	if(length <= max_bucket_size) {
-		int index = size_to_bucket(length);
-		FRG_ASSERT(index <= num_buckets);
+	if(length <= policy_traits::max_bucket_size) {
+		int index = policy_traits::size_to_bucket(length);
+		FRG_ASSERT(index <= policy_traits::num_buckets);
 		auto bkt = &_bkts[index];
 
 		unique_lock<Mutex> bucket_guard(bkt->bucket_mutex);
@@ -567,7 +573,7 @@ void *slab_pool<Policy, Mutex>::realloc(void *p, size_t new_size) {
 		auto slb = static_cast<slab_frame *>(sup);
 		if(reallocate_in_slab_(slb, p, new_size))
 			return p;
-		current_size = bucket_to_size(slb->index);
+		current_size = policy_traits::bucket_to_size(slb->index);
 	}else{
 		FRG_ASSERT(sup->type == frame_type::large);
 		if(reallocate_huge_(sup, p, new_size))
@@ -629,7 +635,7 @@ void slab_pool<Policy, Mutex>::deallocate(void *p, size_t size) {
 	auto sup = reinterpret_cast<frame *>((address - 1) & ~(sb_size - 1));
 	if(sup->type == frame_type::slab) {
 		auto slb = static_cast<slab_frame *>(sup);
-		FRG_ASSERT(size <= bucket_to_size(slb->index));
+		FRG_ASSERT(size <= policy_traits::bucket_to_size(slb->index));
 		free_in_slab_(slb, p);
 	}else{
 		FRG_ASSERT(sup->type == frame_type::large);
@@ -654,7 +660,7 @@ size_t slab_pool<Policy, Mutex>::get_size(void *p) {
 
 	if(sup->type == frame_type::slab) {
 		auto slb = static_cast<slab_frame *>(sup);
-		return bucket_to_size(slb->index);
+		return policy_traits::bucket_to_size(slb->index);
 	}
 
 	FRG_ASSERT(sup->type == frame_type::large);
@@ -685,7 +691,7 @@ auto slab_pool<Policy, Mutex>::_construct_slab(int index)
 		address = (sb_base + sb_size - 1) & ~(sb_size - 1);
 	}
 
-	auto item_size = bucket_to_size(index);
+	auto item_size = policy_traits::bucket_to_size(index);
 	size_t overhead = 0;
 	while(overhead < sizeof(slab_frame)) // FIXME.
 		overhead += item_size;
