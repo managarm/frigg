@@ -2,6 +2,7 @@
 
 #include <frg/eternal.hpp>
 #include <frg/macros.hpp>
+#include <new>
 #include <type_traits>
 #include <stddef.h>
 
