@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include <frg/array.hpp>
-#include <frg/eternal.hpp>
+#include <frg/aligned_storage.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {

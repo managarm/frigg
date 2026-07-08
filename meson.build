@@ -6,6 +6,7 @@ incl = include_directories('include')
 if not get_option('frigg_no_install')
 	install_headers(
 		'include/frg/algorithm.hpp',
+		'include/frg/aligned_storage.hpp',
 		'include/frg/allocation.hpp',
 		'include/frg/array.hpp',
 		'include/frg/bitops.hpp',

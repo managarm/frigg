@@ -1,6 +1,6 @@
 #pragma once
 
-#include <frg/eternal.hpp>
+#include <frg/aligned_storage.hpp>
 #include <frg/macros.hpp>
 #include <new>
 #include <type_traits>
