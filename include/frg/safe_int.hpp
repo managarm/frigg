@@ -43,6 +43,7 @@ public:
 		return valid_;
 	}
 
+#if defined(__cpp_lib_expected)
 	std::expected<T, bad_safe_int> expected() const {
 		return or_unexpected(bad_safe_int{});
 	}
@@ -53,6 +54,7 @@ public:
 			return std::unexpected{error};
 		return val_;
 	}
+#endif
 
 	[[nodiscard]] bool into(T &result) const {
 		if (!valid_)
