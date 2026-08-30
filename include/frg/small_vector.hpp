@@ -1,10 +1,11 @@
 #pragma once
 
+#include <new>
 #include <utility>
 #include <stdint.h>
 
 #include <frg/array.hpp>
-#include <frg/eternal.hpp>
+#include <frg/aligned_storage.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {

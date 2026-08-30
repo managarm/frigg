@@ -5,7 +5,7 @@
 #include <atomic>
 #include <new>
 #include <frg/allocation.hpp>
-#include <frg/eternal.hpp>
+#include <frg/aligned_storage.hpp>
 #include <frg/macros.hpp>
 #include <frg/tuple.hpp>
 #include <frg/rcu.hpp>

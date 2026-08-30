@@ -4,7 +4,7 @@
 #include <new>
 #include <utility>
 
-#include <frg/eternal.hpp>
+#include <frg/aligned_storage.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {

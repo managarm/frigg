@@ -4,25 +4,11 @@
 #include <new>
 #include <cstddef>
 #include <utility>
-#include <algorithm>
 
+#include <frg/aligned_storage.hpp>
 #include <frg/macros.hpp>
 
 namespace frg FRG_VISIBILITY {
-
-template<std::size_t Size, std::size_t Align>
-struct alignas(Align) aligned_storage {
-	constexpr aligned_storage()
-	: buffer{0} { }
-
-	char buffer[Size];
-};
-
-template <typename ...T>
-using aligned_union = aligned_storage<
-	std::max({sizeof(T)...}),
-	std::max({alignof(T)...})
->;
 
 // Container for an object that deletes the object's destructor.
 // eternal<T> always has a trivial destructor.
