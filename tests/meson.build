@@ -1,6 +1,7 @@
 gtest = dependency('gtest_main')
 
 test_executable = executable('frigg_tests',
+	'dyn_bitset.cpp',
 	'eternal.cpp',
 	'function_ref.cpp',
 	'rcu_btree.cpp',
