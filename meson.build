@@ -13,6 +13,7 @@ if not get_option('frigg_no_install')
 		'include/frg/container_of.hpp',
 		'include/frg/detection.hpp',
 		'include/frg/dyn_array.hpp',
+		'include/frg/dyn_bitset.hpp',
 		'include/frg/eternal.hpp',
 		'include/frg/expected.hpp',
 		'include/frg/formatting.hpp',
