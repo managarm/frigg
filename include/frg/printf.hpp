@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <optional>
 #include <frg/macros.hpp>
 #include <frg/expected.hpp>
 #include <frg/formatting.hpp>
