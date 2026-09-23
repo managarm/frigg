@@ -148,8 +148,8 @@ struct pool {
 	static constexpr size_t chunk_boundary = 1 << 18;
 	static constexpr size_t chunk_size = chunk_boundary;
 
-	// TODO: We may want to make this dependent on the number of objects in the chunk.
-	static constexpr size_t reactivate_threshold = 8;
+	// Upper bound on bucket::reactivate_threshold.
+	static constexpr size_t max_reactivate_threshold = 8;
 
 	// Stores the address of an object as the object's offset vs. its chunk_header.
 	// This is needed to be able to compress the chunk_state struct below to a size that can be manipulated by a single CAS.
@@ -208,6 +208,8 @@ struct pool {
 		size_t object_size{0};
 		// Number of objects in each slab chunk of this bucket.
 		size_t objects_per_chunk{0};
+		// INACTIVE chunks become PENDING once owner_count or threaded_count reach this number.
+		size_t reactivate_threshold{0};
 		// Current chunk we allocate from. If null, pop from active_list.
 		chunk_header *head_chunk{nullptr};
 		// List of other ACTIVE chunks (with non-empty owner_free).
@@ -276,6 +278,7 @@ struct pool {
 			FRG_ASSERT(objects_per_chunk <= max_objects_in_chunk);
 			buckets_[i].object_size = object_size;
 			buckets_[i].objects_per_chunk = objects_per_chunk;
+			buckets_[i].reactivate_threshold = reactivate_threshold_for(objects_per_chunk);
 		}
 	}
 
@@ -508,6 +511,14 @@ private:
 		return (sizeof(chunk_header) + object_align - 1) & ~(object_align - 1);
 	}
 
+	// The frees of a chunk are split between owner_count and threaded_count.
+	// Once all objects are freed, at least one of them reaches half of the chunk's objects,
+	// so a higher threshold could leave a completely free chunk INACTIVE forever.
+	static constexpr size_t reactivate_threshold_for(size_t objects_per_chunk) {
+		size_t half = (objects_per_chunk + 1) / 2;
+		return half < max_reactivate_threshold ? half : max_reactivate_threshold;
+	}
+
 	frg::expected<error> slab_chunk_create(bucket *bkt) {
 		FRG_ASSERT(!bkt->head_chunk);
 
@@ -640,7 +651,7 @@ private:
 		chunk_state new_state;
 		do {
 			// Too many objects in threaded_free, keep as ACTIVE.
-			if (current_state.threaded_count >= reactivate_threshold) {
+			if (current_state.threaded_count >= bkt->reactivate_threshold) {
 				chunk->next_in_list = bkt->active_list;
 				bkt->active_list = chunk;
 				return;
@@ -707,7 +718,7 @@ private:
 		chunk->owner_count++;
 
 		// If chunk is INACTIVE and owner_count exceeds threshold, transition to PENDING.
-		if (!(chunk->owner_count >= reactivate_threshold))
+		if (!(chunk->owner_count >= chunk->bkt->reactivate_threshold))
 			return;
 
 		chunk_state current_state = chunk->state.load(std::memory_order_relaxed);
@@ -752,7 +763,7 @@ private:
 				.inactive{current_state.inactive},
 			};
 			// If INACTIVE and count exceeds threshold, transition to PENDING.
-			if (current_state.inactive && new_state.threaded_count >= reactivate_threshold)
+			if (current_state.inactive && new_state.threaded_count >= chunk->bkt->reactivate_threshold)
 				new_state.inactive = false;
 		} while (!chunk->state.compare_exchange_weak(
 			current_state, new_state,
