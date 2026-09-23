@@ -349,6 +349,37 @@ TEST(sharded_slab, destructor_unmaps_chunks) {
 	EXPECT_EQ(other_mapped, size_t{0});
 }
 
+// Memory that is freed partly by the owner and partly by other pools is reused,
+// even for large objects that only fit a few times into each chunk.
+TEST(sharded_slab, reuse_after_mixed_deallocation) {
+	size_t mapped = 0;
+	size_t other_mapped = 0;
+	frg::sharded_slab::pool<counting_policy> pool{counting_policy{{}, &mapped}};
+	frg::sharded_slab::pool<counting_policy> other_pool{counting_policy{{}, &other_mapped}};
+
+	constexpr size_t size = decltype(pool)::policy_traits::max_bucket_size;
+	constexpr size_t count = 64;
+	constexpr size_t rounds = 100;
+
+	size_t mapped_after_first_round = 0;
+	std::vector<void *> objs;
+	for (size_t r = 0; r < rounds; r++) {
+		for (size_t i = 0; i < count; i++) {
+			void *obj = pool.allocate(size);
+			ASSERT_NE(obj, nullptr);
+			objs.push_back(obj);
+		}
+		for (size_t i = 0; i < count; i++)
+			(i % 2 ? other_pool : pool).deallocate(objs[i]);
+		objs.clear();
+
+		if (!r)
+			mapped_after_first_round = mapped;
+	}
+	EXPECT_LE(mapped, 2 * mapped_after_first_round);
+	EXPECT_EQ(other_mapped, size_t{0});
+}
+
 TEST(sharded_slab, reallocate) {
 	domain_type dom;
 	pool_type pool{&dom};
