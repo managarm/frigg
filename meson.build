@@ -38,6 +38,7 @@ if not get_option('frigg_no_install')
 		'include/frg/ringbuffer.hpp',
 		'include/frg/safe_int.hpp',
 		'include/frg/scope_exit.hpp',
+		'include/frg/seqlock.hpp',
 		'include/frg/sharded_slab.hpp',
 		'include/frg/shared_ptr.hpp',
 		'include/frg/slab.hpp',
