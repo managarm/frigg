@@ -41,6 +41,8 @@ class basic_string_view {
 public:
 	typedef Char CharType;
 	using value_type = Char;
+	using iterator = const Char *;
+	using const_iterator = const Char *;
 
 	constexpr basic_string_view()
 	: _pointer{nullptr}, _length{0} { }
@@ -61,6 +63,26 @@ public:
 
 	constexpr size_t size() const {
 		return _length;
+	}
+
+	constexpr bool empty() const {
+		return _length == 0;
+	}
+
+	constexpr const_iterator begin() const {
+		return _pointer;
+	}
+
+	constexpr const_iterator end() const {
+		return _pointer + _length;
+	}
+
+	constexpr const_iterator cbegin() const {
+		return _pointer;
+	}
+
+	constexpr const_iterator cend() const {
+		return _pointer + _length;
 	}
 
 	constexpr bool operator== (basic_string_view other) const {
