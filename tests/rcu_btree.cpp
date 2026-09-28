@@ -2,6 +2,7 @@
 #include <limits>
 #include <map>
 #include <random>
+#include <string>
 #include <utility>
 
 #include <frg/rcu_btree.hpp>
@@ -169,6 +170,77 @@ TEST(rcu_btree, erase_rebalancing) {
 			EXPECT_EQ(descending.find(j) != descending.end(), j < n - 1 - i);
 		}
 	}
+}
+
+// Only supports the operations that rcu_btree requires of keys (in particular, no operator==).
+// It wraps a string, hence it is not trivially copyable and its order differs from the numeric one.
+struct minimal_key {
+	minimal_key() = default;
+	minimal_key(const minimal_key &) = default;
+	minimal_key &operator=(const minimal_key &) = default;
+
+	// Only used by the test itself.
+	explicit minimal_key(std::string s)
+	: s{std::move(s)} { }
+
+	friend bool operator<(const minimal_key &a, const minimal_key &b) {
+		return a.s < b.s;
+	}
+
+	std::string s;
+};
+
+TEST(rcu_btree, non_integer_keys) {
+	frg::rcu_btree<minimal_key, int, frg::stl_allocator, fake_rcu_policy> tree;
+	std::map<std::string, int> ref;
+	EXPECT_EQ(tree.begin(), tree.end());
+
+	// minimal_key has no operator==, hence compare via the wrapped string.
+	auto expect_entry = [] (auto it, const std::string &k, int v) {
+		auto [key, value] = *it;
+		EXPECT_EQ(key.s, k);
+		EXPECT_EQ(value, v);
+	};
+
+	// Enough entries for multiple levels of inner nodes.
+	constexpr int n = 200;
+	for (int i = 0; i < n; ++i) {
+		auto k = std::to_string(i);
+		expect_entry(tree.insert(minimal_key{k}, i), k, i);
+		ref[k] = i;
+	}
+	ASSERT_TRUE(tree.check_invariant());
+
+	for (int i = 0; i < n; ++i)
+		expect_entry(tree.find(minimal_key{std::to_string(i)}), std::to_string(i), i);
+	EXPECT_EQ(tree.find(minimal_key{"1a"}), tree.end());
+
+	// Both present keys and keys that fall into the gaps (including before the first and after the last key).
+	for (std::string q : {"", "0", "1", "10", "100", "1a", "5", "55", "99", "990", "a"}) {
+		auto lb = tree.lower_bound(minimal_key{q});
+		auto ub = tree.upper_bound(minimal_key{q});
+		auto ref_lb = ref.lower_bound(q);
+		auto ref_ub = ref.upper_bound(q);
+		EXPECT_EQ(lb == tree.end(), ref_lb == ref.end());
+		EXPECT_EQ(ub == tree.end(), ref_ub == ref.end());
+		if (ref_lb != ref.end())
+			expect_entry(lb, ref_lb->first, ref_lb->second);
+		if (ref_ub != ref.end())
+			expect_entry(ub, ref_ub->first, ref_ub->second);
+	}
+
+	// Erase every other key (this rebalances), then iterate over the rest.
+	for (int i = 0; i < n; i += 2) {
+		EXPECT_EQ(tree.erase(tree.find(minimal_key{std::to_string(i)})), i);
+		ref.erase(std::to_string(i));
+		ASSERT_TRUE(tree.check_invariant());
+	}
+	auto ref_it = ref.begin();
+	for (auto it = tree.begin(); it != tree.end(); ++it, ++ref_it) {
+		ASSERT_TRUE(ref_it != ref.end());
+		expect_entry(it, ref_it->first, ref_it->second);
+	}
+	EXPECT_TRUE(ref_it == ref.end());
 }
 
 TEST(rcu_btree, random) {
