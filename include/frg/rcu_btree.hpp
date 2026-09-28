@@ -1,7 +1,7 @@
 #pragma once
 
 #include <atomic>
-#include <limits>
+#include <concepts>
 #include <type_traits>
 #include <utility>
 #include <frg/allocation.hpp>
@@ -10,10 +10,18 @@
 
 namespace frg FRG_VISIBILITY {
 
-// K must be an integer type.
+// K must be default constructible, copy constructible, copy assignable and destructible,
+// and operator< must be a strict weak order on K.
+// No other operations on K are used.
 // V is loaded atomically by readers: it must be trivially copyable and std::atomic<V> lock-free.
 template<typename K, typename V, typename Allocator, rcu_policy Rcu>
 struct rcu_btree {
+	static_assert(std::is_default_constructible_v<K>);
+	static_assert(std::is_copy_constructible_v<K>);
+	static_assert(std::is_copy_assignable_v<K>);
+	static_assert(std::is_destructible_v<K>);
+	// That operator< is a strict weak order cannot be checked.
+	static_assert(requires(const K &a, const K &b) { { a < b } -> std::convertible_to<bool>; });
 	static_assert(std::is_trivially_copyable_v<V>);
 	static_assert(std::atomic<V>::is_always_lock_free);
 
@@ -137,16 +145,12 @@ public:
 
 		iterator &operator++() {
 			FRG_ASSERT(n_);
-			auto key = n_->keys[idx_];
+			auto &key = n_->keys[idx_];
 			if(++idx_ < n_->num_keys)
 				return *this;
 
 			// Leaves have no sibling links and parent pointers are writer-only: re-descend.
-			if(key == std::numeric_limits<K>::max()) {
-				*this = iterator{};
-			} else {
-				*this = tree_->lower_bound(key + 1);
-			}
+			*this = tree_->upper_bound(key);
 			return *this;
 		}
 
@@ -164,7 +168,13 @@ public:
 	};
 
 	iterator begin() {
-		return lower_bound(std::numeric_limits<K>::min());
+		// Published leaves are never empty (and never modified), hence the leftmost leaf has an entry 0.
+		auto cur = root_.load(std::memory_order_acquire);
+		if(!cur)
+			return end();
+		while(!cur->leaf)
+			cur = child_<std::memory_order_acquire>(static_cast<inner_node *>(cur), 0);
+		return {this, static_cast<leaf_node *>(cur), 0};
 	}
 
 	iterator end() {
@@ -172,68 +182,78 @@ public:
 	}
 
 	// Returns: An iterator to the entry with the given key, or end() if there is none.
-	iterator find(K key) {
+	iterator find(const K &key) {
 		auto leaf = descend_<std::memory_order_acquire>(
 			root_.load(std::memory_order_acquire), key);
 		if(!leaf)
 			return end();
 		int pos = find_position_(leaf, key);
-		if(pos < leaf->num_keys && leaf->keys[pos] == key)
+		// keys[pos] >= key, hence equality is !(key < keys[pos]).
+		if(pos < leaf->num_keys && !(key < leaf->keys[pos]))
 			return {this, leaf, pos};
 		return end();
 	}
 
 	// Returns: An iterator to the first entry with a key >= key, or end() if there is none.
-	iterator lower_bound(K key) {
+	iterator lower_bound(const K &key) {
+		return bound_<false>(key);
+	}
+
+	// Returns: An iterator to the first entry with a key > key, or end() if there is none.
+	iterator upper_bound(const K &key) {
+		return bound_<true>(key);
+	}
+
+private:
+	// Returns: upper_bound(key) if Strict, else lower_bound(key).
+	template<bool Strict>
+	iterator bound_(const K &key) {
 		// Descend along probe (initially key) while tracking bound, the smallest separator to
-		// the right of the path: the leaf only holds keys < bound. If it has no key >= key, all
-		// such keys are >= bound, so re-descend along bound. Absent concurrent mutations, this
-		// reaches a (non-empty) leaf whose keys are all >= bound. probe increases strictly.
-		K probe = key;
+		// the right of the path: the leaf only holds keys < bound.
+		// If it has no key >= key (or > key if Strict), all such keys are >= bound, so re-descend along bound.
+		// Absent concurrent mutations, this reaches a (non-empty) leaf whose keys are all >= bound.
+		// probe increases strictly.
+		const K *probe = &key;
 		while(true) {
 			auto cur = root_.load(std::memory_order_acquire);
 			if(!cur)
 				return end();
 
-			bool has_bound = false;
-			K bound{};
+			const K *bound = nullptr;
 			while(!cur->leaf) {
 				auto inner = static_cast<inner_node *>(cur);
-				int i = find_inner_child_(inner, probe);
-				if(i < inner->num_keys) {
-					bound = inner->keys[i];
-					has_bound = true;
-				}
+				int i = find_upper_position_(inner, *probe);
+				if(i < inner->num_keys)
+					bound = &inner->keys[i];
 				cur = child_<std::memory_order_acquire>(inner, i);
 			}
 
 			auto leaf = static_cast<leaf_node *>(cur);
-			int pos = find_position_(leaf, key);
+			int pos = Strict ? find_upper_position_(leaf, key) : find_position_(leaf, key);
 			if(pos < leaf->num_keys)
 				return {this, leaf, pos};
-			if(!has_bound)
+			if(!bound)
 				return end();
 			probe = bound;
 		}
 	}
 
-private:
 	template<std::memory_order Order = std::memory_order_relaxed>
 	static node *child_(inner_node *n, int i) {
 		return n->links[i].load(Order);
 	}
 
 	// Returns: The first i with keys[i] >= key, or num_keys if there is none.
-	static int find_position_(node *n, K key) {
+	static int find_position_(node *n, const K &key) {
 		int i = 0;
 		while(i < n->num_keys && n->keys[i] < key)
 			++i;
 		return i;
 	}
 
-	// Returns: The index of the child whose subtree covers key, i.e., the first i with
-	// key < keys[i], or num_keys if there is none.
-	static int find_inner_child_(node *n, K key) {
+	// Returns: The first i with keys[i] > key, or num_keys if there is none.
+	// For inner nodes, this is the index of the child whose subtree covers key.
+	static int find_upper_position_(node *n, const K &key) {
 		int i = 0;
 		while(i < n->num_keys && !(key < n->keys[i]))
 			++i;
@@ -242,12 +262,12 @@ private:
 
 	// Returns: The leaf below cur that would contain key, or nullptr if cur is null.
 	template<std::memory_order Order>
-	static leaf_node *descend_(node *cur, K key) {
+	static leaf_node *descend_(node *cur, const K &key) {
 		if(!cur)
 			return nullptr;
 		while(!cur->leaf) {
 			auto inner = static_cast<inner_node *>(cur);
-			cur = child_<Order>(inner, find_inner_child_(inner, key));
+			cur = child_<Order>(inner, find_upper_position_(inner, key));
 		}
 		return static_cast<leaf_node *>(cur);
 	}
@@ -258,7 +278,7 @@ private:
 public:
 	// Precondition: Single writer (via external locking); key is not present.
 	// Returns: An iterator to the new entry.
-	iterator insert(K key, V value) {
+	iterator insert(const K &key, V value) {
 		auto cur = descend_<std::memory_order_relaxed>(
 			root_.load(std::memory_order_relaxed), key);
 
@@ -271,7 +291,7 @@ public:
 		}
 
 		int pos = find_position_(cur, key);
-		FRG_ASSERT(pos == cur->num_keys || cur->keys[pos] != key);
+		FRG_ASSERT(pos == cur->num_keys || key < cur->keys[pos]);
 
 		if(cur->num_keys < nkeys)
 			return {this, insert_into_leaf_(cur, pos, key, value), pos};
@@ -320,7 +340,7 @@ public:
 private:
 	// Inserts key at pos into a copy of the non-full leaf cur, publishes it and retires cur.
 	// Returns: The new leaf.
-	leaf_node *insert_into_leaf_(leaf_node *cur, int pos, K key, V value) {
+	leaf_node *insert_into_leaf_(leaf_node *cur, int pos, const K &key, V value) {
 		auto new_leaf = copy_(cur, 0, pos);
 		append_(new_leaf, key, value);
 		append_entries_(new_leaf, cur, pos, cur->num_keys);
@@ -343,7 +363,7 @@ private:
 	// Splits the full leaf cur, with key inserted at pos, into a left leaf with split entries
 	// and a right leaf with the rest.
 	// Returns: The separator of the two new (unpublished) leaves.
-	separator split_leaf_(leaf_node *cur, int pos, K key, V value) {
+	separator split_leaf_(leaf_node *cur, int pos, const K &key, V value) {
 		leaf_node *left_leaf;
 		leaf_node *right_leaf;
 		if(pos < split) {
@@ -622,7 +642,7 @@ private:
 
 	// Appends an entry to the non-full node n.
 	template<typename N>
-	static void append_(N *n, K key, typename N::link_type link) {
+	static void append_(N *n, const K &key, typename N::link_type link) {
 		FRG_ASSERT(n->num_keys < nkeys);
 		set_link_(n, n->num_keys + N::link_offset, link);
 		n->keys[n->num_keys++] = key;
@@ -638,7 +658,7 @@ private:
 	// Appends all entries of src to dst; for inner nodes, preceded by sep with the leading
 	// link of src.
 	template<typename N>
-	static void append_node_(N *dst, K sep, N *src) {
+	static void append_node_(N *dst, const K &sep, N *src) {
 		if constexpr (!N::is_leaf)
 			append_(dst, sep, link_(src, 0));
 		append_entries_(dst, src, 0, src->num_keys);
@@ -658,7 +678,7 @@ private:
 	// Inserts key and link at the front of the non-full node n (for inner nodes, link becomes
 	// the leading link). Shifts all entries: only used when borrowing from a sibling.
 	template<typename N>
-	static void prepend_(N *n, K key, typename N::link_type link) {
+	static void prepend_(N *n, const K &key, typename N::link_type link) {
 		FRG_ASSERT(n->num_keys < nkeys);
 		for(int i = n->num_keys; i > 0; --i)
 			n->keys[i] = n->keys[i - 1];
