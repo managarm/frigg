@@ -82,6 +82,10 @@ struct stack_buffer_logger {
 			}
 		}
 
+		void append(const char *str, size_t n, size_t m) {
+			return append(str, frg::min(n, m));
+		}
+
 	private:
 		stack_buffer_logger *_logger;
 		char _buffer[Limit];
@@ -150,6 +154,10 @@ struct container_logger {
 		}
 	}
 
+	void append(const char *str, size_t n, size_t m) {
+		return append(str, frg::min(n, m));
+	}
+
 private:
 	Container &cont_;
 };
@@ -175,6 +183,10 @@ struct ostream_out {
 
 	void append(const char *str, size_t n) {
 		output.write(str, n);
+	}
+
+	void append(const char *str, size_t n, size_t m) {
+		return append(str, frg::min(n, m));
 	}
 
 	void append(const char *str) {
