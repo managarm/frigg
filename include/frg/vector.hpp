@@ -1,6 +1,8 @@
 #ifndef FRG_VECTOR_HPP
 #define FRG_VECTOR_HPP
 
+#include <concepts>
+#include <iterator>
 #include <utility>
 #include <stddef.h>
 
@@ -13,6 +15,103 @@ class vector {
 public:
 	using value_type = T;
 	using reference = value_type&;
+
+	template <typename Element>
+	struct Iterator {
+		using iterator_category = std::random_access_iterator_tag;
+		using iterator_concept = std::contiguous_iterator_tag;
+		using value_type = std::remove_cv_t<Element>;
+		using element_type = Element;
+		using difference_type = ptrdiff_t;
+		using pointer = Element *;
+		using reference = Element &;
+
+		constexpr Iterator() noexcept = default;
+		constexpr explicit Iterator(pointer ptr) noexcept : ptr_{ptr} {}
+
+		template <typename OtherElement>
+			requires std::convertible_to<OtherElement *, pointer>
+		constexpr Iterator(const Iterator<OtherElement> &other) noexcept : ptr_(other.ptr_) {}
+
+		constexpr reference operator*() const noexcept { return *ptr_; }
+		constexpr pointer operator->() const noexcept { return ptr_; }
+
+		constexpr Iterator &operator++() noexcept {
+			++ptr_;
+			return *this;
+		}
+
+		constexpr Iterator operator++(int) noexcept {
+			Iterator tmp = *this;
+			++ptr_;
+			return tmp;
+		}
+
+		constexpr Iterator &operator--() noexcept {
+			--ptr_;
+			return *this;
+		}
+
+		constexpr Iterator operator--(int) noexcept {
+			Iterator tmp = *this;
+			--ptr_;
+			return tmp;
+		}
+
+		constexpr Iterator &operator+=(difference_type offset) noexcept {
+			ptr_ += offset;
+			return *this;
+		}
+
+		constexpr Iterator operator+(difference_type offset) const noexcept {
+			return Iterator(ptr_ + offset);
+		}
+
+		constexpr friend Iterator operator+(difference_type offset, const Iterator &it) noexcept {
+			return Iterator(it.ptr_ + offset);
+		}
+
+		constexpr Iterator &operator-=(difference_type offset) noexcept {
+			ptr_ -= offset;
+			return *this;
+		}
+
+		constexpr Iterator operator-(difference_type offset) const noexcept {
+			return Iterator(ptr_ - offset);
+		}
+
+		template <typename OtherElement>
+			requires requires(pointer p1, OtherElement *p2) { p1 - p2; }
+		constexpr difference_type operator-(const Iterator<OtherElement> &other) const noexcept {
+			return ptr_ - other.ptr_;
+		}
+
+		constexpr reference operator[](difference_type offset) const noexcept {
+			return ptr_[offset];
+		}
+
+		template <typename OtherElement>
+			requires requires(pointer p1, OtherElement *p2) { p1 <=> p2; }
+		constexpr auto operator<=>(const Iterator<OtherElement> &other) const noexcept {
+			return ptr_ <=> other.ptr_;
+		}
+
+		template <typename OtherElement>
+			requires requires(pointer p1, OtherElement *p2) { p1 == p2; }
+		constexpr bool operator==(const Iterator<OtherElement> &other) const noexcept {
+			return ptr_ == other.ptr_;
+		}
+
+		template <typename> friend struct Iterator;
+
+	private:
+		pointer ptr_ = nullptr;
+	};
+
+	using iterator = Iterator<T>;
+	using const_iterator = Iterator<const T>;
+	using reverse_iterator = std::reverse_iterator<iterator>;
+	using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 	friend constexpr void swap(vector &a, vector &b) {
 		using std::swap;
@@ -93,20 +192,52 @@ public:
 		return size() == 0;
 	}
 
-	constexpr T *begin() {
-		return _elements;
+	constexpr iterator begin() {
+		return iterator(_elements);
 	}
 
-	constexpr const T *begin() const {
-		return _elements;
+	constexpr const_iterator begin() const {
+		return const_iterator(_elements);
 	}
 
-	constexpr T *end() {
-		return _elements + _size;
+	constexpr const_iterator cbegin() const {
+		return const_iterator(_elements);
 	}
 
-	constexpr const T *end() const {
-		return _elements + _size;
+	constexpr iterator end() {
+		return iterator(_elements + _size);
+	}
+
+	constexpr const_iterator end() const {
+		return const_iterator(_elements + _size);
+	}
+
+	constexpr const_iterator cend() const {
+		return const_iterator(_elements + _size);
+	}
+
+	constexpr reverse_iterator rbegin() {
+		return reverse_iterator(end());
+	}
+
+	constexpr const_reverse_iterator rbegin() const {
+		return const_reverse_iterator(end());
+	}
+
+	constexpr const_reverse_iterator crbegin() const {
+		return const_reverse_iterator(cend());
+	}
+
+	constexpr reverse_iterator rend() {
+		return reverse_iterator(begin());
+	}
+
+	constexpr const_reverse_iterator rend() const {
+		return const_reverse_iterator(begin());
+	}
+
+	constexpr const_reverse_iterator crend() const {
+		return const_reverse_iterator(cbegin());
 	}
 
 	constexpr T &front() {
