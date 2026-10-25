@@ -195,6 +195,30 @@ struct [[nodiscard]] expected : destructor_crtp<E, T> {
 		return std::move(value());
 	}
 
+	const T* operator->() const {
+		return __builtin_addressof(value());
+	}
+
+	T* operator->() {
+		return __builtin_addressof(value());
+	}
+
+	const T& operator*() const& {
+		return value();
+	}
+
+	T& operator*() & {
+		return value();
+	}
+
+	const T&& operator*() const&& {
+		return std::move(value());
+	}
+
+	T&& operator*() && {
+		return std::move(value());
+	}
+
 private:
     alignas(alignof(T)) char stor_[sizeof(T)];
     E e_;
@@ -264,6 +288,10 @@ struct [[nodiscard]] expected<E, void> {
 		if(!(*this))
 		return fun(error());
 		return {};
+	}
+
+	void operator*() const {
+    	FRG_ASSERT(!indicates_error(e_));
 	}
 
 private:
