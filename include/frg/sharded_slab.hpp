@@ -6,6 +6,7 @@
 #include <bit>
 #include <concepts>
 #include <new>
+#include <utility>
 
 #include <frg/bitops.hpp>
 #include <frg/expected.hpp>
@@ -247,7 +248,13 @@ struct pool {
 	: pool{nullptr} { }
 
 	constexpr pool(domain_type *dom)
-	: dom_{dom} {
+	: pool{P{}, dom} { }
+
+	constexpr explicit pool(P policy) requires (!supports_overaligned)
+	: pool{std::move(policy), nullptr} { }
+
+	constexpr pool(P policy, domain_type *dom)
+	: policy_{std::move(policy)}, dom_{dom} {
 		for (size_t i = 0; i < policy_traits::num_buckets; i++) {
 			buckets_[i].object_size = policy_traits::bucket_to_size(i);
 		}
@@ -738,7 +745,8 @@ private:
 			policy_.poison(extent_ptr, extent_size);
 		}
 
-		policy_.unmap(extent_ptr, extent_size);
+		// Pools may differ in their policies' state, so the extent goes back through the policy that mapped it.
+		chunk->owner->policy_.unmap(extent_ptr, extent_size);
 	}
 
 	size_t overaligned_capacity(void *object) requires (supports_overaligned) {

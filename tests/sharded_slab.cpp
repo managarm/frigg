@@ -234,6 +234,37 @@ TEST(sharded_slab, cross_thread_deallocation) {
 	}
 }
 
+// Policy with per-pool state that counts the bytes that it maps.
+struct counting_policy : sharded_slab_base_policy {
+	size_t *mapped = nullptr;
+
+	void *map(size_t size) {
+		*mapped += size;
+		return sharded_slab_base_policy::map(size);
+	}
+
+	void unmap(void *p, size_t size) {
+		*mapped -= size;
+		sharded_slab_base_policy::unmap(p, size);
+	}
+};
+
+// Large objects return to the policy of the pool that allocated them.
+TEST(sharded_slab, large_free_through_owner_policy) {
+	size_t owner_mapped = 0;
+	size_t other_mapped = 0;
+	frg::sharded_slab::pool<counting_policy> owner_pool{counting_policy{{}, &owner_mapped}};
+	frg::sharded_slab::pool<counting_policy> other_pool{counting_policy{{}, &other_mapped}};
+
+	void *obj = owner_pool.allocate(size_t{1} << 20);
+	ASSERT_NE(obj, nullptr);
+	EXPECT_GT(owner_mapped, size_t{0});
+
+	other_pool.deallocate(obj);
+	EXPECT_EQ(owner_mapped, size_t{0});
+	EXPECT_EQ(other_mapped, size_t{0});
+}
+
 TEST(sharded_slab, reallocate) {
 	domain_type dom;
 	pool_type pool{&dom};
