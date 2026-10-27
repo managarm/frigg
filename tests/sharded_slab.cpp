@@ -234,6 +234,116 @@ TEST(sharded_slab, cross_thread_deallocation) {
 	}
 }
 
+// Policy with per-pool state that counts the bytes that it maps.
+struct counting_policy : sharded_slab_base_policy {
+	size_t *mapped = nullptr;
+
+	void *map(size_t size) {
+		*mapped += size;
+		return sharded_slab_base_policy::map(size);
+	}
+
+	void unmap(void *p, size_t size) {
+		*mapped -= size;
+		sharded_slab_base_policy::unmap(p, size);
+	}
+};
+
+// Large objects return to the policy of the pool that allocated them.
+TEST(sharded_slab, large_free_through_owner_policy) {
+	size_t owner_mapped = 0;
+	size_t other_mapped = 0;
+	frg::sharded_slab::pool<counting_policy> owner_pool{counting_policy{{}, &owner_mapped}};
+	frg::sharded_slab::pool<counting_policy> other_pool{counting_policy{{}, &other_mapped}};
+
+	void *obj = owner_pool.allocate(size_t{1} << 20);
+	ASSERT_NE(obj, nullptr);
+	EXPECT_GT(owner_mapped, size_t{0});
+
+	other_pool.deallocate(obj);
+	EXPECT_EQ(owner_mapped, size_t{0});
+	EXPECT_EQ(other_mapped, size_t{0});
+}
+
+// Policy that places pools into the given shard.
+struct sharded_counting_policy : counting_policy {
+	uint32_t shard = 0;
+
+	uint32_t shard_id() const {
+		return shard;
+	}
+};
+
+static_assert(frg::sharded_slab::sharded_policy<sharded_counting_policy>);
+static_assert(!frg::sharded_slab::sharded_policy<counting_policy>);
+
+// Pools of a shard free each other's objects like the owner, which reuses them right away.
+TEST(sharded_slab, shard_frees_like_owner) {
+	size_t mapped = 0;
+	frg::sharded_slab::pool<sharded_counting_policy> first_pool{sharded_counting_policy{{{}, &mapped}, 0}};
+	frg::sharded_slab::pool<sharded_counting_policy> second_pool{sharded_counting_policy{{{}, &mapped}, 0}};
+	frg::sharded_slab::pool<sharded_counting_policy> other_pool{sharded_counting_policy{{{}, &mapped}, 1}};
+
+	void *a = first_pool.allocate(64);
+	void *b = first_pool.allocate(64);
+	ASSERT_NE(a, nullptr);
+	ASSERT_NE(b, nullptr);
+	second_pool.deallocate(a);
+	EXPECT_EQ(first_pool.allocate(64), a);
+
+	void *c = second_pool.allocate(64);
+	ASSERT_NE(c, nullptr);
+	first_pool.deallocate(c);
+	EXPECT_EQ(second_pool.allocate(64), c);
+
+	// Threaded deallocations only reach the owner once it refreshes the chunk.
+	other_pool.deallocate(a);
+	void *d = first_pool.allocate(64);
+	EXPECT_NE(d, a);
+
+	first_pool.deallocate(b);
+	first_pool.deallocate(d);
+	second_pool.deallocate(c);
+}
+
+// Destroying a pool unmaps its ACTIVE, PENDING and INACTIVE chunks.
+TEST(sharded_slab, destructor_unmaps_chunks) {
+	size_t mapped = 0;
+	size_t other_mapped = 0;
+	frg::sharded_slab::pool<counting_policy> other_pool{counting_policy{{}, &other_mapped}};
+
+	{
+		frg::sharded_slab::pool<counting_policy> pool{counting_policy{{}, &mapped}};
+
+		constexpr size_t size = 64;
+		constexpr size_t count = 4 * (decltype(pool)::chunk_size / size);
+		std::vector<void *> objs;
+		for (size_t i = 0; i < count; i++) {
+			void *obj = pool.allocate(size);
+			ASSERT_NE(obj, nullptr);
+			objs.push_back(obj);
+		}
+		void *other_size = pool.allocate(1000);
+		ASSERT_NE(other_size, nullptr);
+		void *large = pool.allocate(size_t{1} << 20);
+		ASSERT_NE(large, nullptr);
+
+		// Free some objects through another pool such that chunks become PENDING
+		// and keep a few objects on the threaded free lists of INACTIVE chunks.
+		for (size_t i = 0; i < count; i++) {
+			if ((i < count / 2 && i % 2) || i % 1024 == 1000) {
+				other_pool.deallocate(objs[i]);
+			} else {
+				pool.deallocate(objs[i]);
+			}
+		}
+		other_pool.deallocate(other_size);
+		pool.deallocate(large);
+	}
+	EXPECT_EQ(mapped, size_t{0});
+	EXPECT_EQ(other_mapped, size_t{0});
+}
+
 TEST(sharded_slab, reallocate) {
 	domain_type dom;
 	pool_type pool{&dom};

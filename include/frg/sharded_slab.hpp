@@ -6,6 +6,7 @@
 #include <bit>
 #include <concepts>
 #include <new>
+#include <utility>
 
 #include <frg/bitops.hpp>
 #include <frg/expected.hpp>
@@ -56,6 +57,13 @@ struct mutex_type_helper { struct type { }; };
 
 template<typename P> requires requires { typename P::mutex_type; }
 struct mutex_type_helper<P> { using type = typename P::mutex_type; };
+
+// A policy opts into shards by providing shard_id(), which must not change during the pool's lifetime.
+// Pools whose policies return the same shard_id() must never be used concurrently.
+template<typename P>
+concept sharded_policy = requires(const P policy) {
+	{ policy.shard_id() } -> std::same_as<uint32_t>;
+};
 
 // Metadata for an overaligned object.
 // Stored outside of the object's allocation such that the allocation itself can be aligned.
@@ -128,6 +136,8 @@ private:
 // from one pool instance can be freed by another pool instance
 // as long as the policy is identical (and, for over-aligned objects, the
 // pools share the same domain).
+// Pools that are never used concurrently can form a shard (see sharded_policy):
+// such pools free each other's objects in the same way as the owner instead of using atomics.
 template<Policy P>
 struct pool {
 	using policy_traits = slab_policy_traits<P>;
@@ -196,6 +206,8 @@ struct pool {
 	struct bucket {
 		// Size of the objects stored in the slab.
 		size_t object_size{0};
+		// Number of objects in each slab chunk of this bucket.
+		size_t objects_per_chunk{0};
 		// Current chunk we allocate from. If null, pop from active_list.
 		chunk_header *head_chunk{nullptr};
 		// List of other ACTIVE chunks (with non-empty owner_free).
@@ -222,6 +234,8 @@ struct pool {
 	// The header is followed by memory objects such that the total size of the chunk is chunk_size.
 	struct chunk_header {
 		chunk_type type{chunk_type::none};
+		// Shard of the owner (for sharded policies), compared on deallocation without touching the owner.
+		uint32_t shard{0};
 		pool *owner{nullptr};
 		bucket *bkt{nullptr};
 		// Head of the free list that the owner uses for allocations.
@@ -236,6 +250,8 @@ struct pool {
 		void *extent_ptr{nullptr};
 		// Size of the chunk's extent.
 		size_t extent_size{0};
+		// Next slab chunk in pool::slab_chunks_.
+		chunk_header *next_in_pool{nullptr};
 	};
 
 	// True if the policy opted into over-aligned allocations.
@@ -247,9 +263,39 @@ struct pool {
 	: pool{nullptr} { }
 
 	constexpr pool(domain_type *dom)
-	: dom_{dom} {
+	: pool{P{}, dom} { }
+
+	constexpr explicit pool(P policy) requires (!supports_overaligned)
+	: pool{std::move(policy), nullptr} { }
+
+	constexpr pool(P policy, domain_type *dom)
+	: policy_{std::move(policy)}, dom_{dom} {
 		for (size_t i = 0; i < policy_traits::num_buckets; i++) {
-			buckets_[i].object_size = policy_traits::bucket_to_size(i);
+			size_t object_size = policy_traits::bucket_to_size(i);
+			size_t objects_per_chunk = (chunk_size - slab_first_offset(object_size)) / object_size;
+			FRG_ASSERT(objects_per_chunk <= max_objects_in_chunk);
+			buckets_[i].object_size = object_size;
+			buckets_[i].objects_per_chunk = objects_per_chunk;
+		}
+	}
+
+	// Precondition: all objects that were allocated from this pool have been deallocated.
+	// Large and over-aligned objects are unmapped on deallocation, so only slab chunks remain.
+	~pool() {
+		auto chunk = slab_chunks_;
+		while (chunk) {
+			auto next = chunk->next_in_pool;
+			auto state = chunk->state.load(std::memory_order_acquire);
+			FRG_ASSERT(chunk->owner_count + state.threaded_count == chunk->bkt->objects_per_chunk);
+
+			auto *extent_ptr = chunk->extent_ptr;
+			size_t extent_size = chunk->extent_size;
+			if constexpr (slab::has_poisoning_support<P>) {
+				policy_.unpoison_expand(extent_ptr, extent_size);
+				policy_.poison(extent_ptr, extent_size);
+			}
+			policy_.unmap(extent_ptr, extent_size);
+			chunk = next;
 		}
 	}
 
@@ -361,8 +407,14 @@ struct pool {
 			large_free(chunk);
 			return;
 		}
-		if (chunk->owner == this) {
-			slab_deallocate_owned(chunk, object);
+		bool owned;
+		if constexpr (sharded_policy<P>) {
+			owned = chunk->shard == policy_.shard_id();
+		} else {
+			owned = chunk->owner == this;
+		}
+		if (owned) {
+			chunk->owner->slab_deallocate_owned(chunk, object);
 		} else {
 			slab_deallocate_threaded(chunk, object);
 		}
@@ -444,6 +496,15 @@ private:
 		}
 	}
 
+	// Offset of the first object in a slab chunk.
+	// The object is placed after the header, aligned to the largest power of two dividing object_size.
+	// This is the greatest alignment that the bucket can serve, see aligned_size_implies_aligned_bucket().
+	static constexpr size_t slab_first_offset(size_t object_size) {
+		static_assert(policy_traits::aligned_size_implies_aligned_bucket());
+		size_t object_align = size_t{1} << std::countr_zero(object_size);
+		return (sizeof(chunk_header) + object_align - 1) & ~(object_align - 1);
+	}
+
 	frg::expected<error> slab_chunk_create(bucket *bkt) {
 		FRG_ASSERT(!bkt->head_chunk);
 
@@ -453,8 +514,13 @@ private:
 		if constexpr (slab::has_poisoning_support<P>)
 			policy_.unpoison(chunk, sizeof(chunk_header));
 
+		uint32_t shard = 0;
+		if constexpr (sharded_policy<P>)
+			shard = policy_.shard_id();
+
 		new (chunk) chunk_header{
 			.type{chunk_type::slab},
+			.shard{shard},
 			.owner{this},
 			.bkt{bkt},
 			.state{
@@ -466,15 +532,13 @@ private:
 			},
 			.extent_ptr{mapping.extent_ptr},
 			.extent_size{mapping.extent_size},
+			.next_in_pool{slab_chunks_},
 		};
+		slab_chunks_ = chunk;
 
 		// Build free list of all objects in the chunk.
 		size_t object_size = bkt->object_size;
-		// Place the first object after the header, aligned to the largest power of two dividing object_size.
-		// This is the greatest alignment that this bucket can serve, see aligned_size_implies_aligned_bucket().
-		static_assert(policy_traits::aligned_size_implies_aligned_bucket());
-		size_t object_align = size_t{1} << std::countr_zero(object_size);
-		size_t first_offset = (sizeof(chunk_header) + object_align - 1) & ~(object_align - 1);
+		size_t first_offset = slab_first_offset(object_size);
 
 		compressed_address prev = 0;
 		size_t count = 0;
@@ -488,7 +552,7 @@ private:
 			prev = static_cast<compressed_address>(offset);
 			count++;
 		}
-		FRG_ASSERT(count <= max_objects_in_chunk);
+		FRG_ASSERT(count == bkt->objects_per_chunk);
 		chunk->owner_free = prev;
 		chunk->owner_count = count;
 
@@ -738,7 +802,8 @@ private:
 			policy_.poison(extent_ptr, extent_size);
 		}
 
-		policy_.unmap(extent_ptr, extent_size);
+		// Pools may differ in their policies' state, so the extent goes back through the policy that mapped it.
+		chunk->owner->policy_.unmap(extent_ptr, extent_size);
 	}
 
 	size_t overaligned_capacity(void *object) requires (supports_overaligned) {
@@ -818,6 +883,8 @@ private:
 	P policy_;
 	bucket buckets_[policy_traits::num_buckets];
 	domain_type *dom_ = nullptr;
+	// All slab chunks owned by this pool, linked through chunk_header::next_in_pool.
+	chunk_header *slab_chunks_ = nullptr;
 };
 
 } // namespace sharded_slab
