@@ -206,6 +206,8 @@ struct pool {
 	struct bucket {
 		// Size of the objects stored in the slab.
 		size_t object_size{0};
+		// Number of objects in each slab chunk of this bucket.
+		size_t objects_per_chunk{0};
 		// Current chunk we allocate from. If null, pop from active_list.
 		chunk_header *head_chunk{nullptr};
 		// List of other ACTIVE chunks (with non-empty owner_free).
@@ -248,6 +250,8 @@ struct pool {
 		void *extent_ptr{nullptr};
 		// Size of the chunk's extent.
 		size_t extent_size{0};
+		// Next slab chunk in pool::slab_chunks_.
+		chunk_header *next_in_pool{nullptr};
 	};
 
 	// True if the policy opted into over-aligned allocations.
@@ -267,7 +271,31 @@ struct pool {
 	constexpr pool(P policy, domain_type *dom)
 	: policy_{std::move(policy)}, dom_{dom} {
 		for (size_t i = 0; i < policy_traits::num_buckets; i++) {
-			buckets_[i].object_size = policy_traits::bucket_to_size(i);
+			size_t object_size = policy_traits::bucket_to_size(i);
+			size_t objects_per_chunk = (chunk_size - slab_first_offset(object_size)) / object_size;
+			FRG_ASSERT(objects_per_chunk <= max_objects_in_chunk);
+			buckets_[i].object_size = object_size;
+			buckets_[i].objects_per_chunk = objects_per_chunk;
+		}
+	}
+
+	// Precondition: all objects that were allocated from this pool have been deallocated.
+	// Large and over-aligned objects are unmapped on deallocation, so only slab chunks remain.
+	~pool() {
+		auto chunk = slab_chunks_;
+		while (chunk) {
+			auto next = chunk->next_in_pool;
+			auto state = chunk->state.load(std::memory_order_acquire);
+			FRG_ASSERT(chunk->owner_count + state.threaded_count == chunk->bkt->objects_per_chunk);
+
+			auto *extent_ptr = chunk->extent_ptr;
+			size_t extent_size = chunk->extent_size;
+			if constexpr (slab::has_poisoning_support<P>) {
+				policy_.unpoison_expand(extent_ptr, extent_size);
+				policy_.poison(extent_ptr, extent_size);
+			}
+			policy_.unmap(extent_ptr, extent_size);
+			chunk = next;
 		}
 	}
 
@@ -468,6 +496,15 @@ private:
 		}
 	}
 
+	// Offset of the first object in a slab chunk.
+	// The object is placed after the header, aligned to the largest power of two dividing object_size.
+	// This is the greatest alignment that the bucket can serve, see aligned_size_implies_aligned_bucket().
+	static constexpr size_t slab_first_offset(size_t object_size) {
+		static_assert(policy_traits::aligned_size_implies_aligned_bucket());
+		size_t object_align = size_t{1} << std::countr_zero(object_size);
+		return (sizeof(chunk_header) + object_align - 1) & ~(object_align - 1);
+	}
+
 	frg::expected<error> slab_chunk_create(bucket *bkt) {
 		FRG_ASSERT(!bkt->head_chunk);
 
@@ -495,15 +532,13 @@ private:
 			},
 			.extent_ptr{mapping.extent_ptr},
 			.extent_size{mapping.extent_size},
+			.next_in_pool{slab_chunks_},
 		};
+		slab_chunks_ = chunk;
 
 		// Build free list of all objects in the chunk.
 		size_t object_size = bkt->object_size;
-		// Place the first object after the header, aligned to the largest power of two dividing object_size.
-		// This is the greatest alignment that this bucket can serve, see aligned_size_implies_aligned_bucket().
-		static_assert(policy_traits::aligned_size_implies_aligned_bucket());
-		size_t object_align = size_t{1} << std::countr_zero(object_size);
-		size_t first_offset = (sizeof(chunk_header) + object_align - 1) & ~(object_align - 1);
+		size_t first_offset = slab_first_offset(object_size);
 
 		compressed_address prev = 0;
 		size_t count = 0;
@@ -517,7 +552,7 @@ private:
 			prev = static_cast<compressed_address>(offset);
 			count++;
 		}
-		FRG_ASSERT(count <= max_objects_in_chunk);
+		FRG_ASSERT(count == bkt->objects_per_chunk);
 		chunk->owner_free = prev;
 		chunk->owner_count = count;
 
@@ -848,6 +883,8 @@ private:
 	P policy_;
 	bucket buckets_[policy_traits::num_buckets];
 	domain_type *dom_ = nullptr;
+	// All slab chunks owned by this pool, linked through chunk_header::next_in_pool.
+	chunk_header *slab_chunks_ = nullptr;
 };
 
 } // namespace sharded_slab

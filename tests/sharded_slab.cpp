@@ -306,6 +306,44 @@ TEST(sharded_slab, shard_frees_like_owner) {
 	second_pool.deallocate(c);
 }
 
+// Destroying a pool unmaps its ACTIVE, PENDING and INACTIVE chunks.
+TEST(sharded_slab, destructor_unmaps_chunks) {
+	size_t mapped = 0;
+	size_t other_mapped = 0;
+	frg::sharded_slab::pool<counting_policy> other_pool{counting_policy{{}, &other_mapped}};
+
+	{
+		frg::sharded_slab::pool<counting_policy> pool{counting_policy{{}, &mapped}};
+
+		constexpr size_t size = 64;
+		constexpr size_t count = 4 * (decltype(pool)::chunk_size / size);
+		std::vector<void *> objs;
+		for (size_t i = 0; i < count; i++) {
+			void *obj = pool.allocate(size);
+			ASSERT_NE(obj, nullptr);
+			objs.push_back(obj);
+		}
+		void *other_size = pool.allocate(1000);
+		ASSERT_NE(other_size, nullptr);
+		void *large = pool.allocate(size_t{1} << 20);
+		ASSERT_NE(large, nullptr);
+
+		// Free some objects through another pool such that chunks become PENDING
+		// and keep a few objects on the threaded free lists of INACTIVE chunks.
+		for (size_t i = 0; i < count; i++) {
+			if ((i < count / 2 && i % 2) || i % 1024 == 1000) {
+				other_pool.deallocate(objs[i]);
+			} else {
+				pool.deallocate(objs[i]);
+			}
+		}
+		other_pool.deallocate(other_size);
+		pool.deallocate(large);
+	}
+	EXPECT_EQ(mapped, size_t{0});
+	EXPECT_EQ(other_mapped, size_t{0});
+}
+
 TEST(sharded_slab, reallocate) {
 	domain_type dom;
 	pool_type pool{&dom};
