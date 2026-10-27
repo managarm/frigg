@@ -265,6 +265,47 @@ TEST(sharded_slab, large_free_through_owner_policy) {
 	EXPECT_EQ(other_mapped, size_t{0});
 }
 
+// Policy that places pools into the given shard.
+struct sharded_counting_policy : counting_policy {
+	uint32_t shard = 0;
+
+	uint32_t shard_id() const {
+		return shard;
+	}
+};
+
+static_assert(frg::sharded_slab::sharded_policy<sharded_counting_policy>);
+static_assert(!frg::sharded_slab::sharded_policy<counting_policy>);
+
+// Pools of a shard free each other's objects like the owner, which reuses them right away.
+TEST(sharded_slab, shard_frees_like_owner) {
+	size_t mapped = 0;
+	frg::sharded_slab::pool<sharded_counting_policy> first_pool{sharded_counting_policy{{{}, &mapped}, 0}};
+	frg::sharded_slab::pool<sharded_counting_policy> second_pool{sharded_counting_policy{{{}, &mapped}, 0}};
+	frg::sharded_slab::pool<sharded_counting_policy> other_pool{sharded_counting_policy{{{}, &mapped}, 1}};
+
+	void *a = first_pool.allocate(64);
+	void *b = first_pool.allocate(64);
+	ASSERT_NE(a, nullptr);
+	ASSERT_NE(b, nullptr);
+	second_pool.deallocate(a);
+	EXPECT_EQ(first_pool.allocate(64), a);
+
+	void *c = second_pool.allocate(64);
+	ASSERT_NE(c, nullptr);
+	first_pool.deallocate(c);
+	EXPECT_EQ(second_pool.allocate(64), c);
+
+	// Threaded deallocations only reach the owner once it refreshes the chunk.
+	other_pool.deallocate(a);
+	void *d = first_pool.allocate(64);
+	EXPECT_NE(d, a);
+
+	first_pool.deallocate(b);
+	first_pool.deallocate(d);
+	second_pool.deallocate(c);
+}
+
 TEST(sharded_slab, reallocate) {
 	domain_type dom;
 	pool_type pool{&dom};

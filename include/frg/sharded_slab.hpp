@@ -58,6 +58,13 @@ struct mutex_type_helper { struct type { }; };
 template<typename P> requires requires { typename P::mutex_type; }
 struct mutex_type_helper<P> { using type = typename P::mutex_type; };
 
+// A policy opts into shards by providing shard_id(), which must not change during the pool's lifetime.
+// Pools whose policies return the same shard_id() must never be used concurrently.
+template<typename P>
+concept sharded_policy = requires(const P policy) {
+	{ policy.shard_id() } -> std::same_as<uint32_t>;
+};
+
 // Metadata for an overaligned object.
 // Stored outside of the object's allocation such that the allocation itself can be aligned.
 struct overaligned_node {
@@ -129,6 +136,8 @@ private:
 // from one pool instance can be freed by another pool instance
 // as long as the policy is identical (and, for over-aligned objects, the
 // pools share the same domain).
+// Pools that are never used concurrently can form a shard (see sharded_policy):
+// such pools free each other's objects in the same way as the owner instead of using atomics.
 template<Policy P>
 struct pool {
 	using policy_traits = slab_policy_traits<P>;
@@ -223,6 +232,8 @@ struct pool {
 	// The header is followed by memory objects such that the total size of the chunk is chunk_size.
 	struct chunk_header {
 		chunk_type type{chunk_type::none};
+		// Shard of the owner (for sharded policies), compared on deallocation without touching the owner.
+		uint32_t shard{0};
 		pool *owner{nullptr};
 		bucket *bkt{nullptr};
 		// Head of the free list that the owner uses for allocations.
@@ -368,8 +379,14 @@ struct pool {
 			large_free(chunk);
 			return;
 		}
-		if (chunk->owner == this) {
-			slab_deallocate_owned(chunk, object);
+		bool owned;
+		if constexpr (sharded_policy<P>) {
+			owned = chunk->shard == policy_.shard_id();
+		} else {
+			owned = chunk->owner == this;
+		}
+		if (owned) {
+			chunk->owner->slab_deallocate_owned(chunk, object);
 		} else {
 			slab_deallocate_threaded(chunk, object);
 		}
@@ -460,8 +477,13 @@ private:
 		if constexpr (slab::has_poisoning_support<P>)
 			policy_.unpoison(chunk, sizeof(chunk_header));
 
+		uint32_t shard = 0;
+		if constexpr (sharded_policy<P>)
+			shard = policy_.shard_id();
+
 		new (chunk) chunk_header{
 			.type{chunk_type::slab},
+			.shard{shard},
 			.owner{this},
 			.bkt{bkt},
 			.state{
