@@ -34,6 +34,21 @@ jobs:
             build/meson-logs/coverage.txt
             build/meson-logs/coveragereport/
 
+  run-test-suite-asan:
+    name: Run test suite with ASan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install prerequisites
+        run: |
+          echo "set man-db/auto-update false" | sudo debconf-communicate
+          sudo dpkg-reconfigure man-db
+          sudo apt-get install ninja-build g++ meson libgtest-dev
+      - uses: actions/checkout@v2
+      - name: Configure build
+        run: meson --buildtype=debug -Db_sanitize=address build
+      - name: Run tests
+        run: ninja -C build test
+
   run-test-suite-clang:
     name: Run test suite on clang
     runs-on: ubuntu-24.04

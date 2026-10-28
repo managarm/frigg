@@ -374,6 +374,9 @@ struct pool {
 
 		size_t capacity = capacity_of(object);
 
+		if constexpr (slab::has_poisoning_support<P>)
+			policy_.unpoison_expand(object, capacity);
+
 		if (new_size <= capacity) {
 			if constexpr (slab::has_poisoning_support<P>) {
 				policy_.poison(object, capacity);
@@ -794,6 +797,7 @@ private:
 	}
 
 	void large_free(chunk_header *chunk) {
+		auto *owner = chunk->owner;
 		auto *extent_ptr = chunk->extent_ptr;
 		size_t extent_size = chunk->extent_size;
 
@@ -803,7 +807,7 @@ private:
 		}
 
 		// Pools may differ in their policies' state, so the extent goes back through the policy that mapped it.
-		chunk->owner->policy_.unmap(extent_ptr, extent_size);
+		owner->policy_.unmap(extent_ptr, extent_size);
 	}
 
 	size_t overaligned_capacity(void *object) requires (supports_overaligned) {
