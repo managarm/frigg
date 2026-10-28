@@ -1,13 +1,16 @@
 #include <cstdint>
+#include <cstring>
 #include <sys/mman.h>
 
 #include <frg/slab.hpp>
 #include <frg/spinlock.hpp>
 #include <gtest/gtest.h>
 
+#include "poisoning.hpp"
+
 namespace {
 
-struct slab_policy {
+struct slab_policy : asan_poisoning {
 	uintptr_t map(size_t length) {
 		if (fail_maps)
 			return 0;
@@ -15,10 +18,12 @@ struct slab_policy {
 		               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		if (p == MAP_FAILED)
 			return 0;
+		poison(p, length);
 		return reinterpret_cast<uintptr_t>(p);
 	}
 
 	void unmap(uintptr_t address, size_t length) {
+		unpoison(reinterpret_cast<void *>(address), length);
 		munmap(reinterpret_cast<void *>(address), length);
 	}
 
@@ -59,4 +64,27 @@ TEST(slab, oversized_allocations_do_not_wrap) {
 	EXPECT_EQ(alloc.allocate(SIZE_MAX - 4095), nullptr);
 
 	EXPECT_EQ(alloc.allocate(SIZE_MAX & ~size_t{4095}), nullptr);
+}
+
+TEST(slab, reallocate) {
+	slab_policy plcy;
+	pool p{plcy};
+	allocator alloc{&p};
+
+	// Shrink and grow within the same slot.
+	auto obj = static_cast<char *>(alloc.allocate(10));
+	ASSERT_NE(obj, nullptr);
+	memset(obj, 'a', 10);
+	EXPECT_EQ(alloc.reallocate(obj, 5), obj);
+	EXPECT_EQ(alloc.reallocate(obj, 10), obj);
+
+	// Grow into a different slot and then into a large allocation.
+	for (size_t new_size : {size_t{1000}, size_t{1024 * 1024}}) {
+		auto moved = static_cast<char *>(alloc.reallocate(obj, new_size));
+		ASSERT_NE(moved, nullptr);
+		for (size_t i = 0; i < 5; i++)
+			EXPECT_EQ(moved[i], 'a');
+		obj = moved;
+	}
+	alloc.free(obj);
 }

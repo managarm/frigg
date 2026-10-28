@@ -7,17 +7,21 @@
 #include <frg/spinlock.hpp>
 #include <gtest/gtest.h>
 
+#include "poisoning.hpp"
+
 // Plain mapping policy without over-alignment support.
-struct sharded_slab_base_policy {
+struct sharded_slab_base_policy : asan_poisoning {
 	void *map(size_t size) {
 		void *p = mmap(nullptr, size, PROT_READ | PROT_WRITE,
 		               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		if (p == MAP_FAILED)
 			return nullptr;
+		asan_poisoning::poison(p, size);
 		return p;
 	}
 
 	void unmap(void *p, size_t size) {
+		asan_poisoning::unpoison(p, size);
 		munmap(p, size);
 	}
 };
@@ -41,6 +45,7 @@ struct sharded_slab_policy : sharded_slab_base_policy {
 			munmap(reinterpret_cast<void *>(base), aligned - base);
 		if (aligned + size < base + over)
 			munmap(reinterpret_cast<void *>(aligned + size), (base + over) - (aligned + size));
+		asan_poisoning::poison(reinterpret_cast<void *>(aligned), size);
 		return reinterpret_cast<void *>(aligned);
 	}
 };
@@ -432,17 +437,20 @@ struct poison_policy : sharded_slab_base_policy {
 	}
 
 	void poison(void *p, size_t size) {
+		asan_poisoning::poison(p, size);
 		uintptr_t address = reinterpret_cast<uintptr_t>(p);
 		clear_range(address, address + size);
 	}
 
 	void unpoison(void *p, size_t size) {
+		asan_poisoning::unpoison(p, size);
 		uintptr_t address = reinterpret_cast<uintptr_t>(p);
 		clear_range(address, address + size);
 		ranges.emplace_back(address, address + size);
 	}
 
 	void unpoison_expand(void *p, size_t size) {
+		asan_poisoning::unpoison_expand(p, size);
 		uintptr_t address = reinterpret_cast<uintptr_t>(p);
 		clear_range(address, address + size);
 		ranges.emplace_back(address, address + size);
