@@ -374,6 +374,9 @@ struct pool {
 
 		size_t capacity = capacity_of(object);
 
+		if constexpr (slab::has_poisoning_support<P>)
+			policy_.unpoison_expand(object, capacity);
+
 		if (new_size <= capacity) {
 			if constexpr (slab::has_poisoning_support<P>) {
 				policy_.poison(object, capacity);
