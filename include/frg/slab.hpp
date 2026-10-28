@@ -603,6 +603,8 @@ void *slab_pool<Policy, Mutex>::realloc(void *p, size_t new_size) {
 	void *new_p = allocate(new_size);
 	if(!new_p)
 		return nullptr;
+	if constexpr (slab::has_poisoning_support<Policy>)
+		_plcy.unpoison_expand(p, current_size);
 	memcpy(new_p, p, current_size);
 	free(p);
 	return new_p;
