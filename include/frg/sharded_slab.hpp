@@ -17,6 +17,7 @@
 #include <frg/scope_exit.hpp>
 #include <frg/slab.hpp>
 #include <frg/string_stub.hpp>
+#include <frg/detection.hpp>
 
 namespace frg FRG_VISIBILITY {
 
@@ -144,9 +145,34 @@ struct pool {
 
 	using domain_type = domain<P>;
 
-	static constexpr size_t page_size = 4096;
-	static constexpr size_t chunk_boundary = 1 << 18;
-	static constexpr size_t chunk_size = chunk_boundary;
+	static constexpr size_t page_size = [](){
+		if constexpr (is_detected_v<policy_pagesize_t, P>)
+			return P::pagesize;
+		else
+			return 0x1000;
+	}();
+
+	static constexpr size_t chunk_boundary = [] {
+		if constexpr (requires { P::sb_size; }) {
+			return P::sb_size;
+		}else{
+			return 1 << 18;
+		}
+	}();
+
+	static constexpr size_t chunk_size = [](){
+		if constexpr (is_detected_v<policy_slabsize_t, P>)
+			return P::slabsize;
+		else
+			return 1 << 18;
+	}();
+
+	static_assert(chunk_boundary >= chunk_size);
+
+	static_assert(!(chunk_boundary & (page_size - 1)),
+			"Superblock size must be a multiple of the page size");
+	static_assert(!(chunk_size & (page_size - 1)),
+			"Slab size must be a multiple of the page size");
 
 	// Upper bound on bucket::reactivate_threshold.
 	static constexpr size_t max_reactivate_threshold = 8;
